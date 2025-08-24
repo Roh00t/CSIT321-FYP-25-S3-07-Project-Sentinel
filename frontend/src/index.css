@@ -1,14 +1,66 @@
 body{
   min-height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: center;
   font-family: "Poppins", serif;
 }
 
-.dark-mode-btn {
+header {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 56px;
+  padding: 0 20px;
+  z-index: 1000;
+}
+
+header nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+header nav a {
+  text-decoration: none;
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+  font-weight: 400;
+}
+
+header nav a.logo {
+  font-size: 1.2rem;
+  font-weight: bold;
+  height: 50%;
+  display: flex;
+  align-items: center;
+  padding-right: 20px;
+  margin-right: 10px;
+  border-right: 2px solid #707070;
+}
+
+/* Hover effect - matches IBM's subtle underline */
+header nav a:not(.logo):hover {
+  text-decoration: underline;
+  background: transparent; /* Remove your gray background */
+}
+
+.dark-mode-btn {
+  position: static; /* Changed from fixed */
+  /* Remove top/right positioning */
+}
+
+/* Ensure header-right aligns properly */
+header .header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Adjust spacing as needed */
+  margin-left: auto; /* Pushes it to the far right */
+}
+
+/* Avatar specific styling */
+.chakra-avatar {
+  margin-right: 10px; /* Space from right edge */
 }
