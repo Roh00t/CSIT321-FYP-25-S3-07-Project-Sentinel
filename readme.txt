@@ -1,7 +1,7 @@
 Have 2 terminals active
 In the first:
-    npm run install
     cd frontend
+    npm install
     npm run dev
 
 In the second:
