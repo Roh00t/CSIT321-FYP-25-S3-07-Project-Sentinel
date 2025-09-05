@@ -1,10 +1,10 @@
 Have 2 terminals active
 In the first:
     cd frontend
-    npm run install
+    npm install
     npm run dev
 
 In the second:
     cd backend
-    npm run install
+    npm install
     python run.py
