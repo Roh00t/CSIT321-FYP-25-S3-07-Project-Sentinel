@@ -4,9 +4,13 @@ In the first:
     npm install
     npm run dev
 
-In the second:
+In the second (for first timer):
     cd backend
-    python -m venv venv
+    python -m venv venv 
     .\venv\Scripts\Activate.ps1
     pip install -r requirements.txt
+    python run.py
+
+Otherwise:
+    cd backend
     python run.py
