@@ -12,27 +12,24 @@ with app.app_context():
 
     # Seed AppUser
     if not AppUser.query.filter_by(username="john_doe").first():
-        password = "user123"
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         app_user = AppUser(
             first_name="John",
             last_name="Doe",
             email="john@example.com",
             username="john_doe",
-            password=hashed.decode('utf-8'),
             subscription_plan="Pro"
         )
+        app_user.set_password("user123")
         db.session.add(app_user)
         print("✅ AppUser 'john_doe' created.")
 
     # Seed Admin
     if not Admin.query.filter_by(username="admin").first():
-        password = "admin123"
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         admin = Admin(
             username="admin",
-            password=hashed.decode('utf-8')
+            email="admin@example.com"
         )
+        admin.set_password("admin123")
         db.session.add(admin)
         print("✅ Admin 'admin' created.")
 

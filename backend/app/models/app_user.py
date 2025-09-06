@@ -6,12 +6,9 @@ from datetime import datetime
 class AppUser(User):
     __tablename__ = 'app_users'
 
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
     subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Plus, Pro
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

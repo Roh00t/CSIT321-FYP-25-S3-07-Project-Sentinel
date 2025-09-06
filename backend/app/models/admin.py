@@ -5,9 +5,7 @@ from .user import User
 class Admin(User):
     __tablename__ = 'admins'
 
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+    id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
 
     __mapper_args__ = {
         'polymorphic_identity': 'admin',

@@ -1,3 +1,4 @@
+// src/pages/PricingPlansPage.tsx
 import { useState } from 'react';
 
 export default function PricingPlansPage() {

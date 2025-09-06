@@ -7,8 +7,14 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def profile():
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if user:
+        return jsonify({
+            "username": user.username,
+            "user_id": user.id
+        }), 200
+    return jsonify({"msg": "User not found"}), 404
 
 @main_bp.route('/upload-json', methods=['POST'])
 def upload_json():
