@@ -26,15 +26,6 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
 
-    # Create tables on first request (Flask 3.x compatible)
-    @app.before_request
-    def create_tables_once():
-        if not hasattr(app, 'tables_created'):
-            with app.app_context():
-                db.create_all()
-                print("Database tables created")
-                app.tables_created = True
-
     # Optional: Print startup message
     with app.app_context():
         print("App initialized. Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])

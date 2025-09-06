@@ -1,4 +1,4 @@
-# init_db.py
+# init_db.py, kept for manual DB initialization if needed
 from app import create_app, db
 
 app = create_app()
