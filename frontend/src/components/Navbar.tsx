@@ -1,4 +1,5 @@
 // src/components/Navbar.tsx
+// src/components/Navbar.tsx
 import { Link } from 'react-router-dom';
 <<<<<<< HEAD
 import { useEffect, useState } from 'react';
@@ -25,6 +26,7 @@ export default function Navbar() {
   }}, []);
 =======
 import { useUserSession } from '../hooks/useUserSession';
+import { useUserSession } from '../hooks/useUserSession';
 import sentinelIcon from '../assets/sentinel-icon.svg';
 
 export default function Navbar() {
@@ -33,7 +35,6 @@ export default function Navbar() {
   // Debug (optional — remove later)
   console.log('User Type:', user_type);
   console.log('Is Authenticated:', isAuthenticated);
->>>>>>> 113e087731a23ec12e6bf1997c7110ef0d1c44d4
 
   return (
     <nav className="flex items-center space-x-8 px-6 py-4 bg-gray-800 text-white text-lg font-semibold shadow-md sticky top-0 z-50">
@@ -48,19 +49,6 @@ export default function Navbar() {
 
       {/* Navigation Links */}
       <div className="flex space-x-6">
-<<<<<<< HEAD
-        <Link to="/" className="hover:text-blue-300 transition">
-          Home
-        </Link>
-        <Link to="/pricing" className="hover:text-blue-300 transition">
-          Pricing
-        </Link>
-
-        {username ? (
-          <span>{username}'s profile</span>
-        ) : (
-          <>
-=======
         {/* NOT LOGGED IN */}
         {!isAuthenticated && (
           <>
@@ -70,7 +58,6 @@ export default function Navbar() {
             <Link to="/pricing" className="hover:text-blue-300 transition">
               Pricing
             </Link>
->>>>>>> 113e087731a23ec12e6bf1997c7110ef0d1c44d4
             <Link to="/register" className="hover:text-blue-300 transition">
               Register
             </Link>
@@ -79,8 +66,6 @@ export default function Navbar() {
             </Link>
           </>
         )}
-<<<<<<< HEAD
-=======
 
         {/* LOGGED IN AS APP USER */}
         {isAuthenticated && user_type === 'app_user' && (
@@ -105,7 +90,6 @@ export default function Navbar() {
             </Link>
           </>
         )}
->>>>>>> 113e087731a23ec12e6bf1997c7110ef0d1c44d4
       </div>
     </nav>
   );
