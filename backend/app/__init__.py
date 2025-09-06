@@ -6,6 +6,7 @@ from config import Config
 from dotenv import load_dotenv
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
+from app.routes.alerts import alerts_bp
 import pymysql
 
 load_dotenv()
@@ -28,6 +29,7 @@ def create_app():
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
     with app.app_context():
         # Extract config values

@@ -9,6 +9,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AppDashboard from './pages/AppDashboard';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import PageNotFoundPage from './pages/PageNotFoundPage';
+import AlertsPage from './pages/alertPage';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
             <Route path="dashboard" element={<AppDashboard />} />
+            <Route path="alerts" element={<AlertsPage />} />
           </Route>
 
           {/* Catch-all: Redirect logged-in users */}
