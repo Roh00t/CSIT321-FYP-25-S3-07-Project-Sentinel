@@ -65,7 +65,7 @@ def login():
         return jsonify({"msg": "Invalid username or password"}), 401
 
     # Create JWT token
-    access_token = create_access_token(identity=user.user_id)
+    access_token = create_access_token(identity=user.id)
 
     # Return user_type so frontend knows role
     return jsonify({
