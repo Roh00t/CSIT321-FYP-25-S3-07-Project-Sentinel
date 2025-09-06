@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import notifySessionChange from '../utils/notifySessionChange';
 
 interface LoginResponse {
   access_token: string;
@@ -33,6 +34,9 @@ export default function LoginPage() {
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user_type', data.user_type);
         localStorage.setItem('username', data.username);
+
+        // Notify other tabs/components of session change
+        notifySessionChange();
 
         navigate('/dashboard');
       } else {
