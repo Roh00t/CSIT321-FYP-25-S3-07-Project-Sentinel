@@ -1,3 +1,4 @@
 # app/models/__init__.py
-# This file makes models a Python package
 from .user import User
+from .app_user import AppUser
+from .admin import Admin

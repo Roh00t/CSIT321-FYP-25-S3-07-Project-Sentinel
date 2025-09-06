@@ -5,6 +5,7 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from config import Config
 from dotenv import load_dotenv
+from sqlalchemy import inspect
 
 load_dotenv()
 
@@ -26,8 +27,13 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
 
-    # Optional: Print startup message
+    # CREATE TABLES IF NOT EXIST — runs when app is created
     with app.app_context():
-        print("App initialized. Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
+        inspector = inspect(db.engine)
+        if not inspector.get_table_names():
+            db.create_all()
+            print("Database tables created successfully!")
+        else:
+            print("Database tables already exist — skipping creation.")
 
     return app

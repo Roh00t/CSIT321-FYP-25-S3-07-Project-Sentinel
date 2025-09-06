@@ -12,11 +12,12 @@ In the second (for first timer):
     pip install -r requirements.txt
     Seeding the database:
         python seed.py
-    python run.py
+    flask run
 
 Otherwise:
     cd backend
-    python run.py
+    .\venv\Scripts\Activate.ps1
+    flask run
 
 
 For MySQL setup (Type in Mysql Command Line Client, during MySQL setup please use default port 3306):
