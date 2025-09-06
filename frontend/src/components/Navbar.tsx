@@ -1,32 +1,7 @@
 // src/components/Navbar.tsx
-// src/components/Navbar.tsx
 import { Link } from 'react-router-dom';
-<<<<<<< HEAD
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import sentinelIcon from '../assets/sentinel-icon.svg';
-
-export default function Navbar() {
-  const [username, setUsername] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token'); // JWT stored after login
-    if (token) {
-    axios.get('http://localhost:5000/api/auth/profile', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => {
-      console.log('Profile response:', res.data);
-      setUsername(res.data.username); // match your API response key
-    })
-    .catch(err => {
-      console.error('Profile fetch error:', err.response?.data || err);
-      setUsername(null);
-    });
-  }}, []);
-=======
 import { useUserSession } from '../hooks/useUserSession';
-import { useUserSession } from '../hooks/useUserSession';
+import LogoutButton from './LogoutButton';
 import sentinelIcon from '../assets/sentinel-icon.svg';
 
 export default function Navbar() {
@@ -79,6 +54,7 @@ export default function Navbar() {
             <Link to="/app/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <LogoutButton />
           </>
         )}
 
@@ -88,6 +64,7 @@ export default function Navbar() {
             <Link to="/admin/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <LogoutButton />
           </>
         )}
       </div>
