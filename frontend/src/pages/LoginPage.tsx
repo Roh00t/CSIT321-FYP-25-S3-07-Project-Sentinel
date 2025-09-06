@@ -3,6 +3,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+interface LoginResponse {
+  access_token: string;
+  user_type: string;
+  username: string;
+  msg?: string;
+}
+
 export default function LoginPage() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [message, setMessage] = useState<string | null>(null);
@@ -19,11 +26,15 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
+      const data: LoginResponse = await res.json();
 
       if (res.ok && data.access_token) {
+        // Store token, user_type, and username
         localStorage.setItem('token', data.access_token);
-        navigate('/'); // Redirect to dashboard/home
+        localStorage.setItem('user_type', data.user_type);
+        localStorage.setItem('username', data.username);
+
+        navigate('/dashboard');
       } else {
         setMessage(data.msg || 'Login failed. Please check your credentials.');
       }

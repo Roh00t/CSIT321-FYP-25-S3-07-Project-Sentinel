@@ -8,16 +8,20 @@ interface RegisterResponse {
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
     username: '',
     email: '',
     password: '',
   });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setMessage(null);
+    setLoading(true);
 
     try {
       const res = await fetch('http://127.0.0.1:5000/api/auth/register', {
@@ -38,6 +42,8 @@ export default function RegisterPage() {
     } catch (err) {
       setMessage('Network error. Please try again later.');
       setError(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -54,6 +60,42 @@ export default function RegisterPage() {
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Join SENTINEL</h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* First Name */}
+          <div>
+            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+              First Name
+            </label>
+            <input
+              id="first_name"
+              type="text"
+              placeholder="Enter your first name"
+              value={formData.first_name}
+              onChange={(e) =>
+                setFormData({ ...formData, first_name: e.target.value })
+              }
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              required
+            />
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+              Last Name
+            </label>
+            <input
+              id="last_name"
+              type="text"
+              placeholder="Enter your last name"
+              value={formData.last_name}
+              onChange={(e) =>
+                setFormData({ ...formData, last_name: e.target.value })
+              }
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              required
+            />
+          </div>
+
           {/* Username */}
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
@@ -111,9 +153,10 @@ export default function RegisterPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition duration-200 transform hover:scale-[1.02]"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition duration-200 transform hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Register
+            {loading ? 'Registering...' : 'Register'}
           </button>
         </form>
 
