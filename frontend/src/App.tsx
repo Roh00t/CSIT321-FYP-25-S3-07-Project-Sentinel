@@ -50,7 +50,7 @@ function App() {
             }
           />
 
-          {/* 404 Route — MUST be last */}
+          {/* ✅ 404 Route — MUST be last */}
           <Route path="*" element={<PageNotFoundPage />} />
         </Routes>
       </div>

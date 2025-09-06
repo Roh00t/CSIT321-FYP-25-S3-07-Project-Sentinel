@@ -16,7 +16,7 @@ export function useUserSession() {
     isAuthenticated: false,
   });
 
-  const updateSession = () => {
+  useEffect(() => {
     const token = localStorage.getItem('token');
     const user_type = localStorage.getItem('user_type');
     const username = localStorage.getItem('username');
@@ -27,39 +27,6 @@ export function useUserSession() {
       username,
       isAuthenticated: !!token,
     });
-  };
-
-  // Load on mount
-  useEffect(() => {
-    updateSession();
-  }, []);
-
-  // Listen for localStorage changes (cross-tab)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'token' || e.key === 'user_type' || e.key === 'username') {
-        updateSession();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  // Listen for custom sessionchange event (same-tab)
-  useEffect(() => {
-    const handleSessionChange = () => {
-      updateSession();
-    };
-
-    window.addEventListener('sessionchange', handleSessionChange);
-
-    return () => {
-      window.removeEventListener('sessionchange', handleSessionChange);
-    };
   }, []);
 
   return session;
