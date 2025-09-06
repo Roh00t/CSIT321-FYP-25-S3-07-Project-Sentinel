@@ -1,4 +1,4 @@
-# app/models/user.py
+# models.py
 from app import db
 from datetime import datetime
 

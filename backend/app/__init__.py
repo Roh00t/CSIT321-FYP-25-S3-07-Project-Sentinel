@@ -3,18 +3,21 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
-from config import Config  # Make sure config.py is accessible
+from config import Config
+from dotenv import load_dotenv
+
+load_dotenv()
 
 db = SQLAlchemy()
 jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)  # Load config from Config class
+    app.config.from_object(Config)
 
     db.init_app(app)
     jwt.init_app(app)
-    CORS(app)  # Allow frontend to communicate
+    CORS(app, origins=["http://localhost:5173"])
 
     # Import and register blueprints
     from app.routes.auth import auth_bp
@@ -23,9 +26,17 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
 
-    # Create tables in the database (only for SQLite dev)
+    # Create tables on first request (Flask 3.x compatible)
+    @app.before_request
+    def create_tables_once():
+        if not hasattr(app, 'tables_created'):
+            with app.app_context():
+                db.create_all()
+                print("Database tables created")
+                app.tables_created = True
+
+    # Optional: Print startup message
     with app.app_context():
-        db.create_all()
-        print("Database created with SQLite at 'app.db'")
+        print("App initialized. Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 
     return app

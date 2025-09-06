@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 *.cpython-*.pyc
 *.so
 .Python
@@ -49,3 +50,4 @@ package-lock.json
 # Environment variables
 .env
 .env.local
+instance/
