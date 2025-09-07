@@ -54,6 +54,9 @@ export default function Navbar() {
             <Link to="/app/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <Link to="/app/alerts" className="hover:text-blue-300 transition">
+              Alerts
+            </Link>
           </>
         )}
 
