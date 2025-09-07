@@ -9,7 +9,8 @@ export default function AlertsPage() {
   const [filters, setFilters] = useState({
     minSeverity: 0,
     alertsOnly: false,
-    protocols: new Set<string>()
+    protocols: new Set<string>(),
+    port: undefined as number | undefined,
   });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,11 +38,12 @@ export default function AlertsPage() {
   // Filter alerts based on selected filters
   const filteredAlerts = alerts.filter((a) => {
     if (filters.alertsOnly && !a.signature) return false;
-    if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity))
-      return false;
+    if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
+    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
     return true;
   });
+
   // Summary calculations
 const summary = useMemo(() => {
   const alertEvents = filteredAlerts.filter(a => a.severity); // only severity events
@@ -52,11 +54,12 @@ const summary = useMemo(() => {
   const topSignatures: Record<string, number> = {};
 
   alertEvents.forEach((a) => {
-    if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
     if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
     if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
   });
-
+  filteredAlerts.forEach((a) => {
+    if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
+  });
   const sortDesc = (obj: Record<string, number>) =>
     Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
@@ -186,15 +189,28 @@ const summary = useMemo(() => {
               {proto}
             </label>
           ))}
+          <label className="ml-4">
+            Port:
+            <input
+              type="number"
+              min={0}
+              max={65535}
+              value={filters.port ?? ""}
+              onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
+              className="ml-2 border rounded px-2 py-1 w-20"
+              placeholder="Any"
+            />
+          </label>
 
           <button
             onClick={() =>
-              setFilters({ minSeverity: 0, alertsOnly: false, protocols: new Set() })
+              setFilters({ minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined })
             }
             className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
           >
             Show All
           </button>
+
         </div>
       )}
 
@@ -208,7 +224,9 @@ const summary = useMemo(() => {
               <tr>
                 <th className="p-3 text-left font-medium text-gray-700">Timestamp</th>
                 <th className="p-3 text-left font-medium text-gray-700">Source IP</th>
+                <th className="p-3 text-left font-medium text-gray-700">Source Port</th>
                 <th className="p-3 text-left font-medium text-gray-700">Destination IP</th>
+                <th className="p-3 text-left font-medium text-gray-700">Destination Port</th>
                 <th className="p-3 text-left font-medium text-gray-700">Signature</th>
                 <th className="p-3 text-left font-medium text-gray-700">Severity</th>
               </tr>
@@ -230,7 +248,9 @@ const summary = useMemo(() => {
                 >
                   <td className="p-3">{a.timestamp || "-"}</td>
                   <td className="p-3">{a.src_ip || "-"}</td>
+                  <td className="p-3">{a.src_port ?? "-"}</td>
                   <td className="p-3">{a.dest_ip || "-"}</td>
+                  <td className="p-3">{a.dest_port ?? "-"}</td>
                   <td className="p-3">{a.signature || "-"}</td>
                   <td className="p-3 font-semibold">{a.severity || "-"}</td>
                 </tr>

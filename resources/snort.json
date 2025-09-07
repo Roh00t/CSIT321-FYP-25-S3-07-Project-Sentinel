@@ -1,0 +1,4 @@
+{"timestamp":"2025-09-07T10:15:00.123Z","src_ip":"192.168.1.5","dest_ip":"10.0.0.8","signature":"ET SCAN Nmap Scripting Engine User-Agent","severity":2,"protocol":"TCP"}
+{"timestamp":"2025-09-07T10:15:05.456Z","src_ip":"192.168.1.12","dest_ip":"10.0.0.9","signature":"ET MALWARE Possible ransomware activity","severity":1,"protocol":"UDP"}
+{"timestamp":"2025-09-07T10:15:07.789Z","src_ip":"192.168.1.15","dest_ip":"10.0.0.20","signature":"ET POLICY Suspicious outbound DNS","severity":3,"protocol":"UDP"}
+{"timestamp":"2025-09-07T10:16:12.321Z","src_ip":"192.168.1.25","dest_ip":"10.0.0.33","signature":"ET SCAN XMAS Scan","severity":2,"protocol":"TCP"}
