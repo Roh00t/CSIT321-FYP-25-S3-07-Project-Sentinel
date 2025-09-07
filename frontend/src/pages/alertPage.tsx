@@ -135,24 +135,22 @@ export default function AlertsPage() {
               {filteredAlerts.map((a, i) => (
                 <tr
                   key={i}
-                  className="hover:bg-gray-50 transition border-b border-gray-200 cursor-pointer"
+                  className={`transition border-b border-gray-200 cursor-pointer hover:opacity-90 ${
+                    a.severity === 1
+                      ? "bg-red-100"
+                      : a.severity === 2
+                      ? "bg-yellow-100"
+                      : a.severity === 3
+                      ? "bg-green-100"
+                      : ""
+                  }`}
                   onDoubleClick={() => setSelectedAlert(a.original || a)}
                 >
                   <td className="p-3">{a.timestamp || "-"}</td>
                   <td className="p-3">{a.src_ip || "-"}</td>
                   <td className="p-3">{a.dest_ip || "-"}</td>
                   <td className="p-3">{a.signature || "-"}</td>
-                  <td
-                    className={`p-3 font-semibold ${
-                      a.severity === 1
-                        ? "text-red-600"
-                        : a.severity === 2
-                        ? "text-orange-500"
-                        : "text-gray-700"
-                    }`}
-                  >
-                    {a.severity || "-"}
-                  </td>
+                  <td className="p-3 font-semibold">{a.severity || "-"}</td>
                 </tr>
               ))}
             </tbody>
