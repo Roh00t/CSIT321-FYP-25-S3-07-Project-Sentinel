@@ -1,10 +1,12 @@
 // src/pages/AdminEditProfilePage.tsx
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
 
 interface ProfileData {
   username: string;
+  email: string;
   password: string;
   confirmPassword: string;
 }
@@ -12,14 +14,16 @@ interface ProfileData {
 interface ApiResponse {
   msg: string;
   username?: string;
+  email?: string;
 }
 
 export default function AdminEditProfilePage() {
-  const { username: currentUsername, token } = useUserSession();
+  const { token, username: currentUsername } = useUserSession();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState<ProfileData>({
     username: currentUsername || '',
+    email: '',
     password: '',
     confirmPassword: '',
   });
@@ -28,42 +32,86 @@ export default function AdminEditProfilePage() {
   const [error, setError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Load current profile on mount
+  // 🔁 Fetch current profile (including email) on mount
   useEffect(() => {
-    if (currentUsername) {
-      setFormData(prev => ({
-        ...prev,
-        username: currentUsername
-      }));
-    }
-  }, [currentUsername]);
+    const fetchProfile = async () => {
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://127.0.0.1:5000/api/auth/admin/profile', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error('Failed to load profile');
+
+        const data = await res.json();
+        setFormData(prev => ({
+          ...prev,
+          username: data.username,
+          email: data.email || '',
+        }));
+      } catch (err) {
+        console.error('Failed to fetch profile:', err);
+        setMessage('Could not load profile. Redirecting...');
+        setError(true);
+        setTimeout(() => navigate('/login'), 1500);
+      }
+    };
+
+    fetchProfile();
+  }, [token, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
 
-    // Client-side validation
-    if (!formData.username?.trim()) {
+    // Validate username
+    if (!formData.username.trim()) {
       setMessage("Username is required");
       setError(true);
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setMessage("Passwords don't match");
-      setError(true);
-      return;
+    // If changing password, validate match
+    if (formData.password || formData.confirmPassword) {
+      if (formData.password !== formData.confirmPassword) {
+        setMessage("Passwords don't match");
+        setError(true);
+        return;
+      }
+      if (formData.password.trim().length < 6) {
+        setMessage("Password must be at least 6 characters");
+        setError(true);
+        return;
+      }
     }
 
     setLoading(true);
 
-    // Build payload — only include password if non-empty
-    const payload: any = {
-      username: formData.username.trim(),
-    };
-
-    if (formData.password?.trim()) {
+    // ✅ Build payload: only include non-empty fields
+    const payload: Partial<ProfileData> = {};
+    if (formData.username.trim() !== currentUsername) {
+      payload.username = formData.username.trim();
+    }
+    if (formData.email.trim()) {
+      payload.email = formData.email.trim();
+    }
+    if (formData.password.trim()) {
       payload.password = formData.password.trim();
+    }
+
+    // If nothing to update
+    if (Object.keys(payload).length === 0) {
+      setMessage("No changes to save");
+      setError(false);
+      setLoading(false);
+      return;
     }
 
     try {
@@ -76,17 +124,18 @@ export default function AdminEditProfilePage() {
         body: JSON.stringify(payload),
       });
 
-      console.log(payload); // Debugging line
-
       const data: ApiResponse = await res.json();
 
       if (res.ok) {
         setMessage(data.msg || 'Profile updated successfully!');
         setError(false);
 
-        localStorage.setItem('username', data.username || formData.username);
+        // Update localStorage
+        if (data.username) localStorage.setItem('username', data.username);
+        if (data.email) localStorage.setItem('email', data.email);
         window.dispatchEvent(new Event('sessionchange'));
 
+        // Redirect after success
         setTimeout(() => {
           navigate('/admin/profile');
         }, 1500);
@@ -134,6 +183,22 @@ export default function AdminEditProfilePage() {
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              required
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email *
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              placeholder="Enter your email"
               required
             />
           </div>

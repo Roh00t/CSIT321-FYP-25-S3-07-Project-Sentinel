@@ -66,6 +66,9 @@ export default function Navbar() {
             <Link to="/admin/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <Link to="/admin/profile" className="hover:text-blue-300 transition">
+              Profile
+            </Link>
           </>
         )}
       </div>

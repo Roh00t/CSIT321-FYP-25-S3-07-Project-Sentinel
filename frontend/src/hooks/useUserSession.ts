@@ -1,4 +1,5 @@
 // src/hooks/useUserSession.ts
+
 import { useState, useEffect } from 'react';
 
 interface UserSession {
@@ -9,12 +10,21 @@ interface UserSession {
 }
 
 export function useUserSession() {
-  const [session, setSession] = useState<UserSession>({
-    token: null,
-    user_type: null,
-    username: null,
-    isAuthenticated: false,
-  });
+  // ✅ Read from localStorage at initialization
+  const getInitialSession = (): UserSession => {
+    const token = localStorage.getItem('token');
+    const user_type = localStorage.getItem('user_type');
+    const username = localStorage.getItem('username');
+
+    return {
+      token,
+      user_type,
+      username,
+      isAuthenticated: !!token,
+    };
+  };
+
+  const [session, setSession] = useState<UserSession>(getInitialSession);
 
   const updateSession = () => {
     const token = localStorage.getItem('token');
@@ -29,37 +39,27 @@ export function useUserSession() {
     });
   };
 
-  // Load on mount
+  // Load on mount (redundant now, but safe)
   useEffect(() => {
+    // This is now optional, but keeps session in sync if localStorage changes before React mounts
     updateSession();
   }, []);
 
-  // Listen for localStorage changes (cross-tab)
+  // Listen for cross-tab changes
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'token' || e.key === 'user_type' || e.key === 'username') {
+      if (['token', 'user_type', 'username'].includes(e.key!)) {
         updateSession();
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Listen for custom sessionchange event (same-tab)
+  // Listen for same-tab session changes
   useEffect(() => {
-    const handleSessionChange = () => {
-      updateSession();
-    };
-
-    window.addEventListener('sessionchange', handleSessionChange);
-
-    return () => {
-      window.removeEventListener('sessionchange', handleSessionChange);
-    };
+    window.addEventListener('sessionchange', updateSession);
+    return () => window.removeEventListener('sessionchange', updateSession);
   }, []);
 
   return session;

@@ -11,6 +11,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.Text, nullable=False)
     user_type = db.Column(db.String(50))  # For polymorphic mapping
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __mapper_args__ = {
         'polymorphic_identity': 'user',

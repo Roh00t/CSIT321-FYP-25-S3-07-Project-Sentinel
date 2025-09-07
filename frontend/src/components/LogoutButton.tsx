@@ -13,6 +13,7 @@ export default function LogoutButton() {
     localStorage.removeItem('token');
     localStorage.removeItem('user_type');
     localStorage.removeItem('username');
+    localStorage.removeItem('email');
 
     // Notify components
     notifySessionChange();

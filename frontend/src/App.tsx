@@ -10,6 +10,8 @@ import AppDashboard from './pages/AppDashboard';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import PageNotFoundPage from './pages/PageNotFoundPage';
 import AlertsPage from './pages/alertPage';
+import AdminProfilePage from './pages/AdminProfilePage';
+import AdminEditProfilePage from './pages/AdminEditProfilePage';
 
 function App() {
   return (
@@ -29,6 +31,8 @@ function App() {
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="profile/edit" element={<AdminEditProfilePage />} />
           </Route>
 
           {/* Protected AppUser Routes */}
