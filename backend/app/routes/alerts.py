@@ -1,4 +1,3 @@
-# app/routes/alerts.py
 from flask import Blueprint, request, jsonify, current_app
 import os, json
 from werkzeug.utils import secure_filename
@@ -20,22 +19,50 @@ def upload_alerts():
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     file.save(save_path)
 
-    # Try parsing JSON alerts (works for Suricata eve.json and Snort converted JSON)
+    alerts = []
+
     try:
         with open(save_path, "r") as f:
-            data = json.load(f)
+            first_char = f.read(1)
+            f.seek(0)
 
-        # Normalize alerts (so frontend always gets consistent structure)
-        alerts = []
-        for alert in data if isinstance(data, list) else [data]:
-            alerts.append({
-                "timestamp": alert.get("timestamp") or alert.get("time"),
-                "src_ip": alert.get("src_ip"),
-                "dest_ip": alert.get("dest_ip"),
-                "signature": alert.get("alert", {}).get("signature") if "alert" in alert else alert.get("msg"),
-                "severity": alert.get("alert", {}).get("severity"),
-            })
+            if first_char == "[":
+                data = json.load(f)
+                for alert in data:
+                    # Skip stats-only events
+                    if alert.get("event_type") == "stats":
+                        continue
+                    alerts.append({
+                        "timestamp": alert.get("timestamp") or alert.get("time"),
+                        "src_ip": alert.get("src_ip"),
+                        "dest_ip": alert.get("dest_ip"),
+                        "signature": alert.get("alert", {}).get("signature") if "alert" in alert else alert.get("msg"),
+                        "severity": alert.get("alert", {}).get("severity"),
+                        "protocol": alert.get("proto"),  # optional
+                        "original": alert
+                    })
+            else:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        alert = json.loads(line)
+                        if alert.get("event_type") == "stats":
+                            continue
+                        alerts.append({
+                            "timestamp": alert.get("timestamp") or alert.get("time"),
+                            "src_ip": alert.get("src_ip"),
+                            "dest_ip": alert.get("dest_ip"),
+                            "signature": alert.get("alert", {}).get("signature") if "alert" in alert else alert.get("msg"),
+                            "severity": alert.get("alert", {}).get("severity"),
+                            "protocol": alert.get("proto"),
+                            "original": alert
+                        })
+                    except json.JSONDecodeError:
+                        continue
 
         return jsonify({"alerts": alerts}), 200
+
     except Exception as e:
         return jsonify({"error": f"Failed to parse file: {str(e)}"}), 400
