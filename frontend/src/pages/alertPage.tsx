@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import axios from "axios";
 
 export default function AlertsPage() {
@@ -42,6 +42,32 @@ export default function AlertsPage() {
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
     return true;
   });
+  // Summary calculations
+const summary = useMemo(() => {
+  const alertEvents = filteredAlerts.filter(a => a.severity); // only severity events
+  const total = alertEvents.length;
+
+  const topTalkers: Record<string, number> = {};
+  const topHosts: Record<string, number> = {};
+  const topSignatures: Record<string, number> = {};
+
+  alertEvents.forEach((a) => {
+    if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
+    if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
+    if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
+  });
+
+  const sortDesc = (obj: Record<string, number>) =>
+    Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  return {
+    total,
+    topTalkers: sortDesc(topTalkers),
+    topHosts: sortDesc(topHosts),
+    topSignatures: sortDesc(topSignatures),
+  };
+}, [filteredAlerts]);
+
 
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
@@ -64,6 +90,62 @@ export default function AlertsPage() {
           <input type="file" onChange={handleUpload} className="hidden" />
         </label>
       </div>
+      {/* Summary Counters */}
+      {alerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {/* Total Alerts */}
+          <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
+            <span className="text-4xl font-bold">{summary.total}</span>
+            <span className="mt-2 font-medium">Total Alerts</span>
+          </div>
+
+          {/* Top Talkers */}
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Talkers</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topTalkers.map(([ip, count]) => (
+                  <tr key={ip}>
+                    <td>{ip}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Top Attacked Hosts */}
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topHosts.map(([ip, count]) => (
+                  <tr key={ip}>
+                    <td>{ip}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Top Signatures */}
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Signatures</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topSignatures.map(([sig, count]) => (
+                  <tr key={sig}>
+                    <td>{sig}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
 
       {/* Filters */}
       {alerts.length > 0 && (
