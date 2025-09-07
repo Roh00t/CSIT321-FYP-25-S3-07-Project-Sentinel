@@ -1,4 +1,5 @@
 // src/components/Navbar.tsx
+
 import { Link } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
 import LogoutButton from './LogoutButton';
@@ -7,12 +8,8 @@ import sentinelIcon from '../assets/sentinel-icon.svg';
 export default function Navbar() {
   const { isAuthenticated, user_type } = useUserSession();
 
-  // Debug (optional — remove later)
-  console.log('User Type:', user_type);
-  console.log('Is Authenticated:', isAuthenticated);
-
   return (
-    <nav className="flex items-center space-x-8 px-6 py-4 bg-gray-800 text-white text-lg font-semibold shadow-md sticky top-0 z-50">
+    <nav className="flex items-center justify-between px-6 py-4 bg-gray-800 text-white text-lg font-semibold shadow-md sticky top-0 z-50">
       {/* Logo Section */}
       <div className="flex items-center space-x-3">
         <img 
@@ -57,6 +54,9 @@ export default function Navbar() {
             <Link to="/app/alerts" className="hover:text-blue-300 transition">
               Alerts
             </Link>
+            <Link to="/app/profile" className="hover:text-blue-300 transition">
+              Profile
+            </Link>
           </>
         )}
 
@@ -70,6 +70,16 @@ export default function Navbar() {
               Profile
             </Link>
           </>
+        )}
+      </div>
+
+      {/* Right Side: Logout Button or Spacer */}
+      <div className="flex items-center">
+        {isAuthenticated ? (
+          <LogoutButton />
+        ) : (
+          // Invisible spacer to balance layout
+          <div className="w-20"></div>
         )}
       </div>
     </nav>

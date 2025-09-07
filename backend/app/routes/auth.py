@@ -176,6 +176,124 @@ def update_admin_profile():
         "email": user.email
     }), 200
 
+# GET AppUser Profile
+@auth_bp.route('/appuser/profile', methods=['GET'])
+@jwt_required()
+def get_appuser_profile():
+    user_id = get_jwt_identity()
+
+    try:
+        user = AppUser.query.get(int(user_id))
+        if not user:
+            return jsonify({"msg": "User not found"}), 404
+
+        return jsonify({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "user_type": user.user_type,
+            "subscription_plan": user.subscription_plan,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }), 200
+
+    except (ValueError, TypeError):
+        return jsonify({"msg": "Invalid user ID"}), 401
+
+
+# PUT Update AppUser Profile
+@auth_bp.route('/appuser/profile', methods=['PUT'])
+@jwt_required()
+def update_appuser_profile():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(user_id)
+
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"msg": "No data provided"}), 400
+
+    updated = False
+
+    # Update username
+    if 'username' in data:
+        username = data['username'].strip()
+        if not username:
+            return jsonify({"msg": "Username cannot be empty"}), 400
+
+        if AppUser.query.filter(AppUser.username == username, AppUser.id != user_id).first():
+            return jsonify({"msg": "Username already taken"}), 400
+
+        if Admin.query.filter_by(username=username).first():
+            return jsonify({"msg": "Username taken by admin"}), 400
+
+        user.username = username
+        updated = True
+
+    # Update email
+    if 'email' in data:
+        email = data['email'].strip()
+        if not email:
+            return jsonify({"msg": "Email cannot be empty"}), 400
+
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            return jsonify({"msg": "Invalid email format"}), 400
+
+        if AppUser.query.filter(AppUser.email == email, AppUser.id != user_id).first():
+            return jsonify({"msg": "Email already taken"}), 400
+
+        if Admin.query.filter_by(email=email).first():
+            return jsonify({"msg": "Email taken by admin"}), 400
+
+        user.email = email
+        updated = True
+
+    # Update first_name
+    if 'first_name' in data:
+        first_name = data['first_name'].strip()
+        if not first_name:
+            return jsonify({"msg": "First name cannot be empty"}), 400
+        user.first_name = first_name
+        updated = True
+
+    # Update last_name
+    if 'last_name' in data:
+        last_name = data['last_name'].strip()
+        if not last_name:
+            return jsonify({"msg": "Last name cannot be empty"}), 400
+        user.last_name = last_name
+        updated = True
+
+    # Update password
+    if 'password' in data:
+        password = data['password'].strip()
+        if len(password) < 6:
+            return jsonify({"msg": "Password must be at least 6 characters"}), 400
+
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        user.password = hashed.decode('utf-8')
+        updated = True
+
+    if not updated:
+        return jsonify({"msg": "No changes to save"}), 400
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Database error", "error": str(e)}), 500
+
+    return jsonify({
+        "msg": "Profile updated successfully",
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name
+    }), 200
+
 # Protected route example
 @auth_bp.route('/profile', methods=['GET'])
 @jwt_required()

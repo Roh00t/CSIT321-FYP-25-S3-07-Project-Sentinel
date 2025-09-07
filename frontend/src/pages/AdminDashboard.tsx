@@ -1,6 +1,5 @@
 // src/pages/AdminDashboard.tsx
 import { useUserSession } from '../hooks/useUserSession';
-import LogoutButton from '../components/LogoutButton';
 
 export default function AdminDashboard() {
   const { username } = useUserSession();
@@ -17,7 +16,6 @@ export default function AdminDashboard() {
       <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-100">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-gray-800">Hi Admin, {username}!</h2>
-          <LogoutButton />
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">

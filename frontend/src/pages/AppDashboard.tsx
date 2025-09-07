@@ -1,6 +1,5 @@
 // src/pages/AppDashboard.tsx
 import { useUserSession } from '../hooks/useUserSession';
-import LogoutButton from '../components/LogoutButton';
 
 export default function AppDashboard() {
   const { username } = useUserSession();
@@ -17,7 +16,6 @@ export default function AppDashboard() {
       <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-100">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-gray-800">Hi {username}!</h2>
-          <LogoutButton />
         </div>
 
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">

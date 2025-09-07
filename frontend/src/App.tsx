@@ -12,6 +12,8 @@ import PageNotFoundPage from './pages/PageNotFoundPage';
 import AlertsPage from './pages/alertPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import AdminEditProfilePage from './pages/AdminEditProfilePage';
+import AppUserProfilePage from './pages/AppUserProfilePage';
+import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
 
 function App() {
   return (
@@ -42,6 +44,8 @@ function App() {
           >
             <Route path="dashboard" element={<AppDashboard />} />
             <Route path="alerts" element={<AlertsPage />} />
+            <Route path="profile" element={<AppUserProfilePage />} />
+            <Route path="profile/edit" element={<AppUserEditProfilePage />} />
           </Route>
 
           {/* Catch-all: Redirect logged-in users */}
