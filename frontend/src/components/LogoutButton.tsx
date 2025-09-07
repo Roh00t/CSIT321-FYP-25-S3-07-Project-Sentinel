@@ -1,6 +1,11 @@
 // src/components/LogoutButton.tsx
 import { useNavigate } from 'react-router-dom';
 
+// Helper to notify session change
+const notifySessionChange = () => {
+  window.dispatchEvent(new Event('sessionchange'));
+};
+
 export default function LogoutButton() {
   const navigate = useNavigate();
 
@@ -8,7 +13,11 @@ export default function LogoutButton() {
     localStorage.removeItem('token');
     localStorage.removeItem('user_type');
     localStorage.removeItem('username');
-    navigate('/login');
+
+    // Notify components
+    notifySessionChange();
+
+    navigate('/login', { replace: true });
   };
 
   return (
