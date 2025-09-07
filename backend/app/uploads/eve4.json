@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": "2025-04-05T10:01:22.123456+0000",
+    "src_ip": "192.168.1.50",
+    "dest_ip": "203.0.113.5",
+    "alert": {
+      "signature": "ET POLICY curl User-Agent Outbound",
+      "severity": 2
+    }
+  },
+  {
+    "timestamp": "2025-04-05T10:05:01.777888+0000",
+    "src_ip": "192.168.1.50",
+    "dest_ip": "198.51.100.99",
+    "alert": {
+      "signature": "ET CINS Active Malware IP (sinkhole range)",
+      "severity": 1
+    }
+  }
+]
