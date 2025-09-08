@@ -1,4 +1,5 @@
 // src/pages/PricingPlansPage.tsx
+
 import { useState } from 'react';
 
 export default function PricingPlansPage() {
@@ -9,56 +10,66 @@ export default function PricingPlansPage() {
     {
       name: "Basic",
       price: "$0",
-      period: "forever",
+      period: "/forever",
       description: "Perfect for individuals and home networks.",
       features: [
-        "Up to 1 IDS integration",
-        "Real-time alert feed",
-        "Basic dashboard widgets",
-        "Email support",
-        "Community access",
+        "Secure login & session management",
+        "View, update, and delete your account",
+        "Upload, view, and delete log files manually",
+        "View alert table and inspect individual alerts",
+        "Filter alerts by IP, timestamp, and severity",
+        "Summary counters for daily & overall alerts",
+        "Community support"
       ],
       cta: "Get Started Free",
       highlighted: false,
     },
     {
       name: "Plus",
-      price: "$29",
+      price: "$19",
       period: "/month",
-      description: "Ideal for small teams and SMEs.",
+      description: "For individuals who want real-time threat monitoring.",
       features: [
-        "Up to 3 IDS integrations",
-        "Advanced visualizations & maps",
-        "Custom dashboards",
-        "Role-based access (up to 5 users)",
-        "Weekly reports & export",
+        "All Basic features",
+        "Live IDS integration (Snort, Suricata, Zeek)",
+        "Real-time alert feed & dashboard",
+        "Threat intelligence: CVE, VirusTotal, OTX, AbuseIPDB",
+        "GeoIP mapping for source/destination traffic",
+        "Create, save, and reuse filters (recent & favorites)",
+        "Customize dashboard layout & widgets",
+        "Create and remove graphs to visualize trends",
+        "Set anomaly detection thresholds with email alerts",
+        "Generate automated PDF reports (weekly or on-demand)",
+        "Download or email reports for compliance",
         "Priority email support",
+        "Easy downgrade to Basic anytime"
       ],
       cta: "Start 7-Day Free Trial",
-      highlighted: true, // Highlighted plan
+      highlighted: true,
     },
     {
-      name: "Pro",
-      price: "$99",
+      name: "Team Bundle (5 Users)",
+      price: "$85",
       period: "/month",
-      description: "For enterprises and security teams.",
+      description: "Cost-effective bundle for small teams (5x Plus licenses).",
       features: [
-        "Unlimited IDS integrations",
-        "Full threat intelligence (CVE + MITRE ATT&CK)",
-        "Custom widgets & analytics",
-        "Role-based access (unlimited users)",
-        "Audit logs & compliance reports",
-        "SLA-backed support (24/7)",
-        "SIEM & API integration",
+        "5 licenses of the full Plus plan",
+        "Each user gets full premium features",
+        "No feature restrictions — all users are 'Plus'",
+        "Central billing, individual logins",
+        "Ideal for small teams, labs, or departments",
+        "Flexible assignment — assign now or later",
+        "Same downgrade flexibility for each license",
+        "Save over 10% vs. buying 5 individual Plus plans"
       ],
-      cta: "Contact Sales",
+      cta: "Upgrade Now",
       highlighted: false,
-    },
+    }
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* Header with Brand */}
+      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-6 py-12 text-center">
           <h1 className="text-5xl md:text-7xl font-extrabold text-blue-600 mb-4">
@@ -68,17 +79,16 @@ export default function PricingPlansPage() {
             Pricing Plans
           </p>
           <p className="text-lg text-gray-600 max-w-4xl mx-auto leading-relaxed">
-            Choose the plan that fits your needs — from home labs to enterprise SOC teams. 
-            All plans include real-time threat visualization, CVE intelligence, and intuitive dashboards.
+            Choose the plan that fits your needs — from personal learning to team collaboration. 
+            All premium plans include real-time monitoring, threat intelligence, and full dashboard customization.
           </p>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Pricing Cards */}
       <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Pricing Cards */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">Flexible Plans for Every Team</h2>
+          <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">Simple, Fair Pricing</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {plans.map((plan, index) => (
               <div
@@ -156,39 +166,71 @@ export default function PricingPlansPage() {
               </thead>
               <tbody className="text-gray-700">
                 {[
-                  'IDS Integrations',
-                  'Real-Time Alerts',
-                  'Dashboard Customization',
-                  'User Management',
-                  'Export & Compliance Reports',
-                  'Support',
-                  'SIEM/API Integration',
+                  'Account Management',
+                  'Manual Log Upload & Deletion',
+                  'Alert Table & Inspection',
+                  'Filter by IP, Time, Severity',
+                  'Summary Counters',
+                  'Live IDS Integration',
+                  'Threat Intelligence',
+                  'GeoIP Visualization',
+                  'Save & Reuse Filters',
+                  'Custom Dashboard Layout',
+                  'Create & Remove Graphs',
+                  'Anomaly Detection & Alerts',
+                  'Automated PDF Reports',
+                  'Download/Email Reports',
+                  'Downgrade to Basic',
+                  'Support'
                 ].map((feature, idx) => (
                   <tr key={idx} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-4 font-medium">{feature}</td>
                     {plans.map((plan) => {
                       let included = false;
-                      if (feature === 'IDS Integrations') included = plan.name !== 'Basic';
-                      else if (feature === 'Dashboard Customization') included = plan.name !== 'Basic';
-                      else if (feature === 'User Management') included = plan.name !== 'Basic';
-                      else if (feature === 'Export & Compliance Reports') included = ['Plus', 'Pro'].includes(plan.name);
-                      else if (feature === 'SIEM/API Integration') included = plan.name === 'Pro';
-                      else included = true; // Most features are in all plans
+                      let note = '';
+
+                      const premiumFeatures = [
+                        'Live IDS Integration',
+                        'Threat Intelligence',
+                        'GeoIP Visualization',
+                        'Save & Reuse Filters',
+                        'Custom Dashboard Layout',
+                        'Create & Remove Graphs',
+                        'Anomaly Detection & Alerts',
+                        'Automated PDF Reports',
+                        'Download/Email Reports',
+                        'Downgrade to Basic'
+                      ];
+
+                      if (plan.name === "Basic") {
+                        included = !premiumFeatures.includes(feature);
+                      } else {
+                        included = true;
+                      }
+
+                      if (feature === 'Support') {
+                        note = plan.name === 'Basic' 
+                          ? 'Community' 
+                          : 'Priority Email';
+                      }
 
                       return (
                         <td key={plan.name} className="text-center py-3 px-4">
                           {included ? (
-                            <svg
-                              className="w-5 h-5 text-green-500 inline"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
+                            <div>
+                              <svg
+                                className="w-5 h-5 text-green-500 inline mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              {note && <span className="text-xs text-gray-500">{note}</span>}
+                            </div>
                           ) : (
                             <svg
                               className="w-5 h-5 text-red-500 inline"
@@ -212,16 +254,32 @@ export default function PricingPlansPage() {
           </div>
         </section>
 
+        {/* For Larger Teams */}
+        <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg shadow-lg p-8 mb-16 text-center">
+          <h2 className="text-3xl font-bold mb-4">For Teams Larger Than 5?</h2>
+          <p className="text-xl mb-6 text-blue-100">
+            Need 10, 25, or 50+ licenses? Get volume discounts and dedicated support.
+          </p>
+          <button className="bg-white text-blue-600 font-semibold px-8 py-3 rounded-md shadow hover:bg-gray-100 transition inline-block">
+            Contact Sales for Custom Quote
+          </button>
+        </section>
+
         {/* CTA Section */}
-        <section className="text-center">
-          <div className="bg-blue-600 text-white p-8 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold mb-4">Ready to Secure Your Network?</h2>
-            <p className="mb-6 text-blue-100">
-              Join organizations worldwide using SENTINEL to visualize threats and respond faster.
+        <section className="text-center mb-16">
+          <div className="bg-gray-100 text-gray-800 p-8 rounded-lg shadow-md max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4">Ready to Level Up Your Security?</h2>
+            <p className="mb-6 text-gray-600">
+              Whether you're a solo analyst or part of a growing team, SENTINEL gives you the tools to see threats clearly.
             </p>
-            <button className="bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition">
-              Start Free Trial
-            </button>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <button className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-md hover:bg-blue-700 transition">
+                Start Free Trial
+              </button>
+              <button className="border-2 border-blue-600 text-blue-600 font-semibold px-6 py-3 rounded-md hover:bg-blue-50 transition">
+                Explore Team Bundle
+              </button>
+            </div>
           </div>
         </section>
       </main>
@@ -231,7 +289,7 @@ export default function PricingPlansPage() {
         © {new Date().getFullYear()} SENTINEL | Final Year Project
       </footer>
 
-      {/* Optional: Reuse feature modal if needed */}
+      {/* Optional Modal */}
       {selectedFeature && (
         <div
           className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50"

@@ -15,32 +15,32 @@ export default function HomePage() {
   const features: Feature[] = [
     {
       title: "Multi-IDS Integration",
-      desc: "Centralize logs from Snort, Suricata, Zeek, and more for unified threat monitoring.",
-      image: "/images/realtime-vis.png", // Testing, Replace with actual image
+      desc: "Seamlessly ingest logs from Snort, Suricata, Zeek, and more for unified threat visibility.",
+      image: "/images/realtime-vis.png",
     },
     {
       title: "Real-Time Visualization",
-      desc: "Live alerts, dynamic graphs, and geographic threat maps for instant situational awareness.",
+      desc: "Live alerts, dynamic graphs, and interactive dashboards for instant situational awareness.",
       image: "/images/realtime-vis.png",
     },
     {
       title: "Smart Threat Intelligence",
-      desc: "CVE-based recommendations to understand and prioritize vulnerabilities.",
+      desc: "Enrich alerts with CVE details, VirusTotal, AbuseIPDB, and OTX for deeper context and faster response.",
       image: "/images/cve-intel.png",
     },
     {
       title: "Customizable Dashboards",
-      desc: "Tailor views with counters, charts, and widgets to match your operational needs.",
+      desc: "Tailor your view with resizable widgets, saved filters, and personalized layouts to match your workflow.",
       image: "/images/custom-dash.png",
     },
     {
-      title: "Role-Based Access Control",
-      desc: "Secure access for admins, analysts, and auditors with granular permissions.",
-      image: "/images/rbac.png",
+      title: "Flexible Subscription Tiers",
+      desc: "Start with Basic for personal use, upgrade to Plus for real-time monitoring, threat feeds, and advanced analytics.",
+      image: "/images/tiers.png", // Consider creating this image
     },
     {
-      title: "Export & Compliance",
-      desc: "Generate audit-ready reports for compliance, documentation, and incident response.",
+      title: "Automated Reporting & Compliance",
+      desc: "Generate and schedule PDF reports or email summaries for audit trails, compliance, and incident documentation.",
       image: "/images/reports.png",
     },
   ];
