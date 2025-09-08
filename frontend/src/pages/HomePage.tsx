@@ -99,7 +99,7 @@ export default function HomePage() {
             From home labs to enterprises, our tiered structure scales with your needs:
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-6 text-center">
-            {["Basic", "Plus", "Pro"].map((tier) => (
+            {["Basic", "Plus", "Team Bundle"].map((tier) => (
               <div
                 key={tier}
                 className="bg-white px-6 py-4 rounded-lg shadow border border-blue-100 inline-block w-48"
@@ -108,7 +108,7 @@ export default function HomePage() {
                 <p className="text-sm text-gray-500 mt-1">
                   {tier === "Basic" && "Perfect for individuals and home networks."}
                   {tier === "Plus" && "For individuals who want real-time threat monitoring."}
-                  {tier === "Pro" && "Cost-effective bundle for small teams (5x Plus licenses)."}
+                  {tier === "Team Bundle" && "Cost-effective bundle for small teams (5x Plus licenses)."}
                 </p>
               </div>
             ))}
