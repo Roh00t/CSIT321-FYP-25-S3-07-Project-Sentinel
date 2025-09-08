@@ -106,9 +106,9 @@ export default function HomePage() {
               >
                 <h3 className="text-lg font-semibold text-gray-800">{tier}</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  {tier === "Basic" && "Single User"}
-                  {tier === "Plus" && "Multi User & Small Teams"}
-                  {tier === "Pro" && "Large Teams & Enterprises"}
+                  {tier === "Basic" && "Perfect for individuals and home networks."}
+                  {tier === "Plus" && "For individuals who want real-time threat monitoring."}
+                  {tier === "Pro" && "Cost-effective bundle for small teams (5x Plus licenses)."}
                 </p>
               </div>
             ))}
