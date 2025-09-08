@@ -14,6 +14,7 @@ import AdminProfilePage from './pages/AdminProfilePage';
 import AdminEditProfilePage from './pages/AdminEditProfilePage';
 import AppUserProfilePage from './pages/AppUserProfilePage';
 import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
+import AdminManageUserPage from './pages/AdminManageUserPage';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
+            <Route path="users" element={<AdminManageUserPage />} />
           </Route>
 
           {/* Protected AppUser Routes */}

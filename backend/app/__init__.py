@@ -25,7 +25,6 @@ def create_app():
     # Initialize extensions (required before using db.get_engine)
     db.init_app(app)
     jwt.init_app(app)
-    CORS(app, origins=["http://localhost:5173"])
 
     # Import and register blueprints
     from app.routes.auth import auth_bp
@@ -34,6 +33,12 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
     app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
+    CORS(app, 
+        origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+        supports_credentials=True
+    )
 
     with app.app_context():
         # Extract config values

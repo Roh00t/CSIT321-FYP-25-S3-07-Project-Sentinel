@@ -69,6 +69,9 @@ export default function Navbar() {
             <Link to="/admin/profile" className="hover:text-blue-300 transition">
               Profile
             </Link>
+            <Link to="/admin/users" className="hover:text-blue-300 transition">
+              Manage Users
+            </Link>
           </>
         )}
       </div>

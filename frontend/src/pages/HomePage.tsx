@@ -1,6 +1,5 @@
 // src/pages/HomePage.tsx
 import { useState } from 'react';
-import hachiware from '../assets/hachiware.jpg'; // Import each image before adding to the Feature array
 import sentinelLogo from '../assets/sentinel-icon.svg'; // Used as fallback image for popups
 
 // Define the interface for a feature
@@ -17,7 +16,7 @@ export default function HomePage() {
     {
       title: "Multi-IDS Integration",
       desc: "Centralize logs from Snort, Suricata, Zeek, and more for unified threat monitoring.",
-      image: hachiware, // Testing, Replace with actual image
+      image: "/images/realtime-vis.png", // Testing, Replace with actual image
     },
     {
       title: "Real-Time Visualization",
