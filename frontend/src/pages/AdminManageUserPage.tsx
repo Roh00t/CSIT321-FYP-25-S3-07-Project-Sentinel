@@ -159,6 +159,34 @@ export default function AdminManageUserPage() {
   if (loading) return <p className="text-center">Loading users...</p>;
   if (error) return <p className="text-red-600 text-center">Error: {error}</p>;
 
+  const handleDeleteUser = async (userId: number, username: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete user "${username}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/auth/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.msg || "User deleted successfully.");
+        // Remove from local list
+        setUsers(users.filter(u => u.id !== userId));
+      } else {
+        alert(data.msg || "Failed to delete user.");
+      }
+    } catch (err) {
+      alert("Network error. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4">
       {/* Header */}
@@ -206,6 +234,20 @@ export default function AdminManageUserPage() {
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
                         Edit
+                      </button>
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => openEditModal(user)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id, user.username)}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>

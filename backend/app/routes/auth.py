@@ -320,6 +320,28 @@ def update_user(user_id):
 
     return jsonify({"msg": "User updated successfully"}), 200
 
+# DELETE: Admin deletes a user
+@auth_bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user(user_id):
+    admin_id = get_jwt_identity()
+    admin = Admin.query.get(int(admin_id))
+    if not admin:
+        return jsonify({"msg": "Admin access required"}), 403
+
+    user = AppUser.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Database error", "error": str(e)}), 500
+
+    return jsonify({"msg": "User deleted successfully"}), 200
+
 # GET AppUser Profile
 @auth_bp.route('/appuser/profile', methods=['GET'])
 @jwt_required()
@@ -437,6 +459,30 @@ def update_appuser_profile():
         "first_name": user.first_name,
         "last_name": user.last_name
     }), 200
+
+# DELETE: AppUser deletes own account
+@auth_bp.route('/appuser/delete', methods=['DELETE'])
+@jwt_required()
+def delete_own_account():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(user_id)
+
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    # Confirm deletion (frontend should send confirmation)
+    data = request.get_json()
+    if not data or not data.get("confirm"):
+        return jsonify({"msg": "Confirmation required"}), 400
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Database error", "error": str(e)}), 500
+
+    return jsonify({"msg": "Account deleted successfully"}), 200
 
 # Protected route example
 @auth_bp.route('/profile', methods=['GET'])

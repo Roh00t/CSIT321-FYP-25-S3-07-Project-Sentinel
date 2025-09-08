@@ -56,6 +56,44 @@ export default function AppUserProfilePage() {
   if (error) return <p className="text-red-600 text-center">Error: {error}</p>;
   if (!profile) return <p className="text-center">No data.</p>;
 
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete your account? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ confirm: true })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.msg || "Account deleted successfully.");
+
+        // Clear session
+        localStorage.removeItem('token');
+        localStorage.removeItem('user_type');
+        localStorage.removeItem('username');
+        localStorage.removeItem('email');
+        window.dispatchEvent(new Event('sessionchange'));
+
+        // Redirect to home
+        navigate('/');
+      } else {
+        alert(data.msg || "Failed to delete account.");
+      }
+    } catch (err) {
+      alert("Network error. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4">
       {/* Header */}
@@ -101,12 +139,19 @@ export default function AppUserProfilePage() {
           </div>
         </div>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
           <button
             onClick={() => navigate('/app/profile/edit')}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02]"
+            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             Edit Profile
+          </button>
+
+          <button
+            onClick={handleDeleteAccount}
+            className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            Delete My Account
           </button>
         </div>
       </div>
