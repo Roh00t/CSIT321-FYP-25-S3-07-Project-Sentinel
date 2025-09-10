@@ -9,7 +9,7 @@ class AppUser(User):
     id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Plus, Pro
+    subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Plus, Team
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __mapper_args__ = {

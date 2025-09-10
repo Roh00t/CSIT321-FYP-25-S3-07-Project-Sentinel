@@ -221,7 +221,7 @@ export default function AdminManageUserPage() {
                     <td className="py-3 px-4">{user.email}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        user.subscription_plan === 'Pro' ? 'bg-purple-100 text-purple-800' :
+                        user.subscription_plan === 'Team' ? 'bg-purple-100 text-purple-800' :
                         user.subscription_plan === 'Plus' ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
@@ -305,7 +305,7 @@ export default function AdminManageUserPage() {
               >
                 <option value="Basic">Basic</option>
                 <option value="Plus">Plus</option>
-                <option value="Pro">Pro</option>
+                <option value="Team">Team</option>
               </select>
 
               <input

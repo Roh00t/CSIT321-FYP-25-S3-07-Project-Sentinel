@@ -294,7 +294,7 @@ def update_user(user_id):
     # Update subscription_plan
     if 'subscription_plan' in data:
         plan = data['subscription_plan'].strip()
-        if plan not in ['Basic', 'Plus', 'Pro']:
+        if plan not in ['Basic', 'Plus', 'Team']:
             return jsonify({"msg": "Invalid subscription plan"}), 400
         user.subscription_plan = plan
         updated = True
