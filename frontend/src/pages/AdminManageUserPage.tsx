@@ -231,14 +231,6 @@ export default function AdminManageUserPage() {
                     <td className="py-3 px-4">
                       <button
                         onClick={() => openEditModal(user)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
-                    </td>
-                    <td className="py-3 px-4">
-                      <button
-                        onClick={() => openEditModal(user)}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium mr-4"
                       >
                         Edit
