@@ -1,5 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -34,6 +37,28 @@ export default function AlertsPage() {
       setLoading(false);
     }
   };
+    // --- Fetch GeoIP coordinates ---
+  // useEffect(() => {
+  //   const fetchGeo = async () => {
+  //     const ips = alerts.map(a => a.src_ip).filter(Boolean);
+  //     if (!ips.length) return;
+
+  //     const res = await axios.post("http://localhost:5000/api/geo", { ips });
+  //     const geoMap: Record<string, { lat: number; lon: number }> = {};
+  //     res.data.forEach((loc: any) => {
+  //       geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
+  //     });
+
+  //     setAlerts(prev =>
+  //       prev.map(a => ({
+  //         ...a,
+  //         geo: a.src_ip ? geoMap[a.src_ip] : undefined
+  //       }))
+  //     );
+  //   };
+
+  //   if (alerts.length) fetchGeo();
+  // }, [alerts]);
 
   // Filter alerts based on selected filters
   const filteredAlerts = alerts.filter((a) => {
@@ -93,6 +118,7 @@ const summary = useMemo(() => {
           <input type="file" onChange={handleUpload} className="hidden" />
         </label>
       </div>
+      
       {/* Summary Counters */}
       {alerts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -148,6 +174,25 @@ const summary = useMemo(() => {
           </div>
         </div>
       )}
+      {/* GeoIP Map */}
+      {alerts.length > 0 && (
+      <div className="mb-6 h-60 w-1/6 mx-auto">
+        <MapContainer
+          bounds={[[-90, -180], [90, 180]]} // full world bounds
+          style={{ height: '100%', width: '100%' }}
+          maxBoundsViscosity={1.0} // prevents panning outside bounds
+          center={[30, 0]}
+          dragging={true}                    // allow dragging but restricted to bounds
+          maxBounds={[[-90, -180], [90, 180]]}  // prevent panning outside
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            noWrap={true}
+          />
+        </MapContainer>
+      </div>
+    )}
 
 
       {/* Filters */}
