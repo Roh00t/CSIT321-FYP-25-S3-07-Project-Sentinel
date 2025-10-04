@@ -29,10 +29,14 @@ def create_app():
     # Import and register blueprints
     from app.routes.auth import auth_bp
     from app.routes.main import main_bp
+    from app.routes.geoip import geo_bp
+    from app.routes.filters import filters_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
     app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
+    app.register_blueprint(geo_bp)
+    app.register_blueprint(filters_bp)
     CORS(app, 
         origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

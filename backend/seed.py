@@ -1,6 +1,6 @@
 # seed.py
 from app import create_app, db
-from app.models import AppUser, Admin
+from app.models import AppUser, Admin, Filter
 import bcrypt
 
 app = create_app()
@@ -25,6 +25,7 @@ with app.app_context():
         # Override password with bcrypt hash directly
         app_user.password = hash_password("appuser123")
         db.session.add(app_user)
+        db.session.commit()
         print("AppUser 'appuser' created.")
 
     # Seed Admin
@@ -37,6 +38,23 @@ with app.app_context():
         admin.password = hash_password("admin123")
         db.session.add(admin)
         print("Admin 'admin' created.")
+    #filters table
+
+    if not Filter.query.first():
+        sample_filter = Filter(
+            user_id=3,  # assuming appuser gets ID 1
+            name="Critical Alerts Only",
+            filters_json={
+                "alertsOnly": True,
+                "minSeverity": 1,
+                "protocols": [],
+                "port": None,
+                "ip": "",
+                "timeRange": {"start": None, "end": None}
+            }
+        )
+        db.session.add(sample_filter)
+        print("Sample filter 'Critical Alerts Only' created.")
 
     db.session.commit()
     print("Database seeded successfully.")

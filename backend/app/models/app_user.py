@@ -12,6 +12,7 @@ class AppUser(User):
     subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Plus, Team
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
     }

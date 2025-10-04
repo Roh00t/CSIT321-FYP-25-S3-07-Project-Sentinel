@@ -35,3 +35,4 @@ def upload_json():
         return jsonify({"message": "File uploaded successfully!"})
     except json.JSONDecodeError:
         return jsonify({"error": "Invalid JSON file"}), 400
+    

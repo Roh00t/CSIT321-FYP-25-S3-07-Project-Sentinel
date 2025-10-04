@@ -1,20 +1,27 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import React from "react";
 
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [alertsWithGeo, setAlertsWithGeo] = useState<any[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
+  const [savedFilters, setSavedFilters] = useState<any[]>([]);
+  const [newFilterName, setNewFilterName] = useState("");
+
 
   const [filters, setFilters] = useState({
     minSeverity: 0,
     alertsOnly: false,
     protocols: new Set<string>(),
     port: undefined as number | undefined,
-  });
+    ip: "",
+    timeRange: { start: null as string | null, end: null as string | null }
+});
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -37,28 +44,72 @@ export default function AlertsPage() {
       setLoading(false);
     }
   };
+  //filters fetch
+  useEffect(() => {
+  axios.get("http://localhost:5000/api/filters/1")
+    .then(res => setSavedFilters(res.data))
+    .catch(err => console.error("Failed to load filters", err));
+}, []);
+  const saveCurrentFilter = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/filters/", {
+        user_id: 1,
+        name: newFilterName || `Filter ${Date.now()}`,
+        filters_json: {
+          ...filters,
+          protocols: Array.from(filters.protocols), // convert Set → array
+        }
+      });
+      setSavedFilters([...savedFilters, res.data]);
+      setNewFilterName("");
+      alert("Filter saved!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save filter");
+    }
+  };
+  const applySavedFilter = (f: any) => {
+  setFilters({
+    ...f.filters_json,
+    protocols: new Set(f.filters_json.protocols || []), // convert back to Set
+  });
+};
+
     // --- Fetch GeoIP coordinates ---
-  // useEffect(() => {
-  //   const fetchGeo = async () => {
-  //     const ips = alerts.map(a => a.src_ip).filter(Boolean);
-  //     if (!ips.length) return;
+  useEffect(() => {
+    if (!alerts.length) {
+      setAlertsWithGeo([]);
+      return;
+    }
+    const fetchGeo = async () => {
+      const ips = Array.from(
+        new Set(
+          alerts.flatMap(a => [a.src_ip, a.dest_ip]).filter(Boolean)
+        )
+      );
 
-  //     const res = await axios.post("http://localhost:5000/api/geo", { ips });
-  //     const geoMap: Record<string, { lat: number; lon: number }> = {};
-  //     res.data.forEach((loc: any) => {
-  //       geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
-  //     });
-
-  //     setAlerts(prev =>
-  //       prev.map(a => ({
-  //         ...a,
-  //         geo: a.src_ip ? geoMap[a.src_ip] : undefined
-  //       }))
-  //     );
-  //   };
-
-  //   if (alerts.length) fetchGeo();
-  // }, [alerts]);
+      if (!ips.length) {
+        setAlertsWithGeo(alerts);
+        return;
+      }
+      try {
+        const res = await axios.post("http://localhost:5000/api/geo", { ips });
+        const geoMap: Record<string, { lat: number; lon: number }> = {};
+        res.data.forEach((loc: any) => {
+          geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
+        });
+        const geoAlerts = alerts.map(a => ({
+          ...a,
+          src_geo: a.src_ip ? geoMap[a.src_ip] : undefined,
+          dest_geo: a.dest_ip ? geoMap[a.dest_ip] : undefined
+        }));
+        setAlertsWithGeo(geoAlerts);
+      } catch (err) {
+        setAlertsWithGeo(alerts);
+      }
+    };
+    fetchGeo();
+  }, [alerts]);
 
   // Filter alerts based on selected filters
   const filteredAlerts = alerts.filter((a) => {
@@ -66,8 +117,17 @@ export default function AlertsPage() {
     if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
     if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
-    return true;
-  });
+    if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
+    if (filters.timeRange.start || filters.timeRange.end) {
+    const ts = a.timestamp ? new Date(a.timestamp) : null;
+    if (ts) {
+      if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
+      if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
+    }
+  }
+  return true;
+});
+
 
   // Summary calculations
 const summary = useMemo(() => {
@@ -117,87 +177,124 @@ const summary = useMemo(() => {
           Choose File
           <input type="file" onChange={handleUpload} className="hidden" />
         </label>
+
+        {/*  summary counters and GeoIP map */}
+        {alerts.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
+            {/* Total Alerts */}
+            <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
+              <span className="text-4xl font-bold">{summary.total}</span>
+              <span className="mt-2 font-medium">Total Alerts</span>
+            </div>
+
+            {/* Top Talkers */}
+            <div className="bg-white rounded-lg p-4 shadow">
+              <h3 className="font-semibold mb-2">Top Talkers</h3>
+              <table className="w-full text-sm">
+          <tbody>
+            {summary.topTalkers.map(([ip, count]) => (
+              <tr key={ip}>
+                <td>{ip}</td>
+                <td className="text-right font-semibold">{count}</td>
+              </tr>
+            ))}
+          </tbody>
+              </table>
+            </div>
+
+            {/* Top Attacked Hosts */}
+            <div className="bg-white rounded-lg p-4 shadow">
+              <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
+              <table className="w-full text-sm">
+          <tbody>
+            {summary.topHosts.map(([ip, count]) => (
+              <tr key={ip}>
+                <td>{ip}</td>
+                <td className="text-right font-semibold">{count}</td>
+              </tr>
+            ))}
+          </tbody>
+              </table>
+            </div>
+
+            {/* Top Signatures */}
+            <div className="bg-white rounded-lg p-4 shadow">
+              <h3 className="font-semibold mb-2">Top Signatures</h3>
+              <table className="w-full text-sm">
+          <tbody>
+            {summary.topSignatures.map(([sig, count]) => (
+              <tr key={sig}>
+                <td>{sig}</td>
+                <td className="text-right font-semibold">{count}</td>
+              </tr>
+            ))}
+          </tbody>
+              </table>
+            </div>
+
+            {/* GeoIP Map */}
+            <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center">
+              <div className="h-48 w-full">
+          <MapContainer
+            bounds={[[-90, -180], [90, 180]]}
+            style={{ height: '100%', width: '100%' }}
+            maxBoundsViscosity={1.0}
+            center={[50, 0]}
+            dragging={true}
+            maxBounds={[[-90, -180], [90, 180]]}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              noWrap={true}
+            />
+            {alertsWithGeo.map((a, i) => (
+            <React.Fragment key={i}>
+              {a.src_geo?.lat != null && a.src_geo?.lon != null && (
+                <CircleMarker
+                  key={`src-${i}`}
+                  center={[a.src_geo.lat, a.src_geo.lon]}
+                  radius={3}
+                  pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.7 }}
+                >
+                  <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                    <span>
+                      Source: {a.src_ip}
+                      {a.signature ? <><br />Sig: {a.signature}</> : null}
+                    </span>
+                  </Tooltip>
+                </CircleMarker>
+              )}
+              {a.dest_geo?.lat != null && a.dest_geo?.lon != null && (
+                <CircleMarker
+                  key={`dest-${i}`}
+                  center={[a.dest_geo.lat, a.dest_geo.lon]}
+                  radius={4}
+                  pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
+                >
+                  <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                    <span>
+                      Dest: {a.dest_ip}
+                      {a.signature ? <><br />Sig: {a.signature}</> : null}
+                    </span>
+                  </Tooltip>
+                </CircleMarker>
+              )}
+            </React.Fragment>
+          ))}
+          </MapContainer>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
-      {/* Summary Counters */}
-      {alerts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          {/* Total Alerts */}
-          <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
-            <span className="text-4xl font-bold">{summary.total}</span>
-            <span className="mt-2 font-medium">Total Alerts</span>
-          </div>
-
-          {/* Top Talkers */}
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Talkers</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topTalkers.map(([ip, count]) => (
-                  <tr key={ip}>
-                    <td>{ip}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Top Attacked Hosts */}
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topHosts.map(([ip, count]) => (
-                  <tr key={ip}>
-                    <td>{ip}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Top Signatures */}
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Signatures</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topSignatures.map(([sig, count]) => (
-                  <tr key={sig}>
-                    <td>{sig}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      {/* GeoIP Map */}
-      {alerts.length > 0 && (
-      <div className="mb-6 h-60 w-1/6 mx-auto">
-        <MapContainer
-          bounds={[[-90, -180], [90, 180]]} // full world bounds
-          style={{ height: '100%', width: '100%' }}
-          maxBoundsViscosity={1.0} // prevents panning outside bounds
-          center={[30, 0]}
-          dragging={true}                    // allow dragging but restricted to bounds
-          maxBounds={[[-90, -180], [90, 180]]}  // prevent panning outside
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            noWrap={true}
-          />
-        </MapContainer>
-      </div>
-    )}
-
-
+      
       {/* Filters */}
       {alerts.length > 0 && (
-        <div className="mb-4 flex gap-4 flex-wrap">
+        <>
+          {/* Filter row */}
+          <div className="mb-4 flex gap-4 flex-wrap">
           <label>
             Min Severity:
             <select
@@ -246,17 +343,93 @@ const summary = useMemo(() => {
               placeholder="Any"
             />
           </label>
+          {/* ip and time */}
+          <label className="ml-4">
+            IP:
+            <input
+              type="text"
+              value={filters.ip}
+              onChange={(e) => setFilters({ ...filters, ip: e.target.value })}
+              className="ml-2 border rounded px-2 py-1 w-40"
+              placeholder="Match src/dest IP"
+            />
+          </label>
+
+          <label className="ml-4">
+            Start Time:
+            <input
+              type="datetime-local"
+              value={filters.timeRange.start ?? ""}
+              onChange={(e) => setFilters({
+                ...filters,
+                timeRange: { ...filters.timeRange, start: e.target.value || null }
+              })}
+              className="ml-2 border rounded px-2 py-1"
+            />
+          </label>
+
+          <label className="ml-4">
+            End Time:
+            <input
+              type="datetime-local"
+              value={filters.timeRange.end ?? ""}
+              onChange={(e) => setFilters({
+                ...filters,
+                timeRange: { ...filters.timeRange, end: e.target.value || null }
+              })}
+              className="ml-2 border rounded px-2 py-1"
+            />
+          </label>
+
 
           <button
             onClick={() =>
-              setFilters({ minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined })
+              setFilters({ minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined,ip: "", timeRange: { start: null, end: null } })
             }
             className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
           >
             Show All
           </button>
+          </div>
 
-        </div>
+          {/* save load filters */}
+          <div className="mb-6 flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newFilterName}
+              onChange={(e) => setNewFilterName(e.target.value)}
+              placeholder="Filter name"
+              className="border rounded px-2 py-1"
+            />
+            <button
+              onClick={saveCurrentFilter}
+              className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Save Filter
+            </button>
+          </div>
+
+          {/* Saved filters dropdown */}
+          {savedFilters.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="mr-2">Load Saved:</label>
+              <select
+                onChange={(e) => {
+                  const f = savedFilters.find(sf => sf.id === Number(e.target.value));
+                  if (f) applySavedFilter(f);
+                }}
+                className="border rounded px-2 py-1"
+              >
+                <option value="">-- Select --</option>
+                {savedFilters.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
