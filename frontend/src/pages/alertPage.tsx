@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import React from "react";
 
 
+
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -12,6 +13,7 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
   const [newFilterName, setNewFilterName] = useState("");
+  const token = localStorage.getItem("token");
 
 
   const [filters, setFilters] = useState({
@@ -46,19 +48,22 @@ export default function AlertsPage() {
   };
   //filters fetch
   useEffect(() => {
-  axios.get("http://localhost:5000/api/filters/1")
+  axios.get("http://localhost:5000/api/filters/", {
+    headers: { Authorization: `Bearer ${token}` }
+  })
     .then(res => setSavedFilters(res.data))
     .catch(err => console.error("Failed to load filters", err));
 }, []);
   const saveCurrentFilter = async () => {
     try {
       const res = await axios.post("http://localhost:5000/api/filters/", {
-        user_id: 1,
         name: newFilterName || `Filter ${Date.now()}`,
         filters_json: {
           ...filters,
-          protocols: Array.from(filters.protocols), // convert Set → array
+          protocols: Array.from(filters.protocols),
         }
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       setSavedFilters([...savedFilters, res.data]);
       setNewFilterName("");
