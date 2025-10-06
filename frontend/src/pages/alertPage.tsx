@@ -261,7 +261,7 @@ const summary = useMemo(() => {
 
             {/* Alerts by Protocol */}
             <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-              <span className="text-lg font-semibold mb-2">Alerts by Protocol</span>
+              <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
               <Doughnut
                 key={"protocol-" + filteredAlerts.length}
                 data={protocolData}
@@ -272,7 +272,7 @@ const summary = useMemo(() => {
 
             {/* Alerts per Hour */}
             <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-              <span className="text-lg font-semibold mb-2">Alerts per Hour</span>
+              <span className="text-lg font-semibold mb-2">Activity over time</span>
               <Line
                 key={filteredAlerts.length}
                 data={alertsPerHourData}
