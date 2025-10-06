@@ -3,6 +3,23 @@ import axios from "axios";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import React from "react";
+// near top of your AlertsPage.tsx (or a Chart component file)
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title as ChartTitle,
+  Tooltip as ChartTooltip,
+  ArcElement,
+  Legend,
+  BarElement,
+} from "chart.js";
+import { Line, Bar, Doughnut } from "react-chartjs-2";
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
+
+
 
 
 
@@ -160,8 +177,55 @@ const summary = useMemo(() => {
     topSignatures: sortDesc(topSignatures),
   };
 }, [filteredAlerts]);
+  //graphs
+  // --- Bar chart: Alerts by severity ---
+    // --- Severity Levels Data ---
+  const severityData = {
+    labels: ['Low', 'Medium', 'High'],
+    datasets: [{
+      label: 'Severity',
+      data: [
+        filteredAlerts.filter(a => a.severity === 3).length, // Low
+        filteredAlerts.filter(a => a.severity === 2).length, // Medium
+        filteredAlerts.filter(a => a.severity === 1).length, // High
+      ],
+      backgroundColor: ['#10B981','#FBBF24','#F97316']
+    }]
+  };
+
+  // --- Alerts by Protocol ---
+  const protocolData = {
+    labels: ['TCP', 'UDP', 'ICMP', 'Other'],
+    datasets: [{
+      data: [
+        filteredAlerts.filter(a => a.protocol === 'TCP').length,
+        filteredAlerts.filter(a => a.protocol === 'UDP').length,
+        filteredAlerts.filter(a => a.protocol === 'ICMP').length,
+        filteredAlerts.filter(a => !['TCP','UDP','ICMP'].includes(a.protocol)).length
+      ],
+      backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
+    }]
+  };
+
+  // --- Alerts per Hour ---
+  const alertsPerHourData = {
+    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+    datasets: [{
+      label: 'Alerts',
+      data: Array.from({length: 24}, (_, i) =>
+        filteredAlerts.filter(a => new Date(a.timestamp).getHours() === i).length
+      ),
+      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      borderColor: '#3B82F6',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.3
+    }]
+  };
 
 
+
+  // Toggle protocol in Set
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
     if (newSet.has(proto)) newSet.delete(proto);
@@ -182,6 +246,43 @@ const summary = useMemo(() => {
           Choose File
           <input type="file" onChange={handleUpload} className="hidden" />
         </label>
+        {/* Charts Section */}
+        {alerts.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Severity Levels */}
+            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+              <span className="text-lg font-semibold mb-2">Severity Levels</span>
+              <Bar
+                data={severityData}
+                options={{ responsive: true, maintainAspectRatio: false }}
+                height={200}
+              />
+            </div>
+
+            {/* Alerts by Protocol */}
+            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+              <span className="text-lg font-semibold mb-2">Alerts by Protocol</span>
+              <Doughnut
+                key={"protocol-" + filteredAlerts.length}
+                data={protocolData}
+                options={{ responsive: true, maintainAspectRatio: false }}
+                height={200}
+              />
+            </div>
+
+            {/* Alerts per Hour */}
+            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+              <span className="text-lg font-semibold mb-2">Alerts per Hour</span>
+              <Line
+                key={filteredAlerts.length}
+                data={alertsPerHourData}
+                options={{ responsive: true, maintainAspectRatio: false }}
+                height={200}
+              />
+            </div>
+          </div>
+        )}
+
 
         {/*  summary counters and GeoIP map */}
         {alerts.length > 0 && (
