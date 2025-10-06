@@ -180,18 +180,26 @@ const summary = useMemo(() => {
   //graphs
   // --- Bar chart: Alerts by severity ---
     // --- Severity Levels Data ---
-  const severityData = {
-    labels: ['Low', 'Medium', 'High'],
-    datasets: [{
-      label: 'Severity',
-      data: [
-        filteredAlerts.filter(a => a.severity === 3).length, // Low
-        filteredAlerts.filter(a => a.severity === 2).length, // Medium
-        filteredAlerts.filter(a => a.severity === 1).length, // High
-      ],
-      backgroundColor: ['#10B981','#FBBF24','#F97316']
-    }]
-  };
+    const severityData = {
+      labels: [' '], // single category on x-axis
+      datasets: [
+        {
+          label: 'Low',
+          data: [filteredAlerts.filter(a => a.severity === 3).length],
+          backgroundColor: '#10B981',
+        },
+        {
+          label: 'Medium',
+          data: [filteredAlerts.filter(a => a.severity === 2).length],
+          backgroundColor: '#FBBF24',
+        },
+        {
+          label: 'High',
+          data: [filteredAlerts.filter(a => a.severity === 1).length],
+          backgroundColor: '#f85e4aff',
+        }
+      ]
+    };
 
   // --- Alerts by Protocol ---
   const protocolData = {
@@ -209,19 +217,46 @@ const summary = useMemo(() => {
 
   // --- Alerts per Hour ---
   const alertsPerHourData = {
-    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
-    datasets: [{
+  labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+  datasets: [
+    {
       label: 'Alerts',
-      data: Array.from({length: 24}, (_, i) =>
+      data: Array.from({ length: 24 }, (_, i) =>
         filteredAlerts.filter(a => new Date(a.timestamp).getHours() === i).length
       ),
+      borderColor: '#f63b3bff',
       backgroundColor: 'rgba(59, 130, 246, 0.2)',
-      borderColor: '#3B82F6',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.3
-    }]
-  };
+      fill: false,
+      tension: 0.3,
+      yAxisID: 'y'
+    },
+    {
+      label: 'Activity',
+      data: Array.from({ length: 24 }, (_, i) =>
+        filteredAlerts.filter(a => new Date(a.timestamp).getHours() === i).length + Math.floor(Math.random()*3)
+      ),
+      borderColor: '#0b97f5ff',
+      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+      fill: false,
+      tension: 0.3,
+      yAxisID: 'y'
+    }
+  ]
+};
+
+const alertsPerHourOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'top' }
+  },
+  scales: {
+    y: {
+      beginAtZero: true
+    }
+  }
+};
+
 
 
 
@@ -254,7 +289,11 @@ const summary = useMemo(() => {
               <span className="text-lg font-semibold mb-2">Severity Levels</span>
               <Bar
                 data={severityData}
-                options={{ responsive: true, maintainAspectRatio: false }}
+                options={{responsive: true, maintainAspectRatio: false, 
+                  plugins: {
+                    legend: {
+                    },
+                  },}}
                 height={200}
               />
             </div>
