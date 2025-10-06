@@ -215,47 +215,78 @@ const summary = useMemo(() => {
     }]
   };
 
-  // --- Alerts per Hour ---
-  const alertsPerHourData = {
-  labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+  // --- Activity / Alerts per hour (detected threats vs non-threat activity) ---
+const hours = Array.from({ length: 24 }, (_, i) => i);
+const hourLabels = hours.map(h => `${h}:00`);
+
+// helper to safely get hour number or null
+const getHour = (a: any): number | null => {
+  if (!a?.timestamp) return null;
+  const d = new Date(a.timestamp);
+  if (isNaN(d.getTime())) return null;
+  return d.getHours(); // NOTE: local timezone. Use getUTCHours() if you want UTC.
+};
+
+// Detected threats = severity 1,2,3
+const detectedPerHour = hours.map((h) =>
+  filteredAlerts.reduce((acc, a) => {
+    const hr = getHour(a);
+    if (hr === h && (a.severity === 1 || a.severity === 2 || a.severity === 3)) return acc + 1;
+    return acc;
+  }, 0)
+);
+
+// Activity (non-threat) = items without severity 1|2|3
+const activityPerHour = hours.map((h) =>
+  filteredAlerts.reduce((acc, a) => {
+    const hr = getHour(a);
+    // treat as activity if no severity 1|2|3 present
+    const isThreat = (a.severity === 1 || a.severity === 2 || a.severity === 3);
+    if (hr === h && !isThreat) return acc + 1;
+    return acc;
+  }, 0)
+);
+
+const alertsPerHourData = {
+  labels: hourLabels,
   datasets: [
     {
-      label: 'Alerts',
-      data: Array.from({ length: 24 }, (_, i) =>
-        filteredAlerts.filter(a => new Date(a.timestamp).getHours() === i).length
-      ),
-      borderColor: '#f63b3bff',
-      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      label: "Detected Threats",
+      data: detectedPerHour,
+      borderColor: "#ef4444",
+      backgroundColor: "rgba(239,68,68,0.15)",
       fill: false,
       tension: 0.3,
-      yAxisID: 'y'
     },
     {
-      label: 'Activity',
-      data: Array.from({ length: 24 }, (_, i) =>
-        filteredAlerts.filter(a => new Date(a.timestamp).getHours() === i).length + Math.floor(Math.random()*3)
-      ),
-      borderColor: '#0b97f5ff',
-      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+      label: "Activity (non-threat)",
+      data: activityPerHour,
+      borderColor: "#0b97f5",
+      backgroundColor: "rgba(11,151,245,0.12)",
       fill: false,
       tension: 0.3,
-      yAxisID: 'y'
-    }
-  ]
+    },
+  ],
 };
 
 const alertsPerHourOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: { position: 'top' }
+    legend: { position: "top" as const },
+    title: { display: false },
   },
   scales: {
+    x: {
+      ticks: { maxRotation: 0, autoSkip: true },
+    },
     y: {
-      beginAtZero: true
-    }
-  }
+      beginAtZero: true,
+      ticks: { stepSize: 1 },
+    },
+  },
 };
+
 
 
 
@@ -315,7 +346,7 @@ const alertsPerHourOptions = {
               <Line
                 key={filteredAlerts.length}
                 data={alertsPerHourData}
-                options={{ responsive: true, maintainAspectRatio: false }}
+                options={alertsPerHourOptions}
                 height={200}
               />
             </div>
@@ -378,7 +409,7 @@ const alertsPerHourOptions = {
             </div>
 
             {/* GeoIP Map */}
-            <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center">
+            <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center z-0">
               <div className="h-48 w-full">
           <MapContainer
             bounds={[[-90, -180], [90, 180]]}
