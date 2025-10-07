@@ -3,11 +3,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import notifySessionChange from '../utils/notifySessionChange';
+import { useUserSession } from '../hooks/useUserSession';
 
 interface LoginResponse {
   access_token: string;
   user_type: string;
   username: string;
+  plan_type?: string;
   msg?: string;
 }
 
@@ -34,6 +36,18 @@ export default function LoginPage() {
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user_type', data.user_type);
         localStorage.setItem('username', data.username);
+
+        if (data.user_type == 'app_user') {
+          const res1 = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${data.access_token}`,
+            },
+          });
+
+          const profileData = await res1.json();
+          localStorage.setItem('plan_type', profileData.subscription_plan);
+        }
 
         notifySessionChange();
 

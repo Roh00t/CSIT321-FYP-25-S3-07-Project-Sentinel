@@ -6,7 +6,7 @@ import LogoutButton from './LogoutButton';
 import sentinelIcon from '../assets/sentinel-icon.svg';
 
 export default function Navbar() {
-  const { isAuthenticated, user_type } = useUserSession();
+  const { isAuthenticated, user_type, user_plan } = useUserSession();
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 bg-gray-800 text-white text-lg font-semibold shadow-md sticky top-0 z-50">
@@ -39,8 +39,29 @@ export default function Navbar() {
           </>
         )}
 
-        {/* LOGGED IN AS APP USER */}
-        {isAuthenticated && user_type === 'app_user' && (
+        {/* LOGGED IN AS APP USER (Basic Plan) */}
+        {isAuthenticated && user_type === 'app_user' && user_plan === 'Basic' && (
+          <>
+            <Link to="/" className="hover:text-blue-300 transition">
+              Home
+            </Link>
+            <Link to="/pricing" className="hover:text-blue-300 transition">
+              Pricing
+            </Link>
+            <Link to="/app/dashboard" className="hover:text-blue-300 transition">
+              Dashboard
+            </Link>
+            <Link to="/app/alerts/basic" className="hover:text-blue-300 transition">
+              Alerts
+            </Link>
+            <Link to="/app/profile" className="hover:text-blue-300 transition">
+              Profile
+            </Link>
+          </>
+        )}
+
+        {/* LOGGED IN AS APP USER (Pro and Team Plan) */}
+        {isAuthenticated && user_type === 'app_user' && (user_plan === 'Pro' || user_plan === 'Team') && (
           <>
             <Link to="/" className="hover:text-blue-300 transition">
               Home

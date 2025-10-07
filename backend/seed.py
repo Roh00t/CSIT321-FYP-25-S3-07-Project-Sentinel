@@ -13,7 +13,7 @@ with app.app_context():
     def hash_password(password):
         return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-    # Seed AppUser
+    # Seed AppUser (Basic Plan)
     if not AppUser.query.filter_by(username="appuser").first():
         app_user = AppUser(
             first_name="App",
@@ -27,6 +27,21 @@ with app.app_context():
         db.session.add(app_user)
         db.session.commit()
         print("AppUser 'appuser' created.")
+
+    # Seed AppUser (Pro Plan)
+    if not AppUser.query.filter_by(username="appuserpro").first():
+        app_user = AppUser(
+            first_name="App",
+            last_name="User",
+            email="appuserpro@example.com",
+            username="appuserpro",
+            subscription_plan="Pro"
+        )
+        # Override password with bcrypt hash directly
+        app_user.password = hash_password("appuserpro123")
+        db.session.add(app_user)
+        db.session.commit()
+        print("AppUser 'appuserpro' created.")
 
     # Seed Admin
     if not Admin.query.filter_by(username="admin").first():

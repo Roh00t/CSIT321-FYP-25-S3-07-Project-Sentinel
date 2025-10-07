@@ -15,6 +15,8 @@ import AdminEditProfilePage from './pages/AdminEditProfilePage';
 import AppUserProfilePage from './pages/AppUserProfilePage';
 import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
 import AdminManageUserPage from './pages/AdminManageUserPage';
+import AppUserBasicAlertPage from './pages/AppUserBasicAlertPage';
+import PlanProtectedRoute from './components/PlanProtectedRoute';
 
 function App() {
   return (
@@ -39,16 +41,37 @@ function App() {
             <Route path="users" element={<AdminManageUserPage />} />
           </Route>
 
-          {/* Protected AppUser Routes */}
+          {/* Protected AppUser Basic Routes */}
           <Route
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
             <Route path="dashboard" element={<AppDashboard />} />
-            <Route path="alerts" element={<AlertsPage />} />
+
+            {/* Basic plan: limited alerts */}
+            <Route
+              path="alerts/basic"
+              element={
+                <PlanProtectedRoute allowedPlans={['Basic']} />
+              }
+            >
+              <Route index element={<AppUserBasicAlertPage />} />
+            </Route>
+
+            {/* Pro/Team plan: full alerts */}
+            <Route
+              path="alerts"
+              element={
+                <PlanProtectedRoute allowedPlans={['Pro', 'Team']} />
+              }
+            >
+              <Route index element={<AlertsPage />} />
+            </Route>
+
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
           </Route>
+
 
           {/* Catch-all: Redirect logged-in users */}
           <Route
@@ -62,7 +85,7 @@ function App() {
             }
           />
 
-          {/* ✅ 404 Route — MUST be last */}
+          {/* 404 Route — MUST be last */}
           <Route path="*" element={<PageNotFoundPage />} />
         </Routes>
       </div>

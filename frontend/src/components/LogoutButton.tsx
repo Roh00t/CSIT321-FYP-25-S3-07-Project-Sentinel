@@ -14,6 +14,7 @@ export default function LogoutButton() {
     localStorage.removeItem('user_type');
     localStorage.removeItem('username');
     localStorage.removeItem('email');
+    localStorage.removeItem('plan_type');
 
     // Notify components
     notifySessionChange();
