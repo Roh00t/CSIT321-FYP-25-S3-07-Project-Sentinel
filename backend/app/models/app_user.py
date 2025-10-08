@@ -11,6 +11,7 @@ class AppUser(User):
     last_name = db.Column(db.String(50), nullable=False)
     subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Pro, Team
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    admin_email = db.Column(db.String(255), nullable=True)
 
 
     __mapper_args__ = {

@@ -35,7 +35,8 @@ with app.app_context():
             last_name="User",
             email="appuserpro@example.com",
             username="appuserpro",
-            subscription_plan="Pro"
+            subscription_plan="Pro",
+            admin_email="company@company.com"
         )
         # Override password with bcrypt hash directly
         app_user.password = hash_password("appuserpro123")

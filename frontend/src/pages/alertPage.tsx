@@ -31,6 +31,10 @@ export default function AlertsPage() {
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
   const [newFilterName, setNewFilterName] = useState("");
   const token = localStorage.getItem("token");
+  const [threatIntel, setThreatIntel] = useState<any | null>(null);
+  const [loadingIntel, setLoadingIntel] = useState(false);
+  const [showAdminEmailModal, setShowAdminEmailModal] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
 
 
   const [filters, setFilters] = useState({
@@ -287,10 +291,6 @@ const alertsPerHourOptions = {
   },
 };
 
-
-
-
-
   // Toggle protocol in Set
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
@@ -298,10 +298,42 @@ const alertsPerHourOptions = {
     else newSet.add(proto);
     setFilters({ ...filters, protocols: newSet });
   };
+  // Inspect alert and fetch threat intel
+  const handleInspect = async (alert: any) => {
+    const srcIP = alert.src_ip;
+    const destIP = alert.dest_ip;
+    
+    setSelectedAlert(alert.original || alert);
+    setThreatIntel(null);
+    setLoadingIntel(true);
+    
+    setLoadingIntel(true);
+    try {
+    const [srcRes, destRes] = await Promise.all([
+      axios.post("http://localhost:5000/api/threatintel", { ip: srcIP }),
+      axios.post("http://localhost:5000/api/threatintel", { ip: destIP }),
+    ]);
+    console.log("Source Threat Intel:", srcRes.data);
+    console.log("Destination Threat Intel:", destRes.data);
+    
+      setThreatIntel({
+        abuse: srcRes.data.abuse,
+        vt: srcRes.data.vt,
+        destAbuse: destRes.data.abuse,
+        destVT: destRes.data.vt
+      });
+    } catch (err) {
+      console.error("Threat intel fetch failed:", err);
+    } finally {
+      setLoadingIntel(false);
+    }
+  };
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Suricata / Snort Alerts</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Suricata / Snort Alerts</h1>
+        </div>
 
       {/* Upload Box */}
       <div className="mb-6">
@@ -638,7 +670,7 @@ const alertsPerHourOptions = {
                       ? "bg-green-100"
                       : ""
                   }`}
-                  onDoubleClick={() => setSelectedAlert(a.original || a)}
+                  onDoubleClick={() => handleInspect(a)}
                 >
                   <td className="p-3">{a.timestamp || "-"}</td>
                   <td className="p-3">{a.src_ip || "-"}</td>
@@ -664,7 +696,7 @@ const alertsPerHourOptions = {
       {/* Inspect Modal */}
       {selectedAlert && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-3/4 max-w-2xl p-6 relative">
+          <div className="bg-white rounded-lg shadow-xl w-3/4 max-w-6xl p-6 relative overflow-y-auto max-h-[90vh]">
             <h2 className="text-xl font-bold mb-4 text-gray-800">Inspect Alert</h2>
             <table className="table-auto w-full border border-gray-200 rounded-lg">
               <tbody>
@@ -680,6 +712,116 @@ const alertsPerHourOptions = {
                 ))}
               </tbody>
             </table>
+            {/* Threat Intelligence Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-gray-200 rounded-lg">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 border-r">Data source</th>
+                    <th className="p-2 border-r">Field</th>
+                    <th className="p-2 border-r">Source ({selectedAlert.src_ip})</th>
+                    <th className="p-2">Destination ({selectedAlert.dest_ip})</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    "Confidence",
+                    "Total Reports",
+                    "Country",
+                    "Domain",
+                    "ASN Owner",
+                    "ASN",
+                    "Reputation",
+                  ].map((field) => {
+                    const getAbuseValue = (abuseData: any) => {
+                      if (!abuseData?.data) return "-";
+                      switch (field) {
+                        case "Confidence":
+                          return abuseData.data.abuseConfidenceScore ?? "-";
+                        case "Total Reports":
+                          return abuseData.data.totalReports ?? "-";
+                        case "Country":
+                          return abuseData.data.countryCode ?? "-";
+                        case "Domain":
+                          return abuseData.data.domain ?? "-";
+                        default:
+                          return "-";
+                      }
+                    };
+
+                    const getVTValue = (vtData: any) => {
+                      if (!vtData?.data?.attributes) return "-";
+                      switch (field) {
+                        case "ASN Owner":
+                          return vtData.data.attributes.as_owner ?? "-";
+                        case "ASN":
+                          return vtData.data.attributes.asn ?? "-";
+                        case "Reputation":
+                          return vtData.data.attributes.reputation ?? "-";
+                        default:
+                          return "-";
+                      }
+                    };
+
+                    return (
+                      <tr key={field} className="border-b border-gray-200">
+                        {/* Data Source */}
+                        <td className="p-2 font-medium bg-gray-50">
+                          {["Confidence", "Total Reports", "Country", "Domain"].includes(field)
+                            ? "AbuseIPDB"
+                            : "VirusTotal"}
+                        </td>
+
+                        {/* Field Name */}
+                        <td className="p-2 font-medium bg-gray-50">{field}</td>
+
+                        {/* Source Value */}
+                      <td
+                        className={`p-2 border-r ${
+                          !loadingIntel && field === "Reputation"
+                            ? (() => {
+                                const rep = threatIntel?.vt?.data?.attributes?.reputation ?? 0;
+                                if (rep < 0) return "bg-red-200 text-red-800 font-bold";
+                                if (rep === 0) return "bg-yellow-200 text-yellow-800 font-bold";
+                                return "bg-green-200 text-green-800 font-bold";
+                              })()
+                            : ""
+                        }`}
+                      >
+                        {loadingIntel
+                          ? "Loading..."
+                          : ["Confidence", "Total Reports", "Country", "Domain"].includes(field)
+                          ? getAbuseValue(threatIntel?.abuse)
+                          : getVTValue(threatIntel?.vt)}
+                      </td>
+
+                      {/* Destination Value */}
+                      <td
+                        className={`p-2 ${
+                          !loadingIntel && field === "Reputation"
+                            ? (() => {
+                                const rep = threatIntel?.destVT?.data?.attributes?.reputation ?? 0;
+                                if (rep < 0) return "bg-red-200 text-red-800 font-bold";
+                                if (rep === 0) return "bg-yellow-200 text-yellow-800 font-bold";
+                                return "bg-green-200 text-green-800 font-bold";
+                              })()
+                            : ""
+                        }`}
+                      >
+                        {loadingIntel
+                          ? "Loading..."
+                          : ["Confidence", "Total Reports", "Country", "Domain"].includes(field)
+                          ? getAbuseValue(threatIntel?.destAbuse)
+                          : getVTValue(threatIntel?.destVT)}
+                      </td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <small>note* lower reputation = more likely to be malicious</small>
+            </div>
 
             <button
               onClick={() => setSelectedAlert(null)}

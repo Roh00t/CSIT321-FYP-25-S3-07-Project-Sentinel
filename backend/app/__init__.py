@@ -30,6 +30,7 @@ def create_app():
     from app.routes.main import main_bp
     from app.routes.geoip import geo_bp
     from app.routes.filters import filters_bp
+    from app.routes.threatint import threat_bp
 
     CORS(app, 
         origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
     app.register_blueprint(geo_bp)
     app.register_blueprint(filters_bp)
+    app.register_blueprint(threat_bp)
 
     with app.app_context():
         # Extract config values
