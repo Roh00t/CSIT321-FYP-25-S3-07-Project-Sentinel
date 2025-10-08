@@ -10,3 +10,5 @@ class Filter(db.Model):
     name = db.Column(db.String(100), nullable=False)
     filters_json = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    alerts_options = db.Column(db.JSON, nullable=True)
+    report_frequency = db.Column(db.String(50), nullable=True)

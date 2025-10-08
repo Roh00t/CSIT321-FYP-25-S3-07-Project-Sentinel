@@ -8,8 +8,6 @@ load_dotenv()
 
 ABUSE_API_KEY = os.getenv("ABUSE_API_KEY")
 VT_API_KEY = os.getenv("VT_API_KEY")
-print("AbuseIPDB Key:", ABUSE_API_KEY)
-print("VirusTotal Key:", VT_API_KEY)
 
 @threat_bp.route("/api/threatintel", methods=["POST"])
 def threat_intel():

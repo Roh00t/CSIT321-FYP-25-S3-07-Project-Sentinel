@@ -67,7 +67,14 @@ with app.app_context():
                 "port": None,
                 "ip": "",
                 "timeRange": {"start": None, "end": None}
-            }
+            },
+            alerts_options={
+                "High": True,
+                "Medium": False,
+                "Low": False,
+                "Threshold": 100
+            },
+            report_frequency= "None"  # can be "monthly", "bi-weekly", "weekly", or None
         )
         db.session.add(sample_filter)
         print("Sample filter 'Critical Alerts Only' created.")

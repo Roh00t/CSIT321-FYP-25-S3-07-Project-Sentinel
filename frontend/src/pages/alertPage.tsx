@@ -33,8 +33,16 @@ export default function AlertsPage() {
   const token = localStorage.getItem("token");
   const [threatIntel, setThreatIntel] = useState<any | null>(null);
   const [loadingIntel, setLoadingIntel] = useState(false);
-  const [showAdminEmailModal, setShowAdminEmailModal] = useState(false);
-  const [adminEmail, setAdminEmail] = useState("");
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [alertSettings, setAlertSettings] = useState({
+    high: true,
+    medium: false,
+    low: false,
+    threshold: 100,
+  });
+  const [reportFrequency, setReportFrequency] = useState("weekly"); // default value
+
+
 
 
   const [filters, setFilters] = useState({
@@ -136,6 +144,27 @@ export default function AlertsPage() {
     };
     fetchGeo();
   }, [alerts]);
+  // Load saved alert options for current user
+  useEffect(() => {
+    if (!token) return;
+    const fetchAlertOptions = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/filters/alert-options", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const opts = res.data.alerts_options || {};
+        setAlertSettings({
+          high: opts.high ?? true,
+          medium: opts.medium ?? false,
+          low: opts.low ?? false,
+          threshold: res.data.report_frequency ? Number(res.data.report_frequency) : 100,
+        });
+      } catch (err) {
+        console.error("Failed to fetch alert options:", err);
+      }
+    };
+    fetchAlertOptions();
+  }, [token]);
 
   // Filter alerts based on selected filters
   const filteredAlerts = alerts.filter((a) => {
@@ -333,6 +362,121 @@ const alertsPerHourOptions = {
     <div className="p-8">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Suricata / Snort Alerts</h1>
+        <div className="mt-4">
+        <button
+          onClick={() => setShowAlertSettings(!showAlertSettings)}
+          className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
+        >
+          ⚙️ Alert Preferences
+        </button>
+        {showAlertSettings && (
+          <div className="absolute right-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
+            <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
+
+            <div className="space-y-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={alertSettings.high}
+                  onChange={(e) =>
+                    setAlertSettings({ ...alertSettings, high: e.target.checked })
+                  }
+                />
+                <span>Send email for <b>High alerts</b></span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={alertSettings.medium}
+                  onChange={(e) =>
+                    setAlertSettings({ ...alertSettings, medium: e.target.checked })
+                  }
+                />
+                <span>Send email for <b>Medium alerts</b></span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={alertSettings.low}
+                  onChange={(e) =>
+                    setAlertSettings({ ...alertSettings, low: e.target.checked })
+                  }
+                />
+                <span>Send email for <b>Low alerts</b></span>
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <label className="block mb-1 text-sm font-medium">
+                Above <b>X</b> logs per hour:
+              </label>
+              <input
+                type="number"
+                value={alertSettings.threshold}
+                onChange={(e) =>
+                  setAlertSettings({ ...alertSettings, threshold: Number(e.target.value) })
+                }
+                className="w-full border rounded px-2 py-1"
+                min={1}
+              />
+            </div>
+            {/* Report Frequency Dropdown */}
+            <div className="mt-4">
+              <label className="block mb-1 text-sm font-medium">Report Frequency</label>
+              <select
+                value={reportFrequency} // separate state for this
+                onChange={(e) => setReportFrequency(e.target.value)}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+
+
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => setShowAlertSettings(false)}
+                className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+              onClick={async () => {
+                try {
+                  await axios.put(
+                  "http://localhost:5000/api/filters/alert-options",
+                  {
+                    alerts_options: alertSettings,
+                    report_frequency: reportFrequency,
+                  },
+                  {
+                    headers: { Authorization: `Bearer ${token}` },
+                  }
+                );
+
+                  alert("Alert options saved!");
+                  setShowAlertSettings(false);
+                } catch (err) {
+                  console.error("Failed to save alert options:", err);
+                  alert("Failed to save alert options");
+                }
+              }}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Save
+            </button>
+
+            </div>
+          </div>
+        )}
+
+      </div>
+
         </div>
 
       {/* Upload Box */}
