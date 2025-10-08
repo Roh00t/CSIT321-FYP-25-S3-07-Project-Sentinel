@@ -22,7 +22,7 @@ export function useUserSession() {
       token,
       user_type,
       username,
-      user_plan, // ← include it
+      user_plan,
       isAuthenticated: !!token,
     };
   };
@@ -68,6 +68,6 @@ export function useUserSession() {
     window.addEventListener('sessionchange', handleSessionChange);
     return () => window.removeEventListener('sessionchange', handleSessionChange);
   }, []);
-
+ 
   return session;
 }

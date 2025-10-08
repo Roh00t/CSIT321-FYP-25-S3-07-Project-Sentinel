@@ -17,6 +17,7 @@ import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
 import AdminManageUserPage from './pages/AdminManageUserPage';
 import AppUserBasicAlertPage from './pages/AppUserBasicAlertPage';
 import PlanProtectedRoute from './components/PlanProtectedRoute';
+import UpgradePlanPage from './pages/UpgradePlanPage';
 
 function App() {
   return (
@@ -70,6 +71,7 @@ function App() {
 
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
+            <Route path="upgrade" element={<UpgradePlanPage />} />
           </Route>
 
 

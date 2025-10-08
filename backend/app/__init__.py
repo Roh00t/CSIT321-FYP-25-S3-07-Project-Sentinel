@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
 from app.routes.alerts import alerts_bp
-import pymysql
 
 load_dotenv()
 
@@ -32,17 +31,18 @@ def create_app():
     from app.routes.geoip import geo_bp
     from app.routes.filters import filters_bp
 
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(main_bp, url_prefix='/api')
-    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
-    app.register_blueprint(geo_bp)
-    app.register_blueprint(filters_bp)
     CORS(app, 
         origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization"],
         supports_credentials=True
     )
+
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(main_bp, url_prefix='/api')
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
+    app.register_blueprint(geo_bp)
+    app.register_blueprint(filters_bp)
 
     with app.app_context():
         # Extract config values
@@ -85,5 +85,8 @@ def create_app():
         except Exception as table_error:
             print(f"Error during table creation: {str(table_error)}")
             raise
+
+        # Debug: Print the database path
+        print("DATABASE PATH:", db.engine.url)
 
     return app

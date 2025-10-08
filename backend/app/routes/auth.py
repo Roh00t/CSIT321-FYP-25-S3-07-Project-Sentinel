@@ -1,10 +1,12 @@
 # app/routes/auth.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.models import User, AppUser, Admin
 from app import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
 import bcrypt
+import stripe
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -460,6 +462,20 @@ def update_appuser_profile():
         "last_name": user.last_name
     }), 200
 
+@auth_bp.route('/verify-token', methods=['GET'])
+@jwt_required()
+def verify_token():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    return jsonify({
+        "user_id": user.id,
+        "user_type": user.user_type,
+        "subscription_plan": user.subscription_plan  # ← always fresh from DB
+    }), 200
+
 # DELETE: AppUser deletes own account
 @auth_bp.route('/appuser/delete', methods=['DELETE'])
 @jwt_required()
@@ -500,3 +516,116 @@ def profile():
         "user_type": user.user_type
     }), 200
 
+# Initialize Stripe
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+@auth_bp.route('/checkout/create-session', methods=['POST'])
+@jwt_required()
+def create_checkout_session():
+    try:
+        user_id = get_jwt_identity()
+        user = AppUser.query.get(int(user_id))
+        if not user:
+            return jsonify({"msg": "User not found"}), 404
+
+        data = request.get_json()
+        plan = data.get('plan')
+
+        if plan not in ['Pro', 'Team']:
+            return jsonify({"msg": "Invalid plan. Choose 'Pro' or 'Team'."}), 400
+
+        # Map plan to Stripe Price ID (CREATE THESE IN STRIPE DASHBOARD FIRST!)
+        PRICE_IDS = {
+            'Pro': 'price_1SFtzfCxWn2BMTPyBOzbSDOF',   # ← REPLACE with your Pro Price ID
+            'Team': 'price_1SFwuPCxWn2BMTPyXOGiS0Jx',  # ← REPLACE with your Team Price ID
+        }
+
+        checkout_session = stripe.checkout.Session.create(
+            mode='subscription',
+            payment_method_types=['card'],
+            line_items=[{
+                'price': PRICE_IDS[plan],
+                'quantity': 1,
+            }],
+            subscription_data={
+                'metadata': {
+                    'user_id': str(user.id),
+                    'plan': plan
+                }
+            },
+            success_url=f"{os.getenv('FRONTEND_URL')}/app/dashboard?upgrade=success",
+            cancel_url=f"{os.getenv('FRONTEND_URL')}/upgrade?cancelled=true",
+            client_reference_id=str(user.id),
+        )
+
+        return jsonify({'url': checkout_session.url})
+    except Exception as e:
+        current_app.logger.error(f"Checkout error: {str(e)}")
+        return jsonify({'msg': 'Failed to create checkout session'}), 500
+
+@auth_bp.route('/webhooks/stripe', methods=['POST'])
+def stripe_webhook():
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, os.getenv('STRIPE_WEBHOOK_SECRET')
+        )
+    except ValueError as e:
+        current_app.logger.error(f"Invalid payload: {str(e)}")
+        return 'Invalid payload', 400
+    except stripe.error.SignatureVerificationError as e:
+        current_app.logger.error(f"Invalid signature: {str(e)}")
+        return 'Invalid signature', 400
+
+    # Handle successful checkout
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        user_id_str = session.get('client_reference_id')
+        subscription_id = session.get('subscription')
+
+        # Validate required data
+        if not user_id_str or not subscription_id:
+            current_app.logger.warning("Missing client_reference_id or subscription ID")
+            return jsonify({'status': 'success'})
+
+        try:
+            # Retrieve subscription to get metadata
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            plan = subscription.get('metadata', {}).get('plan')
+
+            if plan not in ['Pro', 'Team']:
+                current_app.logger.warning(f"Invalid plan in metadata: {plan}")
+                return jsonify({'status': 'success'})
+
+            # Fetch user from DB (AppUser uses 'app_users' table)
+            try:
+                user_id = int(user_id_str)
+            except (TypeError, ValueError):
+                current_app.logger.error(f"Invalid user_id format: {user_id_str}")
+                return jsonify({'status': 'success'})
+
+            user = AppUser.query.get(user_id)
+            if not user:
+                current_app.logger.warning(f"AppUser with ID {user_id} not found")
+                return jsonify({'status': 'success'})
+
+            # Update subscription plan
+            current_app.logger.info(f"Updating user {user_id} to plan: {plan}")
+            user.subscription_plan = plan
+
+            # Commit to MySQL
+            db.session.commit()
+            current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")
+
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"MySQL error updating user plan: {str(e)}")
+            return jsonify({'status': 'error'}), 500
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Unexpected error in webhook: {str(e)}")
+            return jsonify({'status': 'error'}), 500
+
+    return jsonify({'status': 'success'})
