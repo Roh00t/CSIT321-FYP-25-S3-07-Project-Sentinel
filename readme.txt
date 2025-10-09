@@ -18,6 +18,11 @@ Otherwise:
     cd backend
     .\venv\Scripts\Activate.ps1
     flask run
+    ====
+    live monitoring update:
+    use python run.py instead of flask run
+    python agent.py in a 3rd terminal
+    
 
 
 For MySQL setup (Type in Mysql Command Line Client, during MySQL setup please use default port 3306):

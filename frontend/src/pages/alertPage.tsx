@@ -18,6 +18,7 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
+import { io } from "socket.io-client";
 
 
 
@@ -165,6 +166,39 @@ export default function AlertsPage() {
     };
     fetchAlertOptions();
   }, [token]);
+  //live monitoring via websockets
+    useEffect(() => {
+    const socket = io("http://localhost:5000/api/alerts/stream");
+
+    socket.on("connect", () => console.log("Connected to SocketIO server"));
+    socket.on("disconnect", () => console.log("Disconnected from SocketIO server"));
+
+    socket.on("new_alert", (newAlert: any) => {
+      console.log("🚨 New alert received:", newAlert);
+      const normalized = {
+        timestamp: newAlert.timestamp,
+        src_ip: newAlert.src_ip,
+        src_port: newAlert.src_port,
+        dest_ip: newAlert.dest_ip,
+        dest_port: newAlert.dest_port,
+        protocol: newAlert.protocol,
+        signature: newAlert.signature,
+        severity: newAlert.severity,
+        original: newAlert.original ?? newAlert,
+      };
+
+      setAlerts(prev => {
+        const key = `${normalized.timestamp}-${normalized.src_ip}-${normalized.dest_ip}-${normalized.signature}`;
+        if (prev.some(a => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}` === key)) return prev;
+        return [normalized, ...prev];
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token]);
+
 
   // Filter alerts based on selected filters
   const filteredAlerts = alerts.filter((a) => {
@@ -481,13 +515,6 @@ const alertsPerHourOptions = {
 
       {/* Upload Box */}
       <div className="mb-6">
-        <label className="block text-gray-700 font-medium mb-2">
-          Upload eve.json / alert file:
-        </label>
-        <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-blue-700 transition">
-          Choose File
-          <input type="file" onChange={handleUpload} className="hidden" />
-        </label>
         {/* Charts Section */}
         {alerts.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -833,7 +860,7 @@ const alertsPerHourOptions = {
       {/* No Alerts */}
       {!loading && alerts.length === 0 && (
         <p className="text-gray-600 mt-4">
-          No alerts uploaded yet. Upload a Suricata <code>eve.json</code> file to see results.
+          The dashboard isnt getting info, is there traffic being generated on the network?
         </p>
       )}
 

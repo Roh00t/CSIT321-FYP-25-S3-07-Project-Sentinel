@@ -11,11 +11,17 @@ from dotenv import load_dotenv
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
 from app.routes.alerts import alerts_bp
+from flask_socketio import SocketIO
+from app.routes.socketIO import AlertsNamespace  # just ensures file is loaded
+import threading
+import time
 
 load_dotenv()
 
 db = SQLAlchemy()
 jwt = JWTManager()
+socketio = SocketIO(cors_allowed_origins="*")
+socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
 
 def create_app():
     app = Flask(__name__)
@@ -24,6 +30,22 @@ def create_app():
     # Initialize extensions (required before using db.get_engine)
     db.init_app(app)
     jwt.init_app(app)
+    socketio.init_app(app)
+    
+    socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
+    
+    def background_alert_sender():
+        while True:
+            time.sleep(5)  # every 5 seconds
+            socketio.emit(
+                "alert",
+                {"alert": "New alert generated!"},
+                namespace="/api/alerts/stream"
+            )
+
+    thread = threading.Thread(target=background_alert_sender)
+    thread.daemon = True
+    thread.start()
 
     # Import and register blueprints
     from app.routes.auth import auth_bp
@@ -31,7 +53,6 @@ def create_app():
     from app.routes.geoip import geo_bp
     from app.routes.filters import filters_bp
     from app.routes.threatint import threat_bp
-
     CORS(app, 
         origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
