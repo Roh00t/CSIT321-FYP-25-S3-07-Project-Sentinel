@@ -14,13 +14,34 @@ class AlertsNamespace(Namespace):
         print("Pro user disconnected")
     
     def on_alert_event(self, data):
-        print("📥 Received alert event:", data.get("event_type") or data.get("alert_type"))
+        if data.get("event_type") == "dns":
+            data = dns_to_alert(data)
         if data.get("event_type") in ["flow", "stats"]:
             return
+        print("📥 Received alert event:", data.get("event_type") or data.get("alert_type"))
         normalized = normalize_alert(data)
         emit("new_alert", normalized, broadcast=True)
         print("📤 Forwarded normalized alert to frontend:", normalized.get("signature"))
-        
+
+def dns_to_alert(dns_event):
+    alert_data = {
+        "event_type": "alert",
+        "flow_id": dns_event.get("flow_id"),
+        "src_ip": dns_event.get("src_ip"),
+        "dest_ip": dns_event.get("dest_ip"),
+        "proto": dns_event.get("proto"),
+        "alert": {
+            "action": "allowed",  # or blocked if you want
+            "gid": 1,
+            "signature_id": 9000,  # arbitrary ID for synthetic alerts
+            "rev": 1,
+            "signature": f"DNS query for {dns_event['dns']['queries'][0]['rrname']}",
+            "category": "DNS Query",
+            "severity": 1,
+        },
+    }
+    return alert_data
+
 def send_initial_fetch():
     try:
         with open(EVE_PATH, "r", encoding="utf-8") as f:

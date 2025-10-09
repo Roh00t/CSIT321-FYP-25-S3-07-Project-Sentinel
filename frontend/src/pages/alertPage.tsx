@@ -174,24 +174,24 @@ export default function AlertsPage() {
     socket.on("disconnect", () => console.log("Disconnected from SocketIO server"));
 
     socket.on("new_alert", (newAlert: any) => {
-      console.log("🚨 New alert received:", newAlert);
-      const normalized = {
-        timestamp: newAlert.timestamp,
-        src_ip: newAlert.src_ip,
-        src_port: newAlert.src_port,
-        dest_ip: newAlert.dest_ip,
-        dest_port: newAlert.dest_port,
-        protocol: newAlert.protocol,
-        signature: newAlert.signature,
-        severity: newAlert.severity,
-        original: newAlert.original ?? newAlert,
-      };
+    console.log("🚨 New alert received:", newAlert);
 
-      setAlerts(prev => {
-        const key = `${normalized.timestamp}-${normalized.src_ip}-${normalized.dest_ip}-${normalized.signature}`;
-        if (prev.some(a => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}` === key)) return prev;
-        return [normalized, ...prev];
-      });
+    if (!newAlert) return; // skip completely empty events, if you want
+
+    const normalized = {
+      timestamp: newAlert.timestamp ?? new Date().toISOString(), // fallback
+      src_ip: newAlert.src_ip,
+      src_port: newAlert.src_port,
+      dest_ip: newAlert.dest_ip,
+      dest_port: newAlert.dest_port,
+      protocol: newAlert.protocol,
+      signature: newAlert.signature,
+      severity: newAlert.severity,
+      type: newAlert.type,  // track original event type
+      original: newAlert.original ?? newAlert,
+    };
+
+      setAlerts(prev => [normalized, ...prev]);
     });
 
     return () => {
