@@ -10,8 +10,9 @@ interface AppProfile {
   email: string;
   first_name: string;
   last_name: string;
-  subscription_plan: string;
+  subscription_plan: string; // e.g., "Basic", "Pro", "Team"
   created_at: string | null;
+  subscription_end_date: string | null; // ← Add this
 }
 
 export default function AppUserProfilePage() {
@@ -137,12 +138,21 @@ export default function AppUserProfilePage() {
                 : 'Unknown'}
             </p>
           </div>
+
+          <div className="bg-gray-50 p-5 rounded-lg border">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Subscription End Date</h3>
+            <p className="text-xl text-gray-700">
+              {profile.subscription_end_date
+                ? new Date(profile.subscription_end_date).toLocaleDateString()
+                : '—'}
+            </p>
+          </div>
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
           <button
             onClick={() => navigate('/app/upgrade')}
-            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
           >
             Upgrade Plan
           </button>

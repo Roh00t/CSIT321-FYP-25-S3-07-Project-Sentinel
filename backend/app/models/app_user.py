@@ -12,7 +12,7 @@ class AppUser(User):
     subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Pro, Team
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     admin_email = db.Column(db.String(255), nullable=True)
-
+    stripe_customer_id = db.Column(db.String(255), nullable=True)
 
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
@@ -27,6 +27,8 @@ class AppUser(User):
             'email': self.email,
             'username': self.username,
             'subscription_plan': self.subscription_plan,
+            'admin_email': self.admin_email,
+            'stripe_customer_id': self.stripe_customer_id,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
