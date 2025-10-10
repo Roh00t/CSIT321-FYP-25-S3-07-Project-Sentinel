@@ -68,6 +68,24 @@ def login():
     if not user or not bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
         return jsonify({"msg": "Invalid username or password"}), 401
 
+    # For AppUsers with Pro/Team plans, verify subscription status with Stripe
+    if hasattr(user, 'user_type') and user.user_type == 'app_user' and user.subscription_plan in ['Pro', 'Team']:
+        try:
+            if user.stripe_customer_id:
+                subscriptions = stripe.Subscription.list(
+                    customer=user.stripe_customer_id,
+                    status='active',
+                    limit=1
+                )
+                # If no active subscription found, downgrade to Basic
+                if not subscriptions.data:
+                    user.subscription_plan = "Basic"
+                    db.session.commit()
+                    current_app.logger.info(f"Downgraded user {user.id} to Basic during login (no active subscription)")
+        except Exception as e:
+            current_app.logger.error(f"Error checking subscription during login for user {user.id}: {str(e)}")
+            # Don't fail login - just log the error and proceed with current plan
+
     # Create JWT token
     access_token = create_access_token(identity=str(user.id))
 
@@ -324,6 +342,31 @@ def update_user(user_id):
 
     return jsonify({"msg": "User updated successfully"}), 200
 
+# Helper function to cancel user's subscription
+def cancel_user_subscription(user):
+    """Cancel user's Stripe subscription if it exists"""
+    if user.subscription_plan == "Basic" or not user.stripe_customer_id:
+        return None
+    
+    try:
+        # Find active subscription
+        subscriptions = stripe.Subscription.list(
+            customer=user.stripe_customer_id,
+            status='active',
+            limit=1
+        )
+        
+        if subscriptions.data:
+            sub = subscriptions.data[0]
+            # Cancel immediately (not at period end) since account is being deleted
+            stripe.Subscription.delete(sub.id)
+            current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for deleted user {user.id}")
+            return sub.id
+    except Exception as e:
+        current_app.logger.error(f"Error cancelling subscription for user {user.id}: {str(e)}")
+        # Don't raise exception - account deletion should proceed even if Stripe fails
+    return None
+
 # DELETE: Admin deletes a user
 @auth_bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
@@ -338,10 +381,18 @@ def delete_user(user_id):
         return jsonify({"msg": "User not found"}), 404
 
     try:
+        # Cancel subscription first
+        cancelled_sub_id = cancel_user_subscription(user)
+        
+        # Delete user from database
         db.session.delete(user)
         db.session.commit()
+        
+        current_app.logger.info(f"Admin deleted user {user_id}, cancelled subscription: {cancelled_sub_id}")
+        
     except Exception as e:
         db.session.rollback()
+        current_app.logger.exception(f"Error deleting user {user_id}")
         return jsonify({"msg": "Database error", "error": str(e)}), 500
 
     return jsonify({"msg": "User deleted successfully"}), 200
@@ -356,6 +407,7 @@ def get_appuser_profile():
         return jsonify({"msg": "User not found"}), 404
 
     subscription_end_date = None
+    is_cancelling = False  # ← NEW FIELD
 
     if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
         try:
@@ -366,6 +418,9 @@ def get_appuser_profile():
             )
             if subscriptions.data:
                 sub = stripe.Subscription.retrieve(subscriptions.data[0].id)
+                
+                # Check if subscription is set to cancel at period end
+                is_cancelling = bool(sub.get('cancel_at_period_end', False))
                 
                 items = sub.get('items', {}).get('data', [])
                 if items:
@@ -392,7 +447,8 @@ def get_appuser_profile():
         "last_name": user.last_name,
         "subscription_plan": user.subscription_plan or "Basic",
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "subscription_end_date": subscription_end_date
+        "subscription_end_date": subscription_end_date,
+        "is_cancelling": is_cancelling  # ← INCLUDE IN RESPONSE
     })
 
 # PUT Update AppUser Profile
@@ -517,10 +573,18 @@ def delete_own_account():
         return jsonify({"msg": "Confirmation required"}), 400
 
     try:
+        # Cancel subscription first
+        cancelled_sub_id = cancel_user_subscription(user)
+        
+        # Delete user from database
         db.session.delete(user)
         db.session.commit()
+        
+        current_app.logger.info(f"User {user_id} deleted own account, cancelled subscription: {cancelled_sub_id}")
+        
     except Exception as e:
         db.session.rollback()
+        current_app.logger.exception(f"Error deleting own account for user {user_id}")
         return jsonify({"msg": "Database error", "error": str(e)}), 500
 
     return jsonify({"msg": "Account deleted successfully"}), 200
@@ -650,10 +714,8 @@ def stripe_webhook():
                 current_app.logger.warning(f"AppUser with ID {user_id} not found")
                 return jsonify({'status': 'success'})
 
-            # Update subscription plan
             current_app.logger.info(f"Updating user {user_id} to plan: {plan}")
             user.subscription_plan = plan
-            # Update Stripe customer ID if not already set
             if not user.stripe_customer_id:
                 user.stripe_customer_id = customer_id
 
@@ -669,9 +731,39 @@ def stripe_webhook():
             current_app.logger.error(f"Unexpected error in webhook: {str(e)}")
             return jsonify({'status': 'error'}), 500
 
+    # Handle subscription cancellation (when status changes to 'canceled')
+    elif event['type'] == 'customer.subscription.updated':
+        subscription = event['data']['object']
+        customer_id = subscription.get('customer')
+        status = subscription.get('status')
+        
+        if not customer_id:
+            current_app.logger.warning("No customer_id in subscription.updated event")
+            return jsonify({'status': 'success'})
+
+        # Only process if subscription is now canceled
+        if status == 'canceled':
+            try:
+                user = AppUser.query.filter_by(stripe_customer_id=customer_id).first()
+                if user and user.subscription_plan != "Basic":
+                    current_app.logger.info(f"Downgrading user {user.id} to Basic after subscription cancellation (status: {status})")
+                    user.subscription_plan = "Basic"
+                    db.session.commit()
+                else:
+                    current_app.logger.info(f"User not found or already Basic for customer {customer_id}")
+
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                current_app.logger.error(f"MySQL error in subscription.updated webhook: {str(e)}")
+                return jsonify({'status': 'error'}), 500
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Unexpected error in subscription.updated webhook: {str(e)}")
+                return jsonify({'status': 'error'}), 500
+
     return jsonify({'status': 'success'})
 
-# Cancel Subscription (downgrade to Basic)
+# Cancel Subscription
 @auth_bp.route('/subscription/cancel', methods=['POST'])
 @jwt_required()
 def cancel_subscription():
@@ -683,26 +775,48 @@ def cancel_subscription():
     if user.subscription_plan == "Basic":
         return jsonify({"msg": "No active subscription to cancel"}), 400
 
+    if not user.stripe_customer_id:
+        return jsonify({"msg": "No Stripe customer found"}), 400
+
     try:
-        # Cancel Stripe subscription if exists
-        if user.stripe_customer_id:
-            subscriptions = stripe.Subscription.list(
-                customer=user.stripe_customer_id,
-                status='active',
-                limit=1
-            )
-            if subscriptions.data:
-                sub = subscriptions.data[0]
-                stripe.Subscription.delete(sub.id)
-                current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for user {user.id}")
+        # Find active subscription
+        subscriptions = stripe.Subscription.list(
+            customer=user.stripe_customer_id,
+            status='active',
+            limit=1
+        )
+        
+        if not subscriptions.data:
+            return jsonify({"msg": "No active subscription found"}), 400
 
-        # Downgrade to Basic
-        user.subscription_plan = "Basic"
-        db.session.commit()
+        sub = subscriptions.data[0]
+        
+        # CANCEL AT PERIOD END (not immediately)
+        updated_sub = stripe.Subscription.modify(
+            sub.id,
+            cancel_at_period_end=True
+        )
+        
+        current_app.logger.info(f"Set subscription {sub.id} to cancel at period end")
 
-        return jsonify({"msg": "Subscription cancelled. Plan downgraded to Basic."}), 200
+        # SAFELY ACCESS FIELDS USING .get() METHOD
+        cancel_at_period_end = updated_sub.get('cancel_at_period_end', False)
+        current_period_end = updated_sub.get('current_period_end')
+        
+        # Convert timestamp to ISO format if it exists
+        current_period_end_iso = None
+        if current_period_end:
+            if isinstance(current_period_end, int):
+                current_period_end_iso = datetime.datetime.utcfromtimestamp(current_period_end).isoformat() + "Z"
+            elif isinstance(current_period_end, datetime.datetime):
+                current_period_end_iso = current_period_end.isoformat().replace('+00:00', 'Z')
+
+        return jsonify({
+            "msg": "Subscription cancelled. You'll keep access until the end of your billing period.",
+            "cancel_at_period_end": cancel_at_period_end,
+            "current_period_end": current_period_end_iso
+        }), 200
 
     except Exception as e:
-        db.session.rollback()
         current_app.logger.exception("Error cancelling subscription")
         return jsonify({"msg": "Failed to cancel subscription", "error": str(e)}), 500

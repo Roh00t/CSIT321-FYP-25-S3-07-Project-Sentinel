@@ -12,6 +12,7 @@ interface AppProfile {
   subscription_plan: string; // "Basic", "Pro", "Team"
   created_at: string | null;
   subscription_end_date: string | null;
+  is_cancelling: boolean; // ← NEW FIELD
 }
 
 export default function ManagePlanPage() {
@@ -83,8 +84,16 @@ export default function ManagePlanPage() {
     
     const confirmed = window.confirm(
       profile.subscription_plan === 'Pro'
-        ? "Are you sure you want to cancel your Pro plan? You'll lose access to premium features immediately."
-        : "Are you sure you want to cancel your Team plan? All team members will lose access immediately."
+        ? "Are you sure you want to cancel your Pro plan? You'll keep access until " + 
+          (profile.subscription_end_date 
+            ? new Date(profile.subscription_end_date).toLocaleDateString()
+            : 'the end of your billing period') + 
+          ". No further charges will be made."
+        : "Are you sure you want to cancel your Team plan? You'll keep access until " + 
+          (profile.subscription_end_date 
+            ? new Date(profile.subscription_end_date).toLocaleDateString()
+            : 'the end of your billing period') + 
+          ". No further charges will be made."
     );
     
     if (!confirmed) return;
@@ -102,7 +111,7 @@ export default function ManagePlanPage() {
 
       if (response.ok) {
         alert(data.msg);
-        // Refresh profile to reflect new plan
+        // Refresh profile to reflect cancellation status
         const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -131,6 +140,7 @@ export default function ManagePlanPage() {
   const isBasic = profile.subscription_plan === 'Basic';
   const isPro = profile.subscription_plan === 'Pro';
   const isTeam = profile.subscription_plan === 'Team';
+  const isCancelling = profile.is_cancelling;
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -154,8 +164,13 @@ export default function ManagePlanPage() {
                     ? "— (Basic plan)" 
                     : "Loading..."}
               </p>
+              {isCancelling && profile.subscription_end_date && (
+                <p className="text-orange-600 mt-1 text-sm font-medium">
+                  ⏳ Cancelling at end of period ({new Date(profile.subscription_end_date).toLocaleDateString()})
+                </p>
+              )}
             </div>
-            {!isBasic && (
+            {!isBasic && !isCancelling && (
               <button
                 onClick={handleCancelPlan}
                 disabled={actionLoading}
@@ -163,6 +178,11 @@ export default function ManagePlanPage() {
               >
                 {actionLoading ? 'Processing...' : 'Cancel Plan'}
               </button>
+            )}
+            {isCancelling && (
+              <span className="mt-4 md:mt-0 px-4 py-2 bg-orange-100 text-orange-800 font-medium rounded-lg">
+                Cancelling
+              </span>
             )}
           </div>
         </div>
@@ -174,7 +194,9 @@ export default function ManagePlanPage() {
             <div className="flex justify-between items-start">
               <h2 className="text-xl font-semibold text-blue-600">Pro Plan</h2>
               {isPro && (
-                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Current</span>
+                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                  {isCancelling ? 'Cancelling' : 'Current'}
+                </span>
               )}
             </div>
             <p className="text-3xl font-bold my-2">$19.00<span className="text-lg font-normal text-gray-500">/month</span></p>
@@ -199,7 +221,9 @@ export default function ManagePlanPage() {
             <div className="flex justify-between items-start">
               <h2 className="text-xl font-semibold text-green-600">Team Plan</h2>
               {isTeam && (
-                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Current</span>
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                  {isCancelling ? 'Cancelling' : 'Current'}
+                </span>
               )}
             </div>
             <p className="text-3xl font-bold my-2">$85.00<span className="text-lg font-normal text-gray-500">/month</span></p>
