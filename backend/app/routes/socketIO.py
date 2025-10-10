@@ -2,6 +2,7 @@
 from flask import Blueprint
 from flask_socketio import emit, Namespace
 from datetime import datetime, timezone
+import eventlet
 import threading
 import time
 
@@ -21,6 +22,8 @@ class AlertsNamespace(Namespace):
         print("📥 Received alert event:", data.get("event_type") or data.get("alert_type"))
         normalized = normalize_alert(data)
         emit("new_alert", normalized, broadcast=True)
+        eventlet.sleep(0)
+
         print("📤 Forwarded normalized alert to frontend:", normalized.get("signature"))
 
 def dns_to_alert(dns_event):

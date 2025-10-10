@@ -20,7 +20,7 @@ load_dotenv()
 
 db = SQLAlchemy()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet', ping_interval=10, ping_timeout=30)
 socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
 
 def create_app():

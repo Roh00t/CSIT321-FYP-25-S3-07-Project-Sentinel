@@ -1,3 +1,4 @@
+//frontend/src/pages/alertPage.tsx
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
@@ -19,12 +20,11 @@ import {
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
 import { io } from "socket.io-client";
-
-
-
+import { useSocketLogger } from "../hooks/useSocketLogger";
 
 
 export default function AlertsPage() {
+  useSocketLogger();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [alertsWithGeo, setAlertsWithGeo] = useState<any[]>([]);
@@ -168,10 +168,26 @@ export default function AlertsPage() {
   }, [token]);
   //live monitoring via websockets
     useEffect(() => {
-    const socket = io("http://localhost:5000/api/alerts/stream");
+    const socket = io("http://localhost:5000/api/alerts/stream", {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+    });
 
     socket.on("connect", () => console.log("Connected to SocketIO server"));
     socket.on("disconnect", () => console.log("Disconnected from SocketIO server"));
+    socket.on("connect_error", (error) => {
+      console.error("[Socket] ❌ Connection error:", error.message);
+    });
+
+    socket.on("reconnect_attempt", (attempt) => {
+      console.log(`[Socket] 🔄 Reconnect attempt #${attempt}`);
+    });
+
+    socket.on("reconnect", (attempt) => {
+      console.log(`[Socket] 🔁 Successfully reconnected after ${attempt} tries`);
+    });
 
     socket.on("new_alert", (newAlert: any) => {
     console.log("🚨 New alert received:", newAlert);
@@ -860,7 +876,11 @@ const alertsPerHourOptions = {
       {/* No Alerts */}
       {!loading && alerts.length === 0 && (
         <p className="text-gray-600 mt-4">
-          The dashboard isnt getting info, is there traffic being generated on the network?
+          The dashboard isnt getting info, is:
+          <ul className="list-disc list-inside">
+            <li>Suricata or Snort running and generating alerts?</li>
+            <li>The agent connected?</li>
+            </ul>
         </p>
       )}
 
