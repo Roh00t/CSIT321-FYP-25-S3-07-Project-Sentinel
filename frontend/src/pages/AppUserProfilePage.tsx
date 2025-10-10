@@ -151,10 +151,10 @@ export default function AppUserProfilePage() {
 
         <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
           <button
-            onClick={() => navigate('/app/upgrade')}
+            onClick={() => navigate('/app/plan')}
             className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
           >
-            Upgrade Plan
+            Manage Plan
           </button>
           <button
             onClick={() => navigate('/app/profile/edit')}

@@ -559,11 +559,26 @@ def create_checkout_session():
         if plan not in ['Pro', 'Team']:
             return jsonify({"msg": "Invalid plan. Choose 'Pro' or 'Team'."}), 400
 
-        # Map plan to Stripe Price ID (CREATE THESE IN STRIPE DASHBOARD FIRST!)
+        # Map plan to Stripe Price ID
         PRICE_IDS = {
-            'Pro': 'price_1SFtzfCxWn2BMTPyBOzbSDOF',   # ← REPLACE with your Pro Price ID
-            'Team': 'price_1SFwuPCxWn2BMTPyXOGiS0Jx',  # ← REPLACE with your Team Price ID
+            'Pro': 'price_1SGhgWCxWn2BMTPyktbgtr4C',
+            'Team': 'price_1SGhgfCxWn2BMTPycHx6KrND',
         }
+
+        # CHECK FOR EXISTING STRIPE CUSTOMER ID
+        customer_id = user.stripe_customer_id
+        
+        # If no customer ID exists, create a new one
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=f"{user.first_name} {user.last_name}",
+                metadata={"user_id": str(user.id)}
+            )
+            customer_id = customer.id
+            # Save immediately to prevent duplicate customers
+            user.stripe_customer_id = customer_id
+            db.session.commit()
 
         checkout_session = stripe.checkout.Session.create(
             mode='subscription',
@@ -578,8 +593,9 @@ def create_checkout_session():
                     'plan': plan
                 }
             },
+            customer=customer_id,  # PASS EXISTING CUSTOMER ID
             success_url=f"{os.getenv('FRONTEND_URL')}/app/dashboard?upgrade=success",
-            cancel_url=f"{os.getenv('FRONTEND_URL')}/upgrade?cancelled=true",
+            cancel_url=f"{os.getenv('FRONTEND_URL')}/manage-plan?cancelled=true",
             client_reference_id=str(user.id),
         )
 
@@ -611,13 +627,11 @@ def stripe_webhook():
         subscription_id = session.get('subscription')
         customer_id = session.get('customer')
 
-        # Validate required data
         if not user_id_str or not subscription_id:
             current_app.logger.warning("Missing client_reference_id or subscription ID")
             return jsonify({'status': 'success'})
 
         try:
-            # Retrieve subscription to get metadata
             subscription = stripe.Subscription.retrieve(subscription_id)
             plan = subscription.get('metadata', {}).get('plan')
 
@@ -625,7 +639,6 @@ def stripe_webhook():
                 current_app.logger.warning(f"Invalid plan in metadata: {plan}")
                 return jsonify({'status': 'success'})
 
-            # Fetch user from DB (AppUser uses 'app_users' table)
             try:
                 user_id = int(user_id_str)
             except (TypeError, ValueError):
@@ -640,9 +653,10 @@ def stripe_webhook():
             # Update subscription plan
             current_app.logger.info(f"Updating user {user_id} to plan: {plan}")
             user.subscription_plan = plan
-            user.stripe_customer_id = customer_id
+            # Update Stripe customer ID if not already set
+            if not user.stripe_customer_id:
+                user.stripe_customer_id = customer_id
 
-            # Commit to MySQL
             db.session.commit()
             current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")
 
@@ -656,3 +670,39 @@ def stripe_webhook():
             return jsonify({'status': 'error'}), 500
 
     return jsonify({'status': 'success'})
+
+# Cancel Subscription (downgrade to Basic)
+@auth_bp.route('/subscription/cancel', methods=['POST'])
+@jwt_required()
+def cancel_subscription():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if user.subscription_plan == "Basic":
+        return jsonify({"msg": "No active subscription to cancel"}), 400
+
+    try:
+        # Cancel Stripe subscription if exists
+        if user.stripe_customer_id:
+            subscriptions = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='active',
+                limit=1
+            )
+            if subscriptions.data:
+                sub = subscriptions.data[0]
+                stripe.Subscription.delete(sub.id)
+                current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for user {user.id}")
+
+        # Downgrade to Basic
+        user.subscription_plan = "Basic"
+        db.session.commit()
+
+        return jsonify({"msg": "Subscription cancelled. Plan downgraded to Basic."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Error cancelling subscription")
+        return jsonify({"msg": "Failed to cancel subscription", "error": str(e)}), 500
