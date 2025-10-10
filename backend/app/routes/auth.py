@@ -1,12 +1,14 @@
 # app/routes/auth.py
+from re import sub
 from flask import Blueprint, request, jsonify, current_app
 from app.models import User, AppUser, Admin
 from app import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from datetime import timedelta
 import bcrypt
 import stripe
 import os
+import datetime
+from sqlalchemy.exc import SQLAlchemyError
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -296,7 +298,7 @@ def update_user(user_id):
     # Update subscription_plan
     if 'subscription_plan' in data:
         plan = data['subscription_plan'].strip()
-        if plan not in ['Basic', 'Plus', 'Team']:
+        if plan not in ['Basic', 'Pro', 'Team']:
             return jsonify({"msg": "Invalid subscription plan"}), 400
         user.subscription_plan = plan
         updated = True
@@ -349,26 +351,49 @@ def delete_user(user_id):
 @jwt_required()
 def get_appuser_profile():
     user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
 
-    try:
-        user = AppUser.query.get(int(user_id))
-        if not user:
-            return jsonify({"msg": "User not found"}), 404
+    subscription_end_date = None
 
-        return jsonify({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "user_type": user.user_type,
-            "subscription_plan": user.subscription_plan,
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        }), 200
+    if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
+        try:
+            subscriptions = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='active',
+                limit=1
+            )
+            if subscriptions.data:
+                sub = stripe.Subscription.retrieve(subscriptions.data[0].id)
+                
+                items = sub.get('items', {}).get('data', [])
+                if items:
+                    end = items[0].get('current_period_end')
+                else:
+                    end = None
 
-    except (ValueError, TypeError):
-        return jsonify({"msg": "Invalid user ID"}), 401
+                if end is None:
+                    current_app.logger.error(f"No current_period_end found in subscription items for {sub.id}")
+                elif isinstance(end, int) and end > 0:
+                    # Stripe always returns timestamps as ints in raw JSON
+                    subscription_end_date = datetime.datetime.utcfromtimestamp(end).isoformat() + "Z"
+                else:
+                    current_app.logger.warning(f"Unexpected current_period_end value: {end} (type: {type(end)})")
 
+        except Exception:
+            current_app.logger.exception("Error fetching subscription from Stripe")
+            
+    return jsonify({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "subscription_plan": user.subscription_plan or "Basic",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "subscription_end_date": subscription_end_date
+    })
 
 # PUT Update AppUser Profile
 @auth_bp.route('/appuser/profile', methods=['PUT'])
@@ -584,6 +609,7 @@ def stripe_webhook():
         session = event['data']['object']
         user_id_str = session.get('client_reference_id')
         subscription_id = session.get('subscription')
+        customer_id = session.get('customer')
 
         # Validate required data
         if not user_id_str or not subscription_id:
@@ -614,6 +640,7 @@ def stripe_webhook():
             # Update subscription plan
             current_app.logger.info(f"Updating user {user_id} to plan: {plan}")
             user.subscription_plan = plan
+            user.stripe_customer_id = customer_id
 
             # Commit to MySQL
             db.session.commit()
