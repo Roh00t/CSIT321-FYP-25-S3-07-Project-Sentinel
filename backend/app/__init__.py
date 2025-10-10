@@ -33,19 +33,6 @@ def create_app():
     socketio.init_app(app)
     
     socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
-    
-    def background_alert_sender():
-        while True:
-            time.sleep(5)  # every 5 seconds
-            socketio.emit(
-                "alert",
-                {"alert": "New alert generated!"},
-                namespace="/api/alerts/stream"
-            )
-
-    thread = threading.Thread(target=background_alert_sender)
-    thread.daemon = True
-    thread.start()
 
     # Import and register blueprints
     from app.routes.auth import auth_bp

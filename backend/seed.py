@@ -1,5 +1,6 @@
 # seed.py
 from app import create_app, db
+from app import models
 from app.models import AppUser, Admin, Filter
 import bcrypt
 

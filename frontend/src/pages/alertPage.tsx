@@ -168,52 +168,58 @@ export default function AlertsPage() {
   }, [token]);
   //live monitoring via websockets
     useEffect(() => {
-    const socket = io("http://localhost:5000/api/alerts/stream", {
-      transports: ["websocket"],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 2000,
+  // Connect to your backend Socket.IO endpoint
+  const socket = io("http://localhost:5000/api/alerts/stream", {
+    transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+  });
+
+  // --- Socket Event Handlers ---
+  socket.on("connect", () => {
+    console.log("✅ Connected to Socket.IO stream");
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ Disconnected from Socket.IO stream");
+  });
+
+  socket.on("bulk_alerts", (payload) => {
+    if (!payload || !Array.isArray(payload.alerts)) {
+      console.warn("⚠️ Malformed payload received:", payload);
+      return;
+    }
+
+    const alerts = payload.alerts.map((a: any, i: number) => {
+      console.log(`🔹 [${i + 1}/${payload.alerts.length}]`, a);
+      return {
+        id: crypto.randomUUID(),
+        timestamp: a.timestamp || new Date().toISOString(),
+        src_ip: a.src_ip || "unknown",
+        src_port: a.src_port ?? null,
+        dest_ip: a.dest_ip || "unknown",
+        dest_port: a.dest_port ?? null,
+        protocol: a.protocol || "N/A",
+        signature: a.signature || "Unlabeled Alert",
+        severity: a.severity ?? 0,
+      };
     });
 
-    socket.on("connect", () => console.log("Connected to SocketIO server"));
-    socket.on("disconnect", () => console.log("Disconnected from SocketIO server"));
-    socket.on("connect_error", (error) => {
-      console.error("[Socket] ❌ Connection error:", error.message);
-    });
+    console.log(`📦 Processed ${alerts.length} alerts`);
 
-    socket.on("reconnect_attempt", (attempt) => {
-      console.log(`[Socket] 🔄 Reconnect attempt #${attempt}`);
-    });
+    // ✅ Add new alerts to the top of the list
+    setAlerts((prev) => [...alerts, ...prev]);
+  });
 
-    socket.on("reconnect", (attempt) => {
-      console.log(`[Socket] 🔁 Successfully reconnected after ${attempt} tries`);
-    });
+  // --- Cleanup on component unmount ---
+  return () => {
+    console.log("🧹 Cleaning up socket connection");
+    socket.disconnect();
+  };
+}, [token]);
 
-    socket.on("new_alert", (newAlert: any) => {
-    console.log("🚨 New alert received:", newAlert);
 
-    if (!newAlert) return; // skip completely empty events, if you want
-
-    const normalized = {
-      timestamp: newAlert.timestamp ?? new Date().toISOString(), // fallback
-      src_ip: newAlert.src_ip,
-      src_port: newAlert.src_port,
-      dest_ip: newAlert.dest_ip,
-      dest_port: newAlert.dest_port,
-      protocol: newAlert.protocol,
-      signature: newAlert.signature,
-      severity: newAlert.severity,
-      type: newAlert.type,  // track original event type
-      original: newAlert.original ?? newAlert,
-    };
-
-      setAlerts(prev => [normalized, ...prev]);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [token]);
 
 
   // Filter alerts based on selected filters
