@@ -21,7 +21,7 @@ Otherwise:
     ====
     live monitoring update:
     use python run.py instead of flask run
-    python agent.py in a 3rd terminal
+    python agentUI.py in a 3rd terminal
     
 
 
