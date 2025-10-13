@@ -647,7 +647,7 @@ def create_checkout_session():
 
         # Determine if user should get a free trial
         trial_days = None
-        if user.is_eligible_for_free_trial():
+        if plan == 'Pro' and user.is_eligible_for_free_trial():
             trial_days = 7  # 7-day free trial
 
         # Build subscription_data based on whether trial is needed
@@ -677,18 +677,11 @@ def create_checkout_session():
             subscription_data=subscription_data,
             customer=customer_id,
             success_url=f"{os.getenv('FRONTEND_URL')}/app/dashboard?upgrade=success",
-            cancel_url=f"{os.getenv('FRONTEND_URL')}/manage-plan?cancelled=true",
+            cancel_url=f"{os.getenv('FRONTEND_URL')}/app/plan",
             client_reference_id=str(user.id),
         )
 
-        # If user is starting a trial, update their record immediately
-        if trial_days:
-            user.free_trial_used = True
-            user.free_trial_started_at = datetime.datetime.now(datetime.timezone.utc)  # Now this works!
-            user.free_trial_ends_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=trial_days)  # And this too!
-            user.subscription_plan = plan  # Update to the trial plan
-            db.session.commit()
-
+        # DO NOT upgrade user here! Only return the checkout URL
         return jsonify({'url': checkout_session.url})
     except Exception as e:
         current_app.logger.error(f"Checkout error: {str(e)}")
@@ -741,9 +734,23 @@ def stripe_webhook():
                 return jsonify({'status': 'success'})
 
             current_app.logger.info(f"Updating user {user_id} to plan: {plan}")
-            user.subscription_plan = plan
+            
+            # Update customer ID if missing
             if not user.stripe_customer_id:
                 user.stripe_customer_id = customer_id
+
+            # Check if this is a trial subscription
+            trial_end = subscription.get('trial_end')
+            if trial_end:
+                # This is a trial subscription - mark trial as used and set trial dates
+                user.free_trial_used = True
+                user.free_trial_started_at = datetime.datetime.now(datetime.timezone.utc)
+                # Convert Stripe timestamp to datetime
+                trial_end_datetime = datetime.datetime.fromtimestamp(trial_end, tz=datetime.timezone.utc)
+                user.free_trial_ends_at = trial_end_datetime
+            
+            # Finally, upgrade the user's plan
+            user.subscription_plan = plan
 
             db.session.commit()
             current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")

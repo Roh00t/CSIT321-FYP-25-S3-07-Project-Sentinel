@@ -1,8 +1,12 @@
 // src/pages/PricingPlansPage.tsx
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useUserSession } from '../hooks/useUserSession';
 
 export default function PricingPlansPage() {
+  const { token } = useUserSession();
+  const navigate = useNavigate();
   const [selectedFeature, setSelectedFeature] = useState<{ title: string; desc: string; image: string } | null>(null);
 
   // Pricing plans data
@@ -25,7 +29,7 @@ export default function PricingPlansPage() {
       highlighted: false,
     },
     {
-      name: "Plus",
+      name: "Pro",
       price: "$19",
       period: "/month",
       description: "For individuals who want real-time threat monitoring.",
@@ -51,21 +55,36 @@ export default function PricingPlansPage() {
       name: "Team Bundle (5 Users)",
       price: "$85",
       period: "/month",
-      description: "Cost-effective bundle for small teams (5x Plus licenses).",
+      description: "Cost-effective bundle for small teams (5x Pro licenses).",
       features: [
-        "5 licenses of the full Plus plan",
+        "5 licenses of the full Pro plan",
         "Each user gets full premium features",
-        "No feature restrictions — all users are 'Plus'",
+        "No feature restrictions — all users are 'Pro'",
         "Central billing, individual logins",
         "Ideal for small teams, labs, or departments",
         "Flexible assignment — assign now or later",
         "Same downgrade flexibility for each license",
-        "Save over 10% vs. buying 5 individual Plus plans"
+        "Save over 10% vs. buying 5 individual Pro plans"
       ],
       cta: "Upgrade Now",
       highlighted: false,
     }
   ];
+
+  const handlePlanClick = (planName: string) => {
+    if (!token) {
+      // Not logged in - redirect to register page
+      navigate('/register');
+    } else {
+      // Logged in
+      if (planName === "Basic") {
+        return;
+      } else {
+        // Pro/Team plans - redirect to manage plans page
+        navigate('/app/plan');
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -135,15 +154,32 @@ export default function PricingPlansPage() {
                   ))}
                 </ul>
 
-                <button
-                  className={`w-full font-semibold py-3 rounded-md transition ${
-                    plan.highlighted
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                  }`}
-                >
-                  {plan.cta}
-                </button>
+                {/* Conditional button rendering */}
+                {plan.name === "Basic" ? (
+                  !token ? (
+                    <button
+                      onClick={() => handlePlanClick(plan.name)}
+                      className={`w-full font-semibold py-3 rounded-md transition ${
+                        plan.highlighted
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      {plan.cta}
+                    </button>
+                  ) : null // Button disappears for logged-in users on Basic plan
+                ) : (
+                  <button
+                    onClick={() => handlePlanClick(plan.name)}
+                    className={`w-full font-semibold py-3 rounded-md transition ${
+                      plan.highlighted
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                    }`}
+                  >
+                    {plan.cta}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -273,10 +309,16 @@ export default function PricingPlansPage() {
               Whether you're a solo analyst or part of a growing team, SENTINEL gives you the tools to see threats clearly.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-md hover:bg-blue-700 transition">
+              <button 
+                onClick={() => handlePlanClick("Pro")}
+                className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-md hover:bg-blue-700 transition"
+              >
                 Start Free Trial
               </button>
-              <button className="border-2 border-blue-600 text-blue-600 font-semibold px-6 py-3 rounded-md hover:bg-blue-50 transition">
+              <button 
+                onClick={() => handlePlanClick("Team Bundle (5 Users)")}
+                className="border-2 border-blue-600 text-blue-600 font-semibold px-6 py-3 rounded-md hover:bg-blue-50 transition"
+              >
                 Explore Team Bundle
               </button>
             </div>

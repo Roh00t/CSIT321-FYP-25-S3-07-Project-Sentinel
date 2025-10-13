@@ -157,7 +157,7 @@ export default function ManagePlanPage() {
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800">
               {isEligibleForTrial 
-                ? "✨ You're eligible for a 14-day free trial! Try Pro or Team risk-free." 
+                ? "✨ You're eligible for a 7-day free trial on the Pro plan! Try it risk-free." 
                 : "You've already used your free trial. Upgrade now to access premium features."}
             </p>
           </div>
@@ -255,7 +255,7 @@ export default function ManagePlanPage() {
               >
                 {actionLoading ? 'Processing...' : 
                  isBasic ? 
-                   (isEligibleForTrial ? 'Start 7-Day Free Trial' : 'Upgrade to Team') : 
+                   'Upgrade to Team' :  // Always show "Upgrade to Team" (no trial)
                    'Switch to Team'}
               </button>
             )}
