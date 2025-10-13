@@ -349,19 +349,19 @@ def cancel_user_subscription(user):
         return None
     
     try:
-        # Find active subscription
+        # Get all subscriptions (active, trialing, past_due, etc.)
         subscriptions = stripe.Subscription.list(
             customer=user.stripe_customer_id,
-            status='active',
             limit=1
         )
         
         if subscriptions.data:
             sub = subscriptions.data[0]
-            # Cancel immediately (not at period end) since account is being deleted
-            stripe.Subscription.delete(sub.id)
-            current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for deleted user {user.id}")
-            return sub.id
+            # Only cancel if it's not already canceled
+            if sub.status != 'canceled':
+                stripe.Subscription.delete(sub.id)
+                current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for deleted user {user.id}")
+                return sub.id
     except Exception as e:
         current_app.logger.error(f"Error cancelling subscription for user {user.id}: {str(e)}")
         # Don't raise exception - account deletion should proceed even if Stripe fails
