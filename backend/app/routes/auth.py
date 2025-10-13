@@ -407,7 +407,7 @@ def get_appuser_profile():
         return jsonify({"msg": "User not found"}), 404
 
     subscription_end_date = None
-    is_cancelling = False  # ← NEW FIELD
+    is_cancelling = False
 
     if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
         try:
@@ -448,7 +448,8 @@ def get_appuser_profile():
         "subscription_plan": user.subscription_plan or "Basic",
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "subscription_end_date": subscription_end_date,
-        "is_cancelling": is_cancelling  # ← INCLUDE IN RESPONSE
+        "is_cancelling": is_cancelling,
+        "is_eligible_for_free_trial": user.is_eligible_for_free_trial()
     })
 
 # PUT Update AppUser Profile
@@ -644,6 +645,28 @@ def create_checkout_session():
             user.stripe_customer_id = customer_id
             db.session.commit()
 
+        # Determine if user should get a free trial
+        trial_days = None
+        if user.is_eligible_for_free_trial():
+            trial_days = 7  # 7-day free trial
+
+        # Build subscription_data based on whether trial is needed
+        subscription_data = {
+            'metadata': {
+                'user_id': str(user.id),
+                'plan': plan
+            }
+        }
+        
+        # Add trial settings if applicable
+        if trial_days:
+            subscription_data['trial_period_days'] = trial_days
+            subscription_data['trial_settings'] = {
+                'end_behavior': {
+                    'missing_payment_method': 'cancel'
+                }
+            }
+
         checkout_session = stripe.checkout.Session.create(
             mode='subscription',
             payment_method_types=['card'],
@@ -651,17 +674,20 @@ def create_checkout_session():
                 'price': PRICE_IDS[plan],
                 'quantity': 1,
             }],
-            subscription_data={
-                'metadata': {
-                    'user_id': str(user.id),
-                    'plan': plan
-                }
-            },
-            customer=customer_id,  # PASS EXISTING CUSTOMER ID
+            subscription_data=subscription_data,
+            customer=customer_id,
             success_url=f"{os.getenv('FRONTEND_URL')}/app/dashboard?upgrade=success",
             cancel_url=f"{os.getenv('FRONTEND_URL')}/manage-plan?cancelled=true",
             client_reference_id=str(user.id),
         )
+
+        # If user is starting a trial, update their record immediately
+        if trial_days:
+            user.free_trial_used = True
+            user.free_trial_started_at = datetime.datetime.now(datetime.timezone.utc)  # Now this works!
+            user.free_trial_ends_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=trial_days)  # And this too!
+            user.subscription_plan = plan  # Update to the trial plan
+            db.session.commit()
 
         return jsonify({'url': checkout_session.url})
     except Exception as e:
@@ -820,3 +846,34 @@ def cancel_subscription():
     except Exception as e:
         current_app.logger.exception("Error cancelling subscription")
         return jsonify({"msg": "Failed to cancel subscription", "error": str(e)}), 500
+    
+def start_free_trial(user, trial_days=7):
+    if not user.is_eligible_for_free_trial():
+        raise ValueError("User is not eligible for free trial")
+    
+    # Create Stripe customer if not exists
+    if not user.stripe_customer_id:
+        stripe_customer = stripe.Customer.create(email=user.email)
+        user.stripe_customer_id = stripe_customer.id
+    
+    # Update user record
+    user.free_trial_used = True
+    user.free_trial_started_at = datetime.datetime.now(datetime.timezone.utc)  # Fixed!
+    user.free_trial_ends_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=trial_days)  # Fixed!
+    user.subscription_plan = 'Pro'  # or whatever plan they're trialing
+    
+    db.session.commit()
+    
+    # Create Stripe subscription with trial period
+    subscription = stripe.Subscription.create(
+        customer=user.stripe_customer_id,
+        items=[{'price': 'your_pro_plan_price_id'}],
+        trial_period_days=trial_days,
+        trial_settings={
+            'end_behavior': {
+                'missing_payment_method': 'cancel'
+            }
+        }
+    )
+    
+    return subscription

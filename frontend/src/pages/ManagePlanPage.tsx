@@ -12,7 +12,8 @@ interface AppProfile {
   subscription_plan: string; // "Basic", "Pro", "Team"
   created_at: string | null;
   subscription_end_date: string | null;
-  is_cancelling: boolean; // ← NEW FIELD
+  is_cancelling: boolean;
+  is_eligible_for_free_trial: boolean; // ← NEW FIELD
 }
 
 export default function ManagePlanPage() {
@@ -141,6 +142,7 @@ export default function ManagePlanPage() {
   const isPro = profile.subscription_plan === 'Pro';
   const isTeam = profile.subscription_plan === 'Team';
   const isCancelling = profile.is_cancelling;
+  const isEligibleForTrial = profile.is_eligible_for_free_trial;
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -149,6 +151,17 @@ export default function ManagePlanPage() {
         <p className="text-gray-600 mb-6">
           View your current subscription and make changes as needed.
         </p>
+
+        {/* Trial Eligibility Message for Basic Users */}
+        {isBasic && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800">
+              {isEligibleForTrial 
+                ? "✨ You're eligible for a 14-day free trial! Try Pro or Team risk-free." 
+                : "You've already used your free trial. Upgrade now to access premium features."}
+            </p>
+          </div>
+        )}
 
         {/* Current Plan Summary */}
         <div className="mb-8 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
@@ -211,7 +224,10 @@ export default function ManagePlanPage() {
                 disabled={actionLoading}
                 className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg disabled:opacity-50"
               >
-                {actionLoading ? 'Processing...' : isBasic ? 'Upgrade to Pro' : 'Switch to Pro'}
+                {actionLoading ? 'Processing...' : 
+                 isBasic ? 
+                   (isEligibleForTrial ? 'Start 7-Day Free Trial' : 'Upgrade to Pro') : 
+                   'Switch to Pro'}
               </button>
             )}
           </div>
@@ -237,7 +253,10 @@ export default function ManagePlanPage() {
                 disabled={actionLoading}
                 className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg disabled:opacity-50"
               >
-                {actionLoading ? 'Processing...' : isBasic ? 'Upgrade to Team' : 'Switch to Team'}
+                {actionLoading ? 'Processing...' : 
+                 isBasic ? 
+                   (isEligibleForTrial ? 'Start 7-Day Free Trial' : 'Upgrade to Team') : 
+                   'Switch to Team'}
               </button>
             )}
           </div>

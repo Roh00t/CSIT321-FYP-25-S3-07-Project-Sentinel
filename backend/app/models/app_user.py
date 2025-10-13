@@ -9,10 +9,15 @@ class AppUser(User):
     id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    subscription_plan = db.Column(db.String(10), default='Basic')  # Basic, Pro, Team
+    subscription_plan = db.Column(db.String(10), default='Basic')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     admin_email = db.Column(db.String(255), nullable=True)
     stripe_customer_id = db.Column(db.String(255), nullable=True)
+    
+    # Free trial tracking columns
+    free_trial_used = db.Column(db.Boolean, default=False, nullable=False)
+    free_trial_started_at = db.Column(db.DateTime, nullable=True)
+    free_trial_ends_at = db.Column(db.DateTime, nullable=True)
 
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
@@ -29,8 +34,15 @@ class AppUser(User):
             'subscription_plan': self.subscription_plan,
             'admin_email': self.admin_email,
             'stripe_customer_id': self.stripe_customer_id,
+            'free_trial_used': self.free_trial_used,
+            'free_trial_started_at': self.free_trial_started_at.isoformat() if self.free_trial_started_at else None,
+            'free_trial_ends_at': self.free_trial_ends_at.isoformat() if self.free_trial_ends_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+    def is_eligible_for_free_trial(self):
+        """Check if user is eligible for free trial"""
+        return not self.free_trial_used and self.subscription_plan == 'Basic'
 
     def __repr__(self):
         return f'<AppUser {self.username}>'
