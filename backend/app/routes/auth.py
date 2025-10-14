@@ -68,32 +68,17 @@ def login():
     if not user or not bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
         return jsonify({"msg": "Invalid username or password"}), 401
 
-    # For AppUsers with Pro/Team plans, verify subscription status with Stripe
-    if hasattr(user, 'user_type') and user.user_type == 'app_user' and user.subscription_plan in ['Pro', 'Team']:
-        try:
-            if user.stripe_customer_id:
-                subscriptions = stripe.Subscription.list(
-                    customer=user.stripe_customer_id,
-                    status='active',
-                    limit=1
-                )
-                # If no active subscription found, downgrade to Basic
-                if not subscriptions.data:
-                    user.subscription_plan = "Basic"
-                    db.session.commit()
-                    current_app.logger.info(f"Downgraded user {user.id} to Basic during login (no active subscription)")
-        except Exception as e:
-            current_app.logger.error(f"Error checking subscription during login for user {user.id}: {str(e)}")
-            # Don't fail login - just log the error and proceed with current plan
+    # ✅ REMOVED: Stripe subscription check during login
+    # Let webhooks handle subscription state
 
     # Create JWT token
     access_token = create_access_token(identity=str(user.id))
 
-    # Return user_type so frontend knows role
     return jsonify({
         "access_token": access_token,
-        "user_type": user.user_type,  # 'app_user' or 'admin'
-        "username": user.username
+        "user_type": user.user_type,
+        "username": user.username,
+        "subscription_plan": getattr(user, 'subscription_plan', 'Basic')  # Optional: send plan to frontend
     }), 200
 
 @auth_bp.route('/admin/profile', methods=['GET'])
@@ -783,10 +768,8 @@ def stripe_webhook():
             # Check if this is a trial subscription
             trial_end = subscription.get('trial_end')
             if trial_end:
-                # This is a trial subscription - mark trial as used and set trial dates
                 user.free_trial_used = True
                 user.free_trial_started_at = datetime.datetime.now(datetime.timezone.utc)
-                # Convert Stripe timestamp to datetime
                 trial_end_datetime = datetime.datetime.fromtimestamp(trial_end, tz=datetime.timezone.utc)
                 user.free_trial_ends_at = trial_end_datetime
             
@@ -803,9 +786,8 @@ def stripe_webhook():
                         owner_id=user.id
                     )
                     db.session.add(new_team)
-                    db.session.flush()  # Get the team ID
+                    db.session.flush()
                     
-                    # Add owner as team member with admin role
                     owner_membership = AppUserTeamMember(
                         team_id=new_team.id,
                         user_id=user.id,
@@ -826,51 +808,53 @@ def stripe_webhook():
             current_app.logger.error(f"Unexpected error in webhook: {str(e)}")
             return jsonify({'status': 'error'}), 500
 
-    # Handle subscription cancellation (when status changes to 'canceled')
-    elif event['type'] == 'customer.subscription.updated':
+    elif event['type'] == 'customer.subscription.deleted':
         subscription = event['data']['object']
         customer_id = subscription.get('customer')
-        status = subscription.get('status')
         
         if not customer_id:
-            current_app.logger.warning("No customer_id in subscription.updated event")
+            current_app.logger.warning("No customer_id in subscription.deleted event")
             return jsonify({'status': 'success'})
 
-        # Only process if subscription is now canceled
-        if status == 'canceled':
-            try:
-                user = AppUser.query.filter_by(stripe_customer_id=customer_id).first()
-                if user and user.subscription_plan != "Basic":
-                    current_app.logger.info(f"Downgrading user {user.id} to Basic after subscription cancellation (status: {status})")
-                    was_team_plan = (user.subscription_plan == "Team")
-                    user.subscription_plan = "Basic"
-                    
-                    # If this was a team owner, handle team cleanup
-                    if was_team_plan:
-                        team = AppUserTeam.query.filter_by(owner_id=user.id).first()
-                        if team:
-                            # Remove all team members (they'll be downgraded to Basic)
-                            members = AppUserTeamMember.query.filter_by(team_id=team.id).all()
-                            for member in members:
-                                member_user = AppUser.query.get(member.user_id)
-                                if member_user and member_user.subscription_plan == "Team":
-                                    member_user.subscription_plan = "Basic"
-                            
-                            # Delete the team and all memberships
-                            db.session.delete(team)
-                    
-                    db.session.commit()
-                else:
-                    current_app.logger.info(f"User not found or already Basic for customer {customer_id}")
+        try:
+            user = AppUser.query.filter_by(stripe_customer_id=customer_id).first()
+            if not user:
+                current_app.logger.info(f"No user found for customer {customer_id}")
+                return jsonify({'status': 'success'})
 
-            except SQLAlchemyError as e:
-                db.session.rollback()
-                current_app.logger.error(f"MySQL error in subscription.updated webhook: {str(e)}")
-                return jsonify({'status': 'error'}), 500
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.error(f"Unexpected error in subscription.updated webhook: {str(e)}")
-                return jsonify({'status': 'error'}), 500
+            # ✅ Check if user has ACCEPTED a team invitation
+            active_membership = AppUserTeamMember.query.filter(
+                AppUserTeamMember.user_id == user.id,
+                AppUserTeamMember.is_active == True,
+                AppUserTeamMember.joined_at.isnot(None)  # Must have accepted
+            ).first()
+
+            # ✅ Check if user owns a team
+            owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+
+            if active_membership and user.subscription_plan != "Team":
+                user.subscription_plan = "Team"
+                current_app.logger.info(f"User {user.id} is in a team. Upgraded to Team plan.")
+            else:
+                user.subscription_plan = "Basic"
+                current_app.logger.info(f"User {user.id} not in team. Downgraded to Basic.")
+
+                # Clean up team if owner
+                if owned_team:
+                    # Downgrade all members
+                    members = AppUserTeamMember.query.filter_by(team_id=owned_team.id).all()
+                    for member in members:
+                        member_user = AppUser.query.get(member.user_id)
+                        if member_user and member_user.subscription_plan == "Team":
+                            member_user.subscription_plan = "Basic"
+                    db.session.delete(owned_team)
+
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error in subscription.deleted webhook: {str(e)}")
+            return jsonify({'status': 'error'}), 500
 
     return jsonify({'status': 'success'})
 
@@ -1025,7 +1009,6 @@ def invite_team_member():
     if user.subscription_plan != 'Team':
         return jsonify({"msg": "Team plan required"}), 403
 
-    # Check if user is team owner
     team = AppUserTeam.query.filter_by(owner_id=user.id).first()
     if not team:
         return jsonify({"msg": "Only team owners can invite members"}), 403
@@ -1035,35 +1018,31 @@ def invite_team_member():
     if not email:
         return jsonify({"msg": "Email is required"}), 400
 
-    # Check if team already has 5 members (including owner)
     active_members = AppUserTeamMember.query.filter_by(team_id=team.id, is_active=True).count()
     if active_members >= 5:
         return jsonify({"msg": "Team is at maximum capacity (5 members)"}), 400
 
     invited_user = AppUser.query.filter_by(email=email).first()
     if invited_user:
-        # Check if already in team
+        # Check for existing membership (active or inactive)
         existing_membership = AppUserTeamMember.query.filter_by(
             team_id=team.id, 
             user_id=invited_user.id
         ).first()
-        if existing_membership and existing_membership.is_active:
-            return jsonify({"msg": "User is already in this team"}), 400
         
-        # Add to team BUT DON'T upgrade plan yet
         if existing_membership:
+            # Reactivate and RESET invitation state
             existing_membership.is_active = True
             existing_membership.invited_at = datetime.datetime.now(datetime.timezone.utc)
+            existing_membership.joined_at = None  # ← KEY FIX: Reset acceptance
         else:
+            # Create new membership
             new_membership = AppUserTeamMember(
                 team_id=team.id,
                 user_id=invited_user.id,
                 role='member'
             )
             db.session.add(new_membership)
-        
-        # DO NOT upgrade plan here - let user accept first
-        # invited_user.subscription_plan = "Team"  # ← REMOVE THIS
         
         db.session.commit()
         return jsonify({"msg": "User invited successfully. They need to accept the invitation."}), 200
@@ -1078,30 +1057,64 @@ def accept_team_invitation():
     if not user:
         return jsonify({"msg": "User not found"}), 404
 
-    # Check if user has a PENDING team invitation (joined_at is None)
     pending_membership = AppUserTeamMember.query.filter_by(
         user_id=user.id, 
         is_active=True,
-        joined_at=None  # ← This is the key! Only pending invitations
+        joined_at=None
     ).first()
     
     if not pending_membership:
         return jsonify({"msg": "No pending team invitation found"}), 404
     
-    # Only allow acceptance if user is NOT already on Team plan
     if user.subscription_plan == "Team":
         return jsonify({"msg": "You're already on a Team plan"}), 400
-    
-    # Upgrade to Team plan
-    user.subscription_plan = "Team"
-    pending_membership.joined_at = datetime.datetime.now(datetime.timezone.utc)
-    
-    db.session.commit()
-    
-    return jsonify({
-        "msg": "Successfully joined team and upgraded to Team plan",
-        "team_id": pending_membership.team_id
-    }), 200
+
+    # ✅ ENSURE STRIPE CUSTOMER EXISTS
+    if not user.stripe_customer_id:
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=f"{user.first_name} {user.last_name}",
+            metadata={"user_id": str(user.id)}
+        )
+        user.stripe_customer_id = customer.id
+        db.session.commit()
+
+    if user.subscription_plan == "Basic":
+        # Basic users join immediately
+        user.subscription_plan = "Team"
+        pending_membership.joined_at = datetime.datetime.now(datetime.timezone.utc)
+        db.session.commit()
+        return jsonify({
+            "msg": "Successfully joined team!",
+            "team_id": pending_membership.team_id
+        }), 200
+
+    else:  # Pro user
+        try:
+            subscriptions = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='active',
+                limit=1
+            )
+            if subscriptions.data:
+                sub = subscriptions.data[0]
+                stripe.Subscription.modify(
+                    sub.id,
+                    cancel_at_period_end=True
+                )
+                current_app.logger.info(f"Cancelled subscription {sub.id} at period end for user {user.id}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to cancel subscription for user {user.id}: {str(e)}")
+            return jsonify({"msg": "Failed to process invitation. Please try again."}), 500
+
+        # ✅ MUST SET joined_at for Pro users too!
+        pending_membership.joined_at = datetime.datetime.now(datetime.timezone.utc)
+        db.session.commit()
+        
+        return jsonify({
+            "msg": "Invitation accepted! You'll be upgraded to Team plan when your current subscription ends.",
+            "team_id": pending_membership.team_id
+        }), 200
 
 @auth_bp.route('/teams/remove-member', methods=['POST'])
 @jwt_required()

@@ -90,6 +90,8 @@ export default function AppDashboard() {
         // Refresh profile to show updated plan and remove invitation
         await fetchProfile();
         await refreshPlanFromBackend(); // Update localStorage for useUserSession
+        // In handleAcceptInvitation success
+        alert("Invitation accepted!");
       } else {
         const errorData = await response.json();
         alert(errorData.msg || 'Failed to accept invitation');
