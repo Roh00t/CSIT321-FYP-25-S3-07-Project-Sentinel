@@ -646,7 +646,6 @@ def create_checkout_session():
 
         data = request.get_json()
         plan = data.get('plan')
-
         if plan not in ['Pro', 'Team']:
             return jsonify({"msg": "Invalid plan. Choose 'Pro' or 'Team'."}), 400
 
@@ -656,35 +655,54 @@ def create_checkout_session():
             'Team': 'price_1SGhgfCxWn2BMTPycHx6KrND',
         }
 
-        # CHECK FOR EXISTING STRIPE CUSTOMER ID
-        customer_id = user.stripe_customer_id
-        
-        # If no customer ID exists, create a new one
-        if not customer_id:
+        # Ensure Stripe customer exists
+        if not user.stripe_customer_id:
             customer = stripe.Customer.create(
                 email=user.email,
                 name=f"{user.first_name} {user.last_name}",
                 metadata={"user_id": str(user.id)}
             )
-            customer_id = customer.id
-            # Save immediately to prevent duplicate customers
-            user.stripe_customer_id = customer_id
+            user.stripe_customer_id = customer.id
             db.session.commit()
 
-        # Determine if user should get a free trial
+        customer_id = user.stripe_customer_id
+
+        # 🔴 CRITICAL: Check for existing active subscription
+        active_subs = stripe.Subscription.list(
+            customer=customer_id,
+            status='active',
+            limit=1
+        )
+
+        if active_subs.data:
+            # User already has an active subscription
+            current_sub = active_subs.data[0]
+            current_plan = current_sub['items']['data'][0]['price']['id']
+
+            # If same plan, don't create new session
+            if (current_plan == PRICE_IDS[plan]):
+                return jsonify({"msg": "You're already subscribed to this plan."}), 400
+
+            # Optional: Allow upgrade/downgrade by canceling current at period end
+            # Then proceed to create new subscription
+            stripe.Subscription.modify(
+                current_sub.id,
+                cancel_at_period_end=True
+            )
+            current_app.logger.info(f"Cancelled current subscription {current_sub.id} at period end for user {user.id}")
+
+        # Determine trial eligibility (only for Pro, and only if no prior trial)
         trial_days = None
         if plan == 'Pro' and user.is_eligible_for_free_trial():
-            trial_days = 7  # 7-day free trial
+            trial_days = 7
 
-        # Build subscription_data based on whether trial is needed
         subscription_data = {
             'metadata': {
                 'user_id': str(user.id),
                 'plan': plan
             }
         }
-        
-        # Add trial settings if applicable
+
         if trial_days:
             subscription_data['trial_period_days'] = trial_days
             subscription_data['trial_settings'] = {
@@ -707,8 +725,8 @@ def create_checkout_session():
             client_reference_id=str(user.id),
         )
 
-        # DO NOT upgrade user here! Only return the checkout URL
         return jsonify({'url': checkout_session.url})
+
     except Exception as e:
         current_app.logger.error(f"Checkout error: {str(e)}")
         return jsonify({'msg': 'Failed to create checkout session'}), 500

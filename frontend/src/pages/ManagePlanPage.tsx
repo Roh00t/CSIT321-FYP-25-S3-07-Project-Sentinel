@@ -14,7 +14,7 @@ interface AppProfile {
   created_at: string | null;
   subscription_end_date: string | null;
   is_cancelling: boolean;
-  is_eligible_for_free_trial: boolean; // ← NEW FIELD
+  is_eligible_for_free_trial: boolean;
 }
 
 export default function ManagePlanPage() {
@@ -54,7 +54,13 @@ export default function ManagePlanPage() {
   }, [token, navigate]);
 
   const handleUpgrade = async (plan: 'Pro' | 'Team') => {
-    if (!token) return;
+    if (!token || !profile) return;
+
+    if (profile.subscription_plan === plan) {
+      alert(`You're already on the ${plan} plan.`);
+      return;
+    }
+
     setActionLoading(true);
     try {
       const response = await fetch('http://127.0.0.1:5000/api/auth/checkout/create-session', {
@@ -114,7 +120,6 @@ export default function ManagePlanPage() {
 
       if (response.ok) {
         alert(data.msg);
-        // Refresh profile to reflect cancellation status
         const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -145,6 +150,15 @@ export default function ManagePlanPage() {
   const isTeam = profile.subscription_plan === 'Team';
   const isCancelling = profile.is_cancelling;
   const isEligibleForTrial = profile.is_eligible_for_free_trial;
+
+  // Determine if the current subscription (if any) has expired
+  const now = new Date();
+  const endDate = profile.subscription_end_date ? new Date(profile.subscription_end_date) : null;
+  const isExpired = endDate && now > endDate;
+
+  // Allow plan switching ONLY if on Basic OR subscription is fully expired
+  const canSwitchPlans = isBasic || isExpired;
+  const showRestrictionMessage = !isBasic && !canSwitchPlans;
 
   const handleTeamUpdate = async () => {
     if (!token) return;
@@ -216,10 +230,22 @@ export default function ManagePlanPage() {
           </div>
         </div>
 
+        {/* Restriction Message: Cannot switch until expired */}
+        {showRestrictionMessage && (
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg">
+            <p className="text-gray-700">
+              🔒 You can only change plans after your current subscription expires on{' '}
+              {profile.subscription_end_date
+                ? new Date(profile.subscription_end_date).toLocaleDateString()
+                : 'an unknown date'}.
+            </p>
+          </div>
+        )}
+
         {/* Plan Options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Pro Plan */}
-          <div className={`border rounded-lg p-6 transition ${isPro ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:shadow-md'}`}>
+          <div className={`border rounded-lg p-6 transition ${isPro ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
             <div className="flex justify-between items-start">
               <h2 className="text-xl font-semibold text-blue-600">Pro Plan</h2>
               {isPro && (
@@ -234,7 +260,7 @@ export default function ManagePlanPage() {
               <li>✅ 24/7 monitoring</li>
               <li>✅ Priority support</li>
             </ul>
-            {!isPro && (
+            {canSwitchPlans && !isPro && (
               <button
                 onClick={() => handleUpgrade('Pro')}
                 disabled={actionLoading}
@@ -249,7 +275,7 @@ export default function ManagePlanPage() {
           </div>
 
           {/* Team Plan */}
-          <div className={`border rounded-lg p-6 transition ${isTeam ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:shadow-md'}`}>
+          <div className={`border rounded-lg p-6 transition ${isTeam ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
             <div className="flex justify-between items-start">
               <h2 className="text-xl font-semibold text-green-600">Team Plan</h2>
               {isTeam && (
@@ -263,7 +289,7 @@ export default function ManagePlanPage() {
               <li>✅ Everything in Pro</li>
               <li>✅ Up to 5 team members</li>
             </ul>
-            {!isTeam && (
+            {canSwitchPlans && !isTeam && (
               <button
                 onClick={() => handleUpgrade('Team')}
                 disabled={actionLoading}
@@ -271,13 +297,14 @@ export default function ManagePlanPage() {
               >
                 {actionLoading ? 'Processing...' : 
                  isBasic ? 
-                   'Upgrade to Team' :  // Always show "Upgrade to Team" (no trial)
+                   'Upgrade to Team' : 
                    'Switch to Team'}
               </button>
             )}
           </div>
         </div>
 
+        {/* Team Management (only for Team plan users) */}
         {isTeam && (
           <div className="mt-8">
             <button
