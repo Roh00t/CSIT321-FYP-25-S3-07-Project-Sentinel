@@ -1,7 +1,7 @@
 # app/routes/auth.py
 from re import sub
 from flask import Blueprint, request, jsonify, current_app
-from app.models import User, AppUser, Admin
+from app.models import User, AppUser, Admin, AppUserTeam, AppUserTeamMember
 from app import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 import bcrypt
@@ -438,7 +438,46 @@ def get_appuser_profile():
 
         except Exception:
             current_app.logger.exception("Error fetching subscription from Stripe")
-            
+    
+    # Add team information if user is on Team plan
+    team_info = None
+    if user.subscription_plan == 'Team':
+        # Check if user is a team owner
+        owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+        if owned_team:
+            team_info = {
+                'id': owned_team.id,
+                'name': owned_team.name,
+                'role': 'owner'
+            }
+        else:
+            # Check if user is a team member
+            team_membership = AppUserTeamMember.query.filter_by(
+                user_id=user.id, 
+                is_active=True
+            ).first()
+            if team_membership and team_membership.team:
+                team_info = {
+                    'id': team_membership.team.id,
+                    'name': team_membership.team.name,
+                    'role': team_membership.role
+                }
+
+    # Check for pending team invitations (for ANY plan user)
+    pending_team_invitation = None
+    pending_membership = AppUserTeamMember.query.filter_by(
+        user_id=user.id, 
+        is_active=True,
+        joined_at=None  # Not yet accepted
+    ).first()
+    
+    if pending_membership and pending_membership.team:
+        pending_team_invitation = {
+            'team_id': pending_membership.team_id,
+            'team_name': pending_membership.team.name,
+            'invited_at': pending_membership.invited_at.isoformat() if pending_membership.invited_at else None
+        }
+
     return jsonify({
         "id": user.id,
         "username": user.username,
@@ -449,7 +488,9 @@ def get_appuser_profile():
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "subscription_end_date": subscription_end_date,
         "is_cancelling": is_cancelling,
-        "is_eligible_for_free_trial": user.is_eligible_for_free_trial()
+        "is_eligible_for_free_trial": user.is_eligible_for_free_trial(),
+        "team_info": team_info,
+        "pending_team_invitation": pending_team_invitation
     })
 
 # PUT Update AppUser Profile
@@ -752,6 +793,27 @@ def stripe_webhook():
             # Finally, upgrade the user's plan
             user.subscription_plan = plan
 
+            # Create team if upgrading to Team plan and doesn't already have one
+            if plan == 'Team':
+                existing_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+                if not existing_team:
+                    team_name = f"{user.first_name}'s Team"
+                    new_team = AppUserTeam(
+                        name=team_name,
+                        owner_id=user.id
+                    )
+                    db.session.add(new_team)
+                    db.session.flush()  # Get the team ID
+                    
+                    # Add owner as team member with admin role
+                    owner_membership = AppUserTeamMember(
+                        team_id=new_team.id,
+                        user_id=user.id,
+                        role='admin',
+                        joined_at=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    db.session.add(owner_membership)
+
             db.session.commit()
             current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")
 
@@ -780,7 +842,23 @@ def stripe_webhook():
                 user = AppUser.query.filter_by(stripe_customer_id=customer_id).first()
                 if user and user.subscription_plan != "Basic":
                     current_app.logger.info(f"Downgrading user {user.id} to Basic after subscription cancellation (status: {status})")
+                    was_team_plan = (user.subscription_plan == "Team")
                     user.subscription_plan = "Basic"
+                    
+                    # If this was a team owner, handle team cleanup
+                    if was_team_plan:
+                        team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+                        if team:
+                            # Remove all team members (they'll be downgraded to Basic)
+                            members = AppUserTeamMember.query.filter_by(team_id=team.id).all()
+                            for member in members:
+                                member_user = AppUser.query.get(member.user_id)
+                                if member_user and member_user.subscription_plan == "Team":
+                                    member_user.subscription_plan = "Basic"
+                            
+                            # Delete the team and all memberships
+                            db.session.delete(team)
+                    
                     db.session.commit()
                 else:
                     current_app.logger.info(f"User not found or already Basic for customer {customer_id}")
@@ -832,6 +910,9 @@ def cancel_subscription():
         
         current_app.logger.info(f"Set subscription {sub.id} to cancel at period end")
 
+        # Handle team plan cancellation logic
+        was_team_plan = (user.subscription_plan == "Team")
+        
         # SAFELY ACCESS FIELDS USING .get() METHOD
         cancel_at_period_end = updated_sub.get('cancel_at_period_end', False)
         current_period_end = updated_sub.get('current_period_end')
@@ -844,8 +925,18 @@ def cancel_subscription():
             elif isinstance(current_period_end, datetime.datetime):
                 current_period_end_iso = current_period_end.isoformat().replace('+00:00', 'Z')
 
+        # If this is a team owner cancelling, we need to handle team members
+        # Note: We don't downgrade team members immediately since the subscription
+        # is only cancelled at period end. The webhook will handle the actual downgrade
+        # when the subscription status changes to 'canceled'
+        
+        # However, we should inform the user about team implications
+        message = "Subscription cancelled. You'll keep access until the end of your billing period."
+        if was_team_plan:
+            message += " All team members will lose access to Team plan features when your subscription ends."
+
         return jsonify({
-            "msg": "Subscription cancelled. You'll keep access until the end of your billing period.",
+            "msg": message,
             "cancel_at_period_end": cancel_at_period_end,
             "current_period_end": current_period_end_iso
         }), 200
@@ -884,3 +975,169 @@ def start_free_trial(user, trial_days=7):
     )
     
     return subscription
+
+@auth_bp.route('/teams', methods=['GET'])
+@jwt_required()
+def get_user_team():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    # Check if user is on Team plan
+    if user.subscription_plan != 'Team':
+        return jsonify({"msg": "Team plan required"}), 403
+
+    # Get user's team (either as owner or member)
+    team_member = AppUserTeamMember.query.filter_by(user_id=user.id, is_active=True).first()
+    if not team_member:
+        return jsonify({"msg": "No team found"}), 404
+
+    team = team_member.team
+    members = []
+    for member in team.members:
+        if member.is_active:
+            member_user = member.user
+            members.append({
+                'id': member.id,
+                'user_id': member.user_id,
+                'name': f"{member_user.first_name} {member_user.last_name}",
+                'email': member_user.email,
+                'role': member.role,
+                'joined_at': member.joined_at.isoformat() if member.joined_at else None,
+                'is_owner': member.user_id == team.owner_id
+            })
+
+    return jsonify({
+        'team': team.to_dict(),
+        'members': members,
+        'current_user_role': team_member.role
+    })
+
+@auth_bp.route('/teams/invite', methods=['POST'])
+@jwt_required()
+def invite_team_member():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if user.subscription_plan != 'Team':
+        return jsonify({"msg": "Team plan required"}), 403
+
+    # Check if user is team owner
+    team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+    if not team:
+        return jsonify({"msg": "Only team owners can invite members"}), 403
+
+    data = request.get_json()
+    email = data.get('email')
+    if not email:
+        return jsonify({"msg": "Email is required"}), 400
+
+    # Check if team already has 5 members (including owner)
+    active_members = AppUserTeamMember.query.filter_by(team_id=team.id, is_active=True).count()
+    if active_members >= 5:
+        return jsonify({"msg": "Team is at maximum capacity (5 members)"}), 400
+
+    invited_user = AppUser.query.filter_by(email=email).first()
+    if invited_user:
+        # Check if already in team
+        existing_membership = AppUserTeamMember.query.filter_by(
+            team_id=team.id, 
+            user_id=invited_user.id
+        ).first()
+        if existing_membership and existing_membership.is_active:
+            return jsonify({"msg": "User is already in this team"}), 400
+        
+        # Add to team BUT DON'T upgrade plan yet
+        if existing_membership:
+            existing_membership.is_active = True
+            existing_membership.invited_at = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            new_membership = AppUserTeamMember(
+                team_id=team.id,
+                user_id=invited_user.id,
+                role='member'
+            )
+            db.session.add(new_membership)
+        
+        # DO NOT upgrade plan here - let user accept first
+        # invited_user.subscription_plan = "Team"  # ← REMOVE THIS
+        
+        db.session.commit()
+        return jsonify({"msg": "User invited successfully. They need to accept the invitation."}), 200
+    else:
+        return jsonify({"msg": "User not found. They need to create an account first."}), 404
+
+@auth_bp.route('/teams/accept-invitation', methods=['POST'])
+@jwt_required()
+def accept_team_invitation():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    # Check if user has a PENDING team invitation (joined_at is None)
+    pending_membership = AppUserTeamMember.query.filter_by(
+        user_id=user.id, 
+        is_active=True,
+        joined_at=None  # ← This is the key! Only pending invitations
+    ).first()
+    
+    if not pending_membership:
+        return jsonify({"msg": "No pending team invitation found"}), 404
+    
+    # Only allow acceptance if user is NOT already on Team plan
+    if user.subscription_plan == "Team":
+        return jsonify({"msg": "You're already on a Team plan"}), 400
+    
+    # Upgrade to Team plan
+    user.subscription_plan = "Team"
+    pending_membership.joined_at = datetime.datetime.now(datetime.timezone.utc)
+    
+    db.session.commit()
+    
+    return jsonify({
+        "msg": "Successfully joined team and upgraded to Team plan",
+        "team_id": pending_membership.team_id
+    }), 200
+
+@auth_bp.route('/teams/remove-member', methods=['POST'])
+@jwt_required()
+def remove_team_member():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if user.subscription_plan != 'Team':
+        return jsonify({"msg": "Team plan required"}), 403
+
+    # Check if user is team owner
+    team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+    if not team:
+        return jsonify({"msg": "Only team owners can remove members"}), 403
+
+    data = request.get_json()
+    member_user_id = data.get('user_id')
+    if not member_user_id or member_user_id == user.id:
+        return jsonify({"msg": "Cannot remove yourself or invalid user ID"}), 400
+
+    membership = AppUserTeamMember.query.filter_by(
+        team_id=team.id, 
+        user_id=member_user_id
+    ).first()
+    
+    if not membership:
+        return jsonify({"msg": "Member not found in team"}), 404
+
+    # Remove member and downgrade their plan
+    member_user = AppUser.query.get(member_user_id)
+    if member_user:
+        member_user.subscription_plan = "Basic"
+    
+    membership.is_active = False
+    db.session.commit()
+    
+    return jsonify({"msg": "Member removed successfully"}), 200

@@ -19,6 +19,10 @@ class AppUser(User):
     free_trial_started_at = db.Column(db.DateTime, nullable=True)
     free_trial_ends_at = db.Column(db.DateTime, nullable=True)
 
+    # Team relationships
+    owned_teams = db.relationship('AppUserTeam', back_populates='owner', cascade='all, delete-orphan')
+    team_memberships = db.relationship('AppUserTeamMember', back_populates='user', cascade='all, delete-orphan')
+
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
     }

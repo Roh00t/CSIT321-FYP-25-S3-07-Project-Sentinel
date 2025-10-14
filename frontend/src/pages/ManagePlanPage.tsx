@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
+import TeamManagement from '../components/TeamManagement';
 
 interface AppProfile {
   id: number;
@@ -22,6 +23,7 @@ export default function ManagePlanPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<AppProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showTeamManagement, setShowTeamManagement] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -144,6 +146,20 @@ export default function ManagePlanPage() {
   const isCancelling = profile.is_cancelling;
   const isEligibleForTrial = profile.is_eligible_for_free_trial;
 
+  const handleTeamUpdate = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const updatedProfile = await res.json();
+      setProfile(updatedProfile);
+      setShowTeamManagement(true);
+    } catch (err) {
+      console.error('Failed to refresh profile:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-md">
@@ -261,6 +277,24 @@ export default function ManagePlanPage() {
             )}
           </div>
         </div>
+
+        {isTeam && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowTeamManagement(!showTeamManagement)}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+            >
+              {showTeamManagement ? 'Hide Team Management' : 'Manage Team'}
+            </button>
+            
+            {showTeamManagement && (
+              <TeamManagement 
+                token={token} 
+                onTeamUpdate={handleTeamUpdate} 
+              />
+            )}
+          </div>
+        )}
 
         <button
           onClick={() => navigate('/app/profile')}
