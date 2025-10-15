@@ -22,6 +22,48 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 import { io } from "socket.io-client";
 import { useSocketLogger } from "../hooks/useSocketLogger";
 
+function showToast(message: string, duration = 3000) {
+  let toast = document.getElementById("toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "toast";
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.background = "#4caf50";
+    toast.style.color = "white";
+    toast.style.padding = "10px 20px";
+    toast.style.borderRadius = "5px";
+    toast.style.zIndex = "9999";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.style.display = "block";
+  setTimeout(() => {
+    toast!.style.display = "none";
+  }, duration);
+}
+function showRToast(message: string, duration = 3000) {
+  let toast = document.getElementById("toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "toast";
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.background = "#af4c4cff";
+    toast.style.color = "white";
+    toast.style.padding = "10px 20px";
+    toast.style.borderRadius = "5px";
+    toast.style.zIndex = "9999";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.style.display = "block";
+  setTimeout(() => {
+    toast!.style.display = "none";
+  }, duration);
+}
 
 export default function AlertsPage() {
   useSocketLogger();
@@ -45,6 +87,7 @@ export default function AlertsPage() {
   const [showApiKeySettings, setShowApiKeySettings] = useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [newApiKeyType, setNewApiKeyType] = useState("suricata");
   const [loadingKeys, setLoadingKeys] = useState(false);
   const filteredAlertsByApiKey = useMemo(() => {
   if (!apiKeys.length) return [];
@@ -54,13 +97,27 @@ export default function AlertsPage() {
   //console.log("Active API Keys:", Array.from(userKeysSet));
 
   const filtered = alerts.filter(a => {
-    const match = a.api_key && userKeysSet.has(a.api_key);
+    const match = a.api_key && userKeysSet.has(a.api_key) || a.api_key === "0";
     return match;
   });
 
   //console.log("Filtered alerts count:", filtered.length);
   return filtered;
 }, [alerts, apiKeys]);
+  const fetchApiKeys = async () => {
+  try {
+    const res = await axios.get("http://localhost:5000/api/apikeys", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setApiKeys(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+useEffect(() => {
+  if (showApiKeySettings) fetchApiKeys();
+}, [showApiKeySettings]);
 
   const [filters, setFilters] = useState({
     minSeverity: 0,
@@ -68,30 +125,51 @@ export default function AlertsPage() {
     protocols: new Set<string>(),
     port: undefined as number | undefined,
     ip: "",
-    timeRange: { start: null as string | null, end: null as string | null }
-});
+    timeRange: { start: null as string | null, end: null as string | null },
+    agent: ""
+  });
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append("file", file);
+  // Sorting state
+  const [sortField, setSortField] = useState<string>("timestamp");
+  const [sortAsc, setSortAsc] = useState<boolean>(true);
 
-    setLoading(true);
-    try {
-      const res = await axios.post(
-        "http://localhost:5000/api/alerts/upload-alerts",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (!e.target.files) return;
+  const file = e.target.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+
+  setLoading(true);
+  try {
+    const res = await axios.post(
+      "http://localhost:5000/api/alerts/upload-alerts",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+
+    const newAlerts = res.data.alerts || [];
+    const newAlertsWithKey = newAlerts.map((a: any) => ({ ...a, api_key: "0" }));
+
+    // Deduplicate: only add alerts that don't already exist
+    setAlerts((prev) => {
+      const existingSet = new Set(prev.map(a => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`));
+      const filteredNew = newAlertsWithKey.filter((a: any) =>
+        !existingSet.has(`${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`)
       );
-      setAlerts(res.data.alerts || []);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to upload/parse file");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return [...filteredNew, ...prev];
+    });
+
+    showToast(`${newAlerts.length} alerts uploaded (duplicates skipped)`);
+  } catch (err) {
+    console.error(err);
+    showRToast("Failed to upload/parse file");
+  } finally {
+    setLoading(false);
+    // reset input so same file can be re-uploaded if needed
+    e.target.value = '';
+  }
+};
+
   //filters fetch
   useEffect(() => {
   axios.get("http://localhost:5000/api/filters/", {
@@ -113,10 +191,10 @@ export default function AlertsPage() {
       });
       setSavedFilters([...savedFilters, res.data]);
       setNewFilterName("");
-      alert("Filter saved!");
+      showToast("Filter saved!");
     } catch (err) {
       console.error(err);
-      alert("Failed to save filter");
+      showRToast("Failed to save filter");
     }
   };
   const applySavedFilter = (f: any) => {
@@ -203,6 +281,10 @@ export default function AlertsPage() {
   // --- Socket Event Handlers ---
   socket.on("connect", () => {
     console.log("✅ Connected to Socket.IO stream");
+    setTimeout(() => {
+        socket.emit("on_get_last_alerts");
+    }, 50);
+
   });
 
   socket.on("disconnect", () => {
@@ -288,21 +370,40 @@ export default function AlertsPage() {
 
 
   // Filter alerts based on selected filters
-  const filteredAlerts = filteredAlertsByApiKey.filter((a) => {
+  let filteredAlerts = filteredAlertsByApiKey.filter((a) => {
     if (filters.alertsOnly && !a.signature) return false;
     if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
     if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
     if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
+    if (filters.agent && a.api_key !== filters.agent) return false;
     if (filters.timeRange.start || filters.timeRange.end) {
-    const ts = a.timestamp ? new Date(a.timestamp) : null;
-    if (ts) {
-      if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
-      if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
+      const ts = a.timestamp ? new Date(a.timestamp) : null;
+      if (ts) {
+        if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
+        if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
+      }
     }
-  }
-  return true;
-});
+    return true;
+  });
+
+  // Sorting logic
+  filteredAlerts = [...filteredAlerts].sort((a, b) => {
+    let aVal = a[sortField];
+    let bVal = b[sortField];
+    // Special handling for agent (api_key)
+    if (sortField === "agent") {
+      aVal = a.api_key;
+      bVal = b.api_key;
+    }
+    // Convert to string for comparison
+    if (aVal == null) aVal = "";
+    if (bVal == null) bVal = "";
+    if (typeof aVal === "number" && typeof bVal === "number") {
+      return sortAsc ? aVal - bVal : bVal - aVal;
+    }
+    return sortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+  });
 
 
   // Summary calculations
@@ -481,237 +582,281 @@ const alertsPerHourOptions = {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Suricata / Snort Alerts</h1>
-        <div className="mt-4">
-          <button
-            onClick={() => setShowApiKeySettings(!showApiKeySettings)}
-            className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md ml-2"
-          >
-            🔑 API Key Management
-          </button>
-        {showApiKeySettings && (
-          <div className="absolute right-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
-            <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
-
-            {/* Create new API key */}
-            <div className="mb-4">
-              <input
-                type="text"
-                value={newApiKeyName}
-                onChange={(e) => setNewApiKeyName(e.target.value)}
-                placeholder="API key name"
-                className="border rounded px-2 py-1 w-full mb-2"
-              />
-              <button
-                onClick={async () => {
-                  if (!newApiKeyName) return alert("Enter a key name");
-                  // Prompt for type and expires_days, or set defaults
-                  const type = "read"; // or "write", adjust as needed
-                  const expires_days = 30; // or let user choose
-                  try {
-                    const res = await axios.post(
-                      "http://localhost:5000/api/apikeys",
-                      { name: newApiKeyName, type, expires_days },
-                      { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    // Show the key to the user (e.g. in a modal or alert)
-                    alert(`API key created!`);
-                  } catch (err) {
-                    console.error(err);
-                    alert("Failed to create API key");
-                  }
-                }}
-                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full"
-              >
-                Create API Key
-              </button>
-            </div>
-
-            {/* List existing API keys */}
-            <div className="max-h-60 overflow-y-auto">
-              {loadingKeys ? (
-                <p>Loading keys...</p>
-              ) : apiKeys.length === 0 ? (
-                <p>No API keys yet</p>
-              ) : (
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="p-2 text-left">Name</th>
-                      <th className="p-2 text-left">Key</th>
-                      <th className="p-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apiKeys
-  .filter((key) => !key.revoked) // Only show non-revoked keys
-  .map((key) => (
-    <tr key={key.id} className="border-b">
-      <td className="p-2">{key.name}</td>
-      <td className="p-2">
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(key.key ?? "");
-            alert("API key copied to clipboard");
-          }}
-          className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Copy key to clipboard
-        </button>
-      </td>
-      <td className="p-2 flex gap-2">
-        <button
-          onClick={async () => {
-            if (!confirm("Delete this API key?")) return;
-            try {
-              await axios.delete(`http://localhost:5000/api/apikeys/${key.id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              setApiKeys(apiKeys.filter((k) => k.id !== key.id));
-            } catch (err) {
-              console.error(err);
-              alert("Failed to delete key");
-            }
-          }}
-          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Delete
-        </button>
-      </td>
-    </tr>
-  ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setShowApiKeySettings(false)}
-                className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={() => setShowAlertSettings(!showAlertSettings)}
-          className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
-        >
-          ⚙️ Alert Preferences
-        </button>
-        {showAlertSettings && (
-          <div className="absolute right-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
-            <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
-
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={alertSettings.high}
-                  onChange={(e) =>
-                    setAlertSettings({ ...alertSettings, high: e.target.checked })
-                  }
-                />
-                <span>Send email for <b>High alerts</b></span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={alertSettings.medium}
-                  onChange={(e) =>
-                    setAlertSettings({ ...alertSettings, medium: e.target.checked })
-                  }
-                />
-                <span>Send email for <b>Medium alerts</b></span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={alertSettings.low}
-                  onChange={(e) =>
-                    setAlertSettings({ ...alertSettings, low: e.target.checked })
-                  }
-                />
-                <span>Send email for <b>Low alerts</b></span>
-              </label>
-            </div>
-
-            <div className="mt-4">
-              <label className="block mb-1 text-sm font-medium">
-                Above <b>X</b> logs per hour:
-              </label>
-              <input
-                type="number"
-                value={alertSettings.threshold}
-                onChange={(e) =>
-                  setAlertSettings({ ...alertSettings, threshold: Number(e.target.value) })
-                }
-                className="w-full border rounded px-2 py-1"
-                min={1}
-              />
-            </div>
-            {/* Report Frequency Dropdown */}
-            <div className="mt-4">
-              <label className="block mb-1 text-sm font-medium">Report Frequency</label>
-              <select
-                value={reportFrequency} // separate state for this
-                onChange={(e) => setReportFrequency(e.target.value)}
-                className="w-full border rounded px-2 py-1"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="none">None</option>
-              </select>
-            </div>
-
-
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setShowAlertSettings(false)}
-                className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-              onClick={async () => {
-                try {
-                  await axios.put(
-                  "http://localhost:5000/api/filters/alert-options",
-                  {
-                    alerts_options: alertSettings,
-                    report_frequency: reportFrequency,
-                  },
-                  {
-                    headers: { Authorization: `Bearer ${token}` },
-                  }
-                );
-
-                  alert("Alert options saved!");
-                  setShowAlertSettings(false);
-                } catch (err) {
-                  console.error("Failed to save alert options:", err);
-                  alert("Failed to save alert options");
-                }
-              }}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Alerts</h1>
+        <div className="flex flex-wrap gap-4 items-center relative">
+          <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-blue-700 transition">
+            <span>Upload Alert File</span>
+            <input
+              type="file"
+              accept=".json,.csv"
+              onChange={handleUpload}
+              className="hidden"
+            />
+          </label>
+          <div className="relative">
+            <button
+              onClick={() => setShowApiKeySettings(!showApiKeySettings)}
+              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
             >
-              Save
+              🔑 API Key Management
             </button>
-
-            </div>
+            {showApiKeySettings && (
+              <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
+                <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
+                {/* Create new API key */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={newApiKeyName}
+                    onChange={(e) => setNewApiKeyName(e.target.value)}
+                    placeholder="API key name"
+                    className="border rounded px-2 py-1 w-full mb-2"
+                  />
+                  <select
+                    value={newApiKeyType}
+                    onChange={(e) => setNewApiKeyType(e.target.value)}
+                    className="border rounded px-2 py-1 w-full mb-2"
+                  >
+                    <option value="suricata">Suricata</option>
+                    <option value="zeek">Zeek</option>
+                    <option value="snort">Snort</option>
+                  </select>
+                  <button
+                    onClick={async () => {
+                      if (!newApiKeyName) return alert("Enter a key name");
+                      const expires_days = 30; // or let user choose
+                      try {
+                        await axios.post(
+                          "http://localhost:5000/api/apikeys",
+                          { name: newApiKeyName, type: newApiKeyType, expires_days },
+                          { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        showToast(`API key created!`);
+                        setNewApiKeyName(""); // clear input
+                        fetchApiKeys(); // refresh list
+                      } catch (err) {
+                        console.error(err);
+                        showRToast("Failed to create API key");
+                      }
+                    }}
+                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full"
+                  >
+                    Create API Key
+                  </button>
+                </div>
+                {/* List existing API keys */}
+                <div className="max-h-60 overflow-y-auto">
+                  {loadingKeys ? (
+                    <p>Loading keys...</p>
+                  ) : apiKeys.length === 0 ? (
+                    <p>No API keys yet</p>
+                  ) : (
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="p-2 text-left">Name</th>
+                          <th className="p-2 text-left">Key</th>
+                          <th className="p-2 text-left">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apiKeys
+                          .filter((key) => !key.revoked)
+                          .map((key) => (
+                            <tr key={key.id} className="border-b">
+                              <td className="p-2">{key.name}</td>
+                              <td className="p-2">
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(key.key ?? "");
+                                    showToast("API key copied to clipboard");
+                                  }}
+                                  className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  Copy key to clipboard
+                                </button>
+                              </td>
+                              <td className="p-2 flex gap-2 items-center">
+                                <select
+                                  value={key.type}
+                                  onChange={(e) => {
+                                    const newType = e.target.value;
+                                    setApiKeys(apiKeys.map(k =>
+                                      k.id === key.id ? { ...k, type: newType, dirty: true } : k
+                                    ));
+                                  }}
+                                  className="border rounded px-2 py-1"
+                                >
+                                  <option value="suricata">Suricata</option>
+                                  <option value="zeek">Zeek</option>
+                                  <option value="snort">Snort</option>
+                                </select>
+                                {key.dirty && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await axios.put(
+                                          `http://localhost:5000/api/apikeys/${key.id}`,
+                                          { type: key.type },
+                                          { headers: { Authorization: `Bearer ${token}` } }
+                                        );
+                                        setApiKeys(apiKeys.map(k =>
+                                          k.id === key.id ? { ...k, dirty: false } : k
+                                        ));
+                                        showToast("API key type updated");
+                                      } catch (err) {
+                                        console.error(err);
+                                        showRToast("Failed to update key type");
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                  >
+                                    Save
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm("Delete this API key?")) return;
+                                    try {
+                                      await axios.delete(`http://localhost:5000/api/apikeys/${key.id}`, {
+                                        headers: { Authorization: `Bearer ${token}` },
+                                      });
+                                      setApiKeys(apiKeys.filter((k) => k.id !== key.id));
+                                    } catch (err) {
+                                      console.error(err);
+                                      showRToast("Failed to delete key");
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => setShowApiKeySettings(false)}
+                    className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-
-      </div>
-
+          <div className="relative">
+            <button
+              onClick={() => setShowAlertSettings(!showAlertSettings)}
+              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
+            >
+              ⚙️ Alert Preferences
+            </button>
+            {showAlertSettings && (
+              <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
+                <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={alertSettings.high}
+                      onChange={(e) =>
+                        setAlertSettings({ ...alertSettings, high: e.target.checked })
+                      }
+                    />
+                    <span>Send email for <b>High alerts</b></span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={alertSettings.medium}
+                      onChange={(e) =>
+                        setAlertSettings({ ...alertSettings, medium: e.target.checked })
+                      }
+                    />
+                    <span>Send email for <b>Medium alerts</b></span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={alertSettings.low}
+                      onChange={(e) =>
+                        setAlertSettings({ ...alertSettings, low: e.target.checked })
+                      }
+                    />
+                    <span>Send email for <b>Low alerts</b></span>
+                  </label>
+                </div>
+                <div className="mt-4">
+                  <label className="block mb-1 text-sm font-medium">
+                    Above <b>X</b> logs per hour:
+                  </label>
+                  <input
+                    type="number"
+                    value={alertSettings.threshold}
+                    onChange={(e) =>
+                      setAlertSettings({ ...alertSettings, threshold: Number(e.target.value) })
+                    }
+                    className="w-full border rounded px-2 py-1"
+                    min={1}
+                  />
+                </div>
+                {/* Report Frequency Dropdown */}
+                <div className="mt-4">
+                  <label className="block mb-1 text-sm font-medium">Report Frequency</label>
+                  <select
+                    value={reportFrequency}
+                    onChange={(e) => setReportFrequency(e.target.value)}
+                    className="w-full border rounded px-2 py-1"
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div className="mt-4 flex justify-end space-x-2">
+                  <button
+                    onClick={() => setShowAlertSettings(false)}
+                    className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await axios.put(
+                        "http://localhost:5000/api/filters/alert-options",
+                        {
+                          alerts_options: alertSettings,
+                          report_frequency: reportFrequency,
+                        },
+                        {
+                          headers: { Authorization: `Bearer ${token}` },
+                        }
+                      );
+                        showToast("Alert options saved!");
+                        setShowAlertSettings(false);
+                      } catch (err) {
+                        console.error("Failed to save alert options:", err);
+                        showRToast("Failed to save alert options");
+                      }
+                    }}
+                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
 
       {/* Upload Box */}
       <div className="mb-6">
@@ -874,6 +1019,23 @@ const alertsPerHourOptions = {
         <>
           {/* Filter row */}
           <div className="mb-4 flex gap-4 flex-wrap">
+          {/* Agent filter dropdown */}
+          {apiKeys.filter(k => !k.revoked).length > 0 && (
+            <label className="ml-4">
+              Agent:
+              <select
+                value={filters.agent}
+                onChange={e => setFilters({ ...filters, agent: e.target.value })}
+                className="ml-2 border rounded px-2 py-1"
+              >
+                <option value="">All</option>
+                <option value="0">Uploaded manually</option>
+                {apiKeys.map(k => (
+                  <option key={k.key} value={k.key}>{k.name} ({k.type})</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Min Severity:
             <select
@@ -963,7 +1125,7 @@ const alertsPerHourOptions = {
 
           <button
             onClick={() =>
-              setFilters({ minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined,ip: "", timeRange: { start: null, end: null } })
+              setFilters({agent: "All", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined,ip: "", timeRange: { start: null, end: null } })
             }
             className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
           >
@@ -1019,39 +1181,70 @@ const alertsPerHourOptions = {
           <table className="min-w-full bg-white rounded-lg overflow-hidden">
             <thead className="bg-gray-100 border-b border-gray-200">
               <tr>
-                <th className="p-3 text-left font-medium text-gray-700">Timestamp</th>
-                <th className="p-3 text-left font-medium text-gray-700">Source IP</th>
-                <th className="p-3 text-left font-medium text-gray-700">Source Port</th>
-                <th className="p-3 text-left font-medium text-gray-700">Destination IP</th>
-                <th className="p-3 text-left font-medium text-gray-700">Destination Port</th>
-                <th className="p-3 text-left font-medium text-gray-700">Signature</th>
-                <th className="p-3 text-left font-medium text-gray-700">Severity</th>
+                {[
+                  { label: "Timestamp", field: "timestamp" },
+                  { label: "Source IP", field: "src_ip" },
+                  { label: "Source Port", field: "src_port" },
+                  { label: "Destination IP", field: "dest_ip" },
+                  { label: "Destination Port", field: "dest_port" },
+                  { label: "Signature", field: "signature" },
+                  { label: "Severity", field: "severity" },
+                  { label: "Agent", field: "agent" },
+                ].map(col => (
+                  <th
+                    key={col.field}
+                    className="p-3 text-left font-medium text-gray-700 cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortField === col.field) setSortAsc(!sortAsc);
+                      else {
+                        setSortField(col.field);
+                        setSortAsc(true);
+                      }
+                    }}
+                  >
+                    {col.label}
+                    {sortField === col.field && (
+                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
+                    )}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filteredAlerts.map((a, i) => (
-                <tr
-                  key={i}
-                  className={`transition border-b border-gray-200 cursor-pointer hover:opacity-90 ${
-                    a.severity === 1
-                      ? "bg-red-100"
-                      : a.severity === 2
-                      ? "bg-yellow-100"
-                      : a.severity === 3
-                      ? "bg-green-100"
-                      : ""
-                  }`}
-                  onDoubleClick={() => handleInspect(a)}
-                >
-                  <td className="p-3">{a.timestamp || "-"}</td>
-                  <td className="p-3">{a.src_ip || "-"}</td>
-                  <td className="p-3">{a.src_port ?? "-"}</td>
-                  <td className="p-3">{a.dest_ip || "-"}</td>
-                  <td className="p-3">{a.dest_port ?? "-"}</td>
-                  <td className="p-3">{a.signature || "-"}</td>
-                  <td className="p-3 font-semibold">{a.severity || "-"}</td>
-                </tr>
-              ))}
+              {filteredAlerts.map((a, i) => {
+                // Find the matching key by api_key
+                const key = apiKeys.find((k) => k.key === a.api_key);
+                return (
+                  <tr
+                    key={i}
+                    className={`transition border-b border-gray-200 cursor-pointer hover:opacity-90 ${
+                      a.severity === 1
+                        ? "bg-red-100"
+                        : a.severity === 2
+                        ? "bg-yellow-100"
+                        : a.severity === 3
+                        ? "bg-green-100"
+                        : ""
+                    }`}
+                    onDoubleClick={() => handleInspect(a)}
+                  >
+                    <td className="p-3">{a.timestamp || "-"}</td>
+                    <td className="p-3">{a.src_ip || "-"}</td>
+                    <td className="p-3">{a.src_port ?? "-"}</td>
+                    <td className="p-3">{a.dest_ip || "-"}</td>
+                    <td className="p-3">{a.dest_port ?? "-"}</td>
+                    <td className="p-3">{a.signature || "-"}</td>
+                    <td className="p-3 font-semibold">{a.severity || "-"}</td>
+                    <td className="p-3">
+                      {a.api_key === "0"
+                        ? "Uploaded manually"
+                        : key
+                          ? `${key.name} (${key.type})`
+                          : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

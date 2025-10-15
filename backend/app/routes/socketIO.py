@@ -1,9 +1,10 @@
 import eventlet
 from flask_socketio import emit, Namespace
 
+
 alert_buffer = []
 BUFFER_INTERVAL = 1.0  # seconds between flushes
-
+LAST_N = 100 
 
 class AlertsNamespace(Namespace):
     def handle_connect(self):
@@ -27,13 +28,48 @@ class AlertsNamespace(Namespace):
                 except Exception:
                     continue
 
-            print(f"📤 Sending {len(alerts)} pre-existing alerts to new client")
+            #print(f"📤 Sending {len(alerts)} pre-existing alerts to new client")
             emit("bulk_alerts", {"alerts": alerts})
 
         except Exception as e:
             print(f"⚠️ Failed to read eve.json: {e}")
             emit("bulk_alerts", {"alerts": []})
 
+    def on_get_last_alerts(self, data=None):
+        """Called by the frontend on page load to fetch the last N alerts"""
+        if not os.path.exists(EVE_PATH):
+            emit("bulk_alerts", {"alerts": []}, namespace="/api/alerts/stream")
+            return
+
+        last_lines = deque(maxlen=LAST_N)
+        try:
+            with open(EVE_PATH, "r", encoding="utf-8") as f:
+                for line in f:
+                    last_lines.append(line.strip())
+
+            alerts = []
+            for line in last_lines:
+                try:
+                    event = json.loads(line)
+                    if event.get("event_type") == "alert":
+                        alerts.append(event)
+                except Exception:
+                    continue
+
+            emit("bulk_alerts", {"alerts": alerts}, namespace="/api/alerts/stream")
+
+        except Exception as e:
+            print(f"⚠️ Failed to read eve.json: {e}")
+            emit("bulk_alerts", {"alerts": []}, namespace="/api/alerts/stream")
+
+    @staticmethod
+    def tail_last_lines(file_path, n=100):
+        last_lines = deque(maxlen=n)
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                last_lines.append(line.strip())
+        return list(last_lines)
+    
     def on_disconnect(self):
         print("❌ Pro user disconnected")
 
@@ -58,7 +94,7 @@ class AlertsNamespace(Namespace):
         normalized["api_key"] = api_key
         
         alert_buffer.append(normalized)
-        print(f"📥 Buffered alert: {normalized.get('signature') or event_type} (API Key: {api_key})")
+        #print(f"📥 Buffered alert: {normalized.get('signature') or event_type} (API Key: {api_key})")
 
 
 # 🔹 DNS events: lightweight normalization for display
@@ -162,14 +198,14 @@ def bulk_alert_sender():
             batch = list(alert_buffer)
             alert_buffer.clear()
             try:
-                print("🧾 Example alert being sent:", batch[0])
+                #print("🧾 Example alert being sent:", batch[0])
                 # Emit all alerts including their api_key field
                 socketio.emit(
                     "bulk_alerts",
                     {"alerts": batch},
                     namespace="/api/alerts/stream"
                 )
-                print(f"📤 Sent {len(batch)} buffered alerts to frontend")
+                #print(f"📤 Sent {len(batch)} buffered alerts to frontend")
             except Exception as e:
                 print(f"⚠️ Error emitting alerts: {e}")
 
@@ -180,4 +216,4 @@ def start_bulk_sender():
     if not getattr(start_bulk_sender, "started", False):
         socketio.start_background_task(bulk_alert_sender)
         start_bulk_sender.started = True
-        print("🧵 Started background alert sender thread")
+        #print("🧵 Started background alert sender thread")

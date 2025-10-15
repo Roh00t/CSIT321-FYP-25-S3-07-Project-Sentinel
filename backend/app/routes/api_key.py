@@ -79,3 +79,20 @@ def verify_key():
         "type": key.type,
         "name": key.name
     }), 200
+
+@api_keys_bp.route("/api/apikeys/<int:key_id>", methods=["PUT"])
+@jwt_required()
+def update_key(key_id):
+    user_id = get_jwt_identity()
+    key = APIKey.query.filter_by(id=key_id, user_id=user_id).first()
+    if not key:
+        return jsonify({"error": "Key not found"}), 404
+
+    data = request.get_json()
+    new_type = data.get("type")
+    if new_type:
+        key.type = new_type
+        db.session.commit()
+        return jsonify({"message": "Key type updated"}), 200
+    else:
+        return jsonify({"error": "Missing type"}), 400

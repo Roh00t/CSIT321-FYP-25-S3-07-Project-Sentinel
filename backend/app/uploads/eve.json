@@ -1,2 +1,2 @@
 {"timestamp":"2025-09-07T15:14:02.123456+0000","event_type":"alert","src_ip":"192.168.1.5","dest_ip":"8.8.8.8","alert":{"signature":"ET MALWARE Possible Malicious Traffic","severity":2}}
-{"timestamp":"2025-09-07T15:14:05.654321+0000","event_type":"alert","src_ip":"192.168.1.6","dest_ip":"1.1.1.1","alert":{"signature":"ET SCAN Suspicious Scan Detected","severity":3}}
+{"timestamp":"2025-09-07T15:14:05.654321+0000","event_type":"alert","src_ip":"8.8.8.8","dest_ip":"1.1.1.1","alert":{"signature":"ET SCAN Suspicious Scan Detected","severity":3}}
