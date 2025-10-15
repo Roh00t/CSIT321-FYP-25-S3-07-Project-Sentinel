@@ -6,7 +6,7 @@ from app.utils.email_utils import send_alert_email
 from collections import deque
 from datetime import datetime, timedelta
 
-recent_alerts_per_user = {}  
+recent_alerts_per_user = {} 
 alert_buffer = []
 BUFFER_INTERVAL = 1.0  # seconds between flushes
 LAST_N = 100 
@@ -224,8 +224,37 @@ def get_alert_options_for_user(user_id):
 def send_alert_email_if_needed(alert):
     api_key = alert.get("api_key")
     from app.models.api_keys import APIKey
+
     key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
     user_id = key.user_id if key else None
+
+    # ✅ Always count all activity (even benign)
+    if user_id:
+        now = datetime.utcnow()
+        one_hour_ago = now - timedelta(hours=1)
+        user_alerts = recent_alerts_per_user.setdefault(user_id, [])
+        user_alerts.append(now)
+
+        # Clean up old entries (>1h)
+        user_alerts = [t for t in user_alerts if t > one_hour_ago]
+        recent_alerts_per_user[user_id] = user_alerts
+
+        # Load user’s threshold (default 100/hour)
+        alert_options = get_alert_options_for_user(user_id)
+        threshold = alert_options.get("threshold", 100)
+
+        if len(user_alerts) >= threshold:
+            admin_email = get_admin_email_for_api_key(api_key)
+            print(f"🚨 User {user_id} exceeded {threshold} events/hour — emailing {admin_email}")
+            send_alert_email(
+                admin_email,
+                "⚠️ High Activity Volume Detected",
+                f"You have received {len(user_alerts)} total events in the past hour (threshold: {threshold})."
+            )
+            # Prevent spam: reset counter
+            recent_alerts_per_user[user_id] = []
+
+    # ✅ Then check if this specific alert deserves a severity email
     alert_options = get_alert_options_for_user(user_id) if user_id else {"high": True, "medium": False, "low": False}
     severity = int(alert.get("severity") or 0)
     should_send = (
@@ -233,28 +262,7 @@ def send_alert_email_if_needed(alert):
         (severity == 2 and alert_options.get("medium")) or
         (severity == 3 and alert_options.get("low"))
     )
-    if user_id:
-        now = datetime.utcnow()
-        one_hour_ago = now - timedelta(hours=1)
-        user_alerts = recent_alerts_per_user.setdefault(user_id, [])
-        user_alerts.append(now)
 
-        # Clean old alerts
-        user_alerts = [t for t in user_alerts if t > one_hour_ago]
-        recent_alerts_per_user[user_id] = user_alerts
-
-        threshold = alert_options.get("threshold", 100)
-
-        if len(user_alerts) >= threshold:
-            admin_email = get_admin_email_for_api_key(api_key)
-            print(f"🚨 User {user_id} exceeded {threshold} alerts/hour — emailing {admin_email}")
-            send_alert_email(
-                admin_email,
-                "⚠️ High Alert Volume Detected",
-                f"You have received {len(user_alerts)} alerts in the past hour (threshold: {threshold})."
-            )
-            # Reset count so they don’t get spammed
-            recent_alerts_per_user[user_id] = []
     if should_send:
         admin_email = get_admin_email_for_api_key(api_key)
         print(f"✉️ Sending alert email from {DEFAULT_ADMIN_EMAIL} to {admin_email} for alert: {alert['signature']}")
