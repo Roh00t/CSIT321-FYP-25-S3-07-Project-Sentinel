@@ -18,6 +18,7 @@ class AlertsNamespace(Namespace):
             print("⚠️ Received empty alert event")
             return
 
+        api_key = data.get("api_key") 
         event_type = data.get("event_type")
 
         # Ignore flow/stats events entirely
@@ -30,8 +31,10 @@ class AlertsNamespace(Namespace):
         else:
             normalized = normalize_alert(data)
 
+        normalized["api_key"] = api_key
+        
         alert_buffer.append(normalized)
-        print(f"📥 Buffered alert: {normalized.get('signature') or event_type}")
+        print(f"📥 Buffered alert: {normalized.get('signature') or event_type} (API Key: {api_key})")
 
 
 # 🔹 DNS events: lightweight normalization for display
@@ -127,7 +130,7 @@ def normalize_alert(alert: dict) -> dict:
 
 # 🔹 Background task that flushes buffer every second
 def bulk_alert_sender():
-    from app import socketio  # ✅ Lazy import fixes circular import
+    from app import socketio
     print("🚀 Bulk alert sender started (running every 1s)")
     while True:
         eventlet.sleep(BUFFER_INTERVAL)
@@ -136,7 +139,12 @@ def bulk_alert_sender():
             alert_buffer.clear()
             try:
                 print("🧾 Example alert being sent:", batch[0])
-                socketio.emit("bulk_alerts", {"alerts": batch}, namespace="/api/alerts/stream")
+                # Emit all alerts including their api_key field
+                socketio.emit(
+                    "bulk_alerts",
+                    {"alerts": batch},
+                    namespace="/api/alerts/stream"
+                )
                 print(f"📤 Sent {len(batch)} buffered alerts to frontend")
             except Exception as e:
                 print(f"⚠️ Error emitting alerts: {e}")

@@ -46,10 +46,23 @@ export default function AlertsPage() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newApiKeyName, setNewApiKeyName] = useState("");
   const [loadingKeys, setLoadingKeys] = useState(false);
+  const filteredAlertsByApiKey = useMemo(() => {
+  if (!apiKeys.length) return [];
 
+  const activeKeys = apiKeys.filter(k => !k.revoked);
+  const userKeysSet = new Set(activeKeys.map(k => k.key));
+  console.log("Active API Keys:", Array.from(userKeysSet));
 
+  const filtered = alerts.filter(a => {
+    const match = a.api_key && userKeysSet.has(a.api_key);
+    console.log(a.api_key);
+    if (match) console.log("Matched alert:", a);
+    return match;
+  });
 
-
+  console.log("Filtered alerts count:", filtered.length);
+  return filtered;
+}, [alerts, apiKeys]);
 
   const [filters, setFilters] = useState({
     minSeverity: 0,
@@ -117,39 +130,47 @@ export default function AlertsPage() {
 
     // --- Fetch GeoIP coordinates ---
   useEffect(() => {
-    if (!alerts.length) {
-      setAlertsWithGeo([]);
+  // Only process alerts the user is allowed to see
+  const alertsToProcess = filteredAlertsByApiKey;
+  if (!alertsToProcess.length) {
+    setAlertsWithGeo([]);
+    return;
+  }
+
+  const fetchGeo = async () => {
+    const ips = Array.from(
+      new Set(
+        alertsToProcess.flatMap(a => [a.src_ip, a.dest_ip]).filter(Boolean)
+      )
+    );
+
+    if (!ips.length) {
+      setAlertsWithGeo(alertsToProcess);
       return;
     }
-    const fetchGeo = async () => {
-      const ips = Array.from(
-        new Set(
-          alerts.flatMap(a => [a.src_ip, a.dest_ip]).filter(Boolean)
-        )
-      );
 
-      if (!ips.length) {
-        setAlertsWithGeo(alerts);
-        return;
-      }
-      try {
-        const res = await axios.post("http://localhost:5000/api/geo", { ips });
-        const geoMap: Record<string, { lat: number; lon: number }> = {};
-        res.data.forEach((loc: any) => {
-          geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
-        });
-        const geoAlerts = alerts.map(a => ({
-          ...a,
-          src_geo: a.src_ip ? geoMap[a.src_ip] : undefined,
-          dest_geo: a.dest_ip ? geoMap[a.dest_ip] : undefined
-        }));
-        setAlertsWithGeo(geoAlerts);
-      } catch (err) {
-        setAlertsWithGeo(alerts);
-      }
-    };
-    fetchGeo();
-  }, [alerts]);
+    try {
+      const res = await axios.post("http://localhost:5000/api/geo", { ips });
+      const geoMap: Record<string, { lat: number; lon: number }> = {};
+      res.data.forEach((loc: any) => {
+        geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
+      });
+
+      const geoAlerts = alertsToProcess.map(a => ({
+        ...a,
+        src_geo: a.src_ip ? geoMap[a.src_ip] : undefined,
+        dest_geo: a.dest_ip ? geoMap[a.dest_ip] : undefined
+      }));
+
+      setAlertsWithGeo(geoAlerts);
+    } catch (err) {
+      setAlertsWithGeo(alertsToProcess);
+    }
+  };
+
+  fetchGeo();
+}, [filteredAlertsByApiKey]);
+
   // Load saved alert options for current user
   useEffect(() => {
     if (!token) return;
@@ -199,6 +220,7 @@ export default function AlertsPage() {
     const alerts = payload.alerts.map((a: any, i: number) => {
       console.log(`🔹 [${i + 1}/${payload.alerts.length}]`, a);
       return {
+        api_key: a.api_key || "unknown",
         id: crypto.randomUUID(),
         timestamp: a.timestamp || new Date().toISOString(),
         src_ip: a.src_ip || "unknown",
@@ -249,7 +271,7 @@ export default function AlertsPage() {
 
 
   // Filter alerts based on selected filters
-  const filteredAlerts = alerts.filter((a) => {
+  const filteredAlerts = filteredAlertsByApiKey.filter((a) => {
     if (filters.alertsOnly && !a.signature) return false;
     if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
@@ -1124,7 +1146,7 @@ const alertsPerHourOptions = {
                             : ""
                         }`}
                       >
-                        {loadingIntel
+                                                {loadingIntel
                           ? "Loading..."
                           : ["Confidence", "Total Reports", "Country", "Domain"].includes(field)
                           ? getAbuseValue(threatIntel?.abuse)
@@ -1150,21 +1172,21 @@ const alertsPerHourOptions = {
                           ? getAbuseValue(threatIntel?.destAbuse)
                           : getVTValue(threatIntel?.destVT)}
                       </td>
-
-                      </tr>
-                    );
-                  })}
+                    </tr>
+                  );
+                })}
                 </tbody>
               </table>
-              <small>note* lower reputation = more likely to be malicious</small>
             </div>
 
-            <button
-              onClick={() => setSelectedAlert(null)}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-            >
-              Close
-            </button>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setSelectedAlert(null)}
+                className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

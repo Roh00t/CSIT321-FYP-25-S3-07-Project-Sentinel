@@ -3,7 +3,7 @@ import json
 import time
 import threading
 import tkinter as tk
-from tkinter import filedialog, scrolledtext, messagebox
+from tkinter import filedialog, scrolledtext, messagebox, ttk
 
 sio = socketio.Client(reconnection=False)  # manual reconnect
 stop_event = threading.Event()
@@ -39,6 +39,31 @@ class ForwarderGUI:
         self.status_var = tk.StringVar(value="🔴 Disconnected")
         tk.Label(root, textvariable=self.status_var, anchor="w").pack(fill="x", padx=10, pady=(0, 10))
 
+        # API Key
+        self.api_key_var = tk.StringVar()
+        self.show_api_key = tk.BooleanVar(value=False)
+        frame = tk.Frame(root)
+        frame.pack(padx=10, pady=10)
+        tk.Label(frame, text="API Key:").grid(row=0, column=0, sticky="w")
+        self.api_key_entry = tk.Entry(
+            frame,
+            textvariable=self.api_key_var,
+            show="*"
+        )
+        self.api_key_entry.grid(row=0, column=1)
+
+        def toggle_api_key(*args):
+            self.api_key_entry.config(show="" if self.show_api_key.get() else "*")
+
+        self.show_api_key.trace_add("write", toggle_api_key)
+
+        show_btn = tk.Checkbutton(
+            frame,
+            text="Show",
+            variable=self.show_api_key
+        )
+        show_btn.grid(row=0, column=2)
+
         # Connect socket initially
         self.connect_socket()
 
@@ -57,13 +82,16 @@ class ForwarderGUI:
 
     def connect_socket(self):
         """Attempt connection to Flask SocketIO."""
+        api_key = self.api_key_var.get()
         try:
-            sio.connect("http://localhost:5000", namespaces=["/api/alerts/stream"])
-            self.status_var.set("🟢 Connected")
-            self.log("✅ Connected to Flask SocketIO")
+            sio.connect(
+                "http://localhost:5000",
+                namespaces=["/api/alerts/stream"],
+                transports=["websocket"]
+            )
+            self.log("✅ Connected to backend with API key handshake")
         except Exception as e:
-            self.status_var.set("🔴 Disconnected")
-            self.log(f"⚠️ Connection error: {e}")
+            self.log(f"❌ Connection failed: {e}")
             if self.auto_reconnect.get():
                 self.log("🔁 Will retry connection in 5 seconds...")
                 self.root.after(5000, self.connect_socket)
@@ -84,6 +112,7 @@ class ForwarderGUI:
 
     def tail_eve(self):
         eve_path = self.path_var.get()
+        api_key = self.api_key_var.get()  # get the API key from the GUI
         try:
             with open(eve_path, "r", encoding="utf-8") as f:
                 f.seek(0, 2)
@@ -94,6 +123,7 @@ class ForwarderGUI:
                         continue
                     try:
                         event = json.loads(line.strip())
+                        event["api_key"] = api_key
                         sio.emit("alert_event", event, namespace="/api/alerts/stream")
                         self.log(f"📤 Sent alert: {event.get('event_type')}")
                     except Exception as e:
@@ -101,17 +131,17 @@ class ForwarderGUI:
         except Exception as e:
             self.log(f"⚠️ File error: {e}")
 
-@sio.event
+@sio.event(namespace="/api/alerts/stream")
 def connect():
     print("✅ Socket connected")
 
-@sio.event
+@sio.event(namespace="/api/alerts/stream")
 def disconnect():
     print("❌ Socket disconnected")
 
 # Launch GUI
 if __name__ == "__main__":
     root = tk.Tk()
-    gui = ForwarderGUI(root)
-    root.protocol("WM_DELETE_WINDOW", lambda: (stop_event.set(), root.destroy()))
+    root.title("Agent Forwarder")
+    app = ForwarderGUI(root)
     root.mainloop()
