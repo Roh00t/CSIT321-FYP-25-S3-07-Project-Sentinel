@@ -55,7 +55,7 @@ with app.app_context():
             email="appuserpro@example.com",
             username="appuserpro",
             subscription_plan="Pro",
-            admin_email="company@company.com",
+            admin_email="projectsentinelfyp@gmail.com",
             email_verified=True
         )
         # Override password with bcrypt hash directly

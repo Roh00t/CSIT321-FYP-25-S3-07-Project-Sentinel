@@ -11,7 +11,7 @@ reader = geoip2.database.Reader(DB_PATH)
 def get_geo(ip):
     try:
         response = reader.city(ip)
-        print(f"Geo lookup for {ip}: lat={response.location.latitude}, lon={response.location.longitude}")
+        #print(f"Geo lookup for {ip}: lat={response.location.latitude}, lon={response.location.longitude}")
         return {
             'lat': response.location.latitude,
             'lon': response.location.longitude,
@@ -19,5 +19,5 @@ def get_geo(ip):
             'country': response.country.name
         }
     except Exception as e:
-        print(f"Geo lookup failed for {ip}: {e}")
+        #print(f"Geo lookup failed for {ip}: {e}")
         return None

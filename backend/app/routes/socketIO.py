@@ -1,10 +1,18 @@
 import eventlet
+import os
+import json
 from flask_socketio import emit, Namespace
+from app.utils.email_utils import send_alert_email
+from collections import deque
+from datetime import datetime, timedelta
 
-
+recent_alerts_per_user = {}  
 alert_buffer = []
 BUFFER_INTERVAL = 1.0  # seconds between flushes
 LAST_N = 100 
+DEFAULT_ADMIN_EMAIL = os.getenv("MAIL_USERNAME", "projectsentinelfyp@gmail.com")
+import os
+EVE_PATH = os.path.join(os.path.dirname(__file__), "..", "uploads", "eve.json")
 
 class AlertsNamespace(Namespace):
     def handle_connect(self):
@@ -94,6 +102,7 @@ class AlertsNamespace(Namespace):
         normalized["api_key"] = api_key
         
         alert_buffer.append(normalized)
+        send_alert_email_if_needed(normalized)
         #print(f"📥 Buffered alert: {normalized.get('signature') or event_type} (API Key: {api_key})")
 
 
@@ -186,6 +195,74 @@ def normalize_alert(alert: dict) -> dict:
         "severity": severity,
         "protocol": protocol,
     }
+
+
+def get_admin_email_for_api_key(api_key_value):
+    from app.models.app_user import AppUser
+    from app.models.api_keys import APIKey
+    from app import db
+    if not api_key_value or api_key_value == "0":
+        return DEFAULT_ADMIN_EMAIL
+    key = APIKey.query.filter_by(key=api_key_value).first()
+    if key and key.user_id:
+        user = AppUser.query.filter_by(id=key.user_id).first()
+        if user and user.admin_email:
+            return user.admin_email
+    return DEFAULT_ADMIN_EMAIL
+
+
+def get_alert_options_for_user(user_id):
+    from app.models.filter import Filter
+    # Find the latest filter for this user (or use defaults)
+    filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
+    if filter_obj and filter_obj.alerts_options:
+        return filter_obj.alerts_options
+    # Default options
+    return {"high": True, "medium": False, "low": False}
+
+
+def send_alert_email_if_needed(alert):
+    api_key = alert.get("api_key")
+    from app.models.api_keys import APIKey
+    key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
+    user_id = key.user_id if key else None
+    alert_options = get_alert_options_for_user(user_id) if user_id else {"high": True, "medium": False, "low": False}
+    severity = int(alert.get("severity") or 0)
+    should_send = (
+        (severity == 1 and alert_options.get("high")) or
+        (severity == 2 and alert_options.get("medium")) or
+        (severity == 3 and alert_options.get("low"))
+    )
+    if user_id:
+        now = datetime.utcnow()
+        one_hour_ago = now - timedelta(hours=1)
+        user_alerts = recent_alerts_per_user.setdefault(user_id, [])
+        user_alerts.append(now)
+
+        # Clean old alerts
+        user_alerts = [t for t in user_alerts if t > one_hour_ago]
+        recent_alerts_per_user[user_id] = user_alerts
+
+        threshold = alert_options.get("threshold", 100)
+
+        if len(user_alerts) >= threshold:
+            admin_email = get_admin_email_for_api_key(api_key)
+            print(f"🚨 User {user_id} exceeded {threshold} alerts/hour — emailing {admin_email}")
+            send_alert_email(
+                admin_email,
+                "⚠️ High Alert Volume Detected",
+                f"You have received {len(user_alerts)} alerts in the past hour (threshold: {threshold})."
+            )
+            # Reset count so they don’t get spammed
+            recent_alerts_per_user[user_id] = []
+    if should_send:
+        admin_email = get_admin_email_for_api_key(api_key)
+        print(f"✉️ Sending alert email from {DEFAULT_ADMIN_EMAIL} to {admin_email} for alert: {alert['signature']}")
+        send_alert_email(
+            admin_email,
+            "Security Alert Notification",
+            f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
+        )
 
 
 # 🔹 Background task that flushes buffer every second

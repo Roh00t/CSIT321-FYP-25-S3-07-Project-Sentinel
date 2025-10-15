@@ -371,23 +371,23 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
   // Filter alerts based on selected filters
   let filteredAlerts = filteredAlertsByApiKey.filter((a) => {
-    if (filters.alertsOnly && !a.signature) return false;
-    if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
-    if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
-    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
-    if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
-    if (filters.agent && a.api_key !== filters.agent) return false;
-    if (filters.timeRange.start || filters.timeRange.end) {
-      const ts = a.timestamp ? new Date(a.timestamp) : null;
-      if (ts) {
-        if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
-        if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
-      }
+  if (filters.alertsOnly && !a.signature) return false;
+  if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
+  if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
+  if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
+  if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
+  if (filters.agent && a.api_key !== filters.agent) return false;
+  if (filters.timeRange.start || filters.timeRange.end) {
+    const ts = a.timestamp ? new Date(a.timestamp) : null;
+    if (ts) {
+      if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
+      if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
     }
-    return true;
-  });
+  }
+  return true;
+});
 
-  // Sorting logic
+// Sorting logic
   filteredAlerts = [...filteredAlerts].sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
@@ -1125,7 +1125,7 @@ const alertsPerHourOptions = {
 
           <button
             onClick={() =>
-              setFilters({agent: "All", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined,ip: "", timeRange: { start: null, end: null } })
+              setFilters({agent: "All", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } })
             }
             className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
           >
