@@ -42,6 +42,11 @@ export default function AlertsPage() {
     threshold: 100,
   });
   const [reportFrequency, setReportFrequency] = useState("weekly"); // default value
+  const [showApiKeySettings, setShowApiKeySettings] = useState(false);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [loadingKeys, setLoadingKeys] = useState(false);
+
 
 
 
@@ -217,6 +222,27 @@ export default function AlertsPage() {
     console.log("🧹 Cleaning up socket connection");
     socket.disconnect();
   };
+}, [token]);
+  //api keys fetch
+  useEffect(() => {
+  if (!token) return;
+
+  const fetchApiKeys = async () => {
+    setLoadingKeys(true);
+    try {
+      const res = await axios.get("http://localhost:5000/api/apikeys", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log("API Keys JSON:", res.data); // <-- Log the key objects for testing
+      setApiKeys(res.data || []);
+    } catch (err) {
+      console.error("Failed to load API keys:", err);
+    } finally {
+      setLoadingKeys(false);
+    }
+  };
+
+  fetchApiKeys();
 }, [token]);
 
 
@@ -419,6 +445,119 @@ const alertsPerHourOptions = {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Suricata / Snort Alerts</h1>
         <div className="mt-4">
+          <button
+            onClick={() => setShowApiKeySettings(!showApiKeySettings)}
+            className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md ml-2"
+          >
+            🔑 API Key Management
+          </button>
+        {showApiKeySettings && (
+          <div className="absolute right-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
+            <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
+
+            {/* Create new API key */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={newApiKeyName}
+                onChange={(e) => setNewApiKeyName(e.target.value)}
+                placeholder="API key name"
+                className="border rounded px-2 py-1 w-full mb-2"
+              />
+              <button
+                onClick={async () => {
+                  if (!newApiKeyName) return alert("Enter a key name");
+                  // Prompt for type and expires_days, or set defaults
+                  const type = "read"; // or "write", adjust as needed
+                  const expires_days = 30; // or let user choose
+                  try {
+                    const res = await axios.post(
+                      "http://localhost:5000/api/apikeys",
+                      { name: newApiKeyName, type, expires_days },
+                      { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    // Show the key to the user (e.g. in a modal or alert)
+                    alert(`API key created!`);
+                  } catch (err) {
+                    console.error(err);
+                    alert("Failed to create API key");
+                  }
+                }}
+                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full"
+              >
+                Create API Key
+              </button>
+            </div>
+
+            {/* List existing API keys */}
+            <div className="max-h-60 overflow-y-auto">
+              {loadingKeys ? (
+                <p>Loading keys...</p>
+              ) : apiKeys.length === 0 ? (
+                <p>No API keys yet</p>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="p-2 text-left">Name</th>
+                      <th className="p-2 text-left">Key</th>
+                      <th className="p-2 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apiKeys
+  .filter((key) => !key.revoked) // Only show non-revoked keys
+  .map((key) => (
+    <tr key={key.id} className="border-b">
+      <td className="p-2">{key.name}</td>
+      <td className="p-2">
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(key.key ?? "");
+            alert("API key copied to clipboard!");
+          }}
+          className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Copy key to clipboard
+        </button>
+      </td>
+      <td className="p-2 flex gap-2">
+        <button
+          onClick={async () => {
+            if (!confirm("Delete this API key?")) return;
+            try {
+              await axios.delete(`http://localhost:5000/api/apikeys/${key.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              setApiKeys(apiKeys.filter((k) => k.id !== key.id));
+            } catch (err) {
+              console.error(err);
+              alert("Failed to delete key");
+            }
+          }}
+          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Delete
+        </button>
+      </td>
+    </tr>
+  ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowApiKeySettings(false)}
+                className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={() => setShowAlertSettings(!showAlertSettings)}
           className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"

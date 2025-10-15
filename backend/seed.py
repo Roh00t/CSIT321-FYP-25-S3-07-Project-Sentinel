@@ -3,6 +3,7 @@ from app import create_app, db
 from app import models
 from app.models import AppUser, Admin, Filter
 import bcrypt
+from app.models.api_keys import APIKey  # Ensure model is imported
 
 app = create_app()
 
@@ -79,6 +80,12 @@ with app.app_context():
         )
         db.session.add(sample_filter)
         print("Sample filter 'Critical Alerts Only' created.")
+
+    # --- Ensure APIKey table exists ---
+    # If you want to explicitly check and create, but db.create_all() already does this.
+    if not db.engine.dialect.has_table(db.engine.connect(), APIKey.__tablename__):
+        APIKey.__table__.create(db.engine)
+        print("Table 'api_keys' created.")
 
     db.session.commit()
     print("Database seeded successfully.")
