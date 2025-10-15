@@ -51,16 +51,14 @@ export default function AlertsPage() {
 
   const activeKeys = apiKeys.filter(k => !k.revoked);
   const userKeysSet = new Set(activeKeys.map(k => k.key));
-  console.log("Active API Keys:", Array.from(userKeysSet));
+  //console.log("Active API Keys:", Array.from(userKeysSet));
 
   const filtered = alerts.filter(a => {
     const match = a.api_key && userKeysSet.has(a.api_key);
-    console.log(a.api_key);
-    if (match) console.log("Matched alert:", a);
     return match;
   });
 
-  console.log("Filtered alerts count:", filtered.length);
+  //console.log("Filtered alerts count:", filtered.length);
   return filtered;
 }, [alerts, apiKeys]);
 
@@ -210,7 +208,26 @@ export default function AlertsPage() {
   socket.on("disconnect", () => {
     console.log("❌ Disconnected from Socket.IO stream");
   });
+  socket.on("initial_alerts", (payload) => {
+    if (!payload?.alerts) {
+      console.warn("⚠️ Malformed initial payload:", payload);
+      return;
+    }
 
+    console.log(`📦 Received initial ${payload.alerts.length} alerts`);
+
+    setAlerts(payload.alerts.map((a: any) => ({
+      id: crypto.randomUUID(),
+      timestamp: a.timestamp,
+      src_ip: a.src_ip,
+      src_port: a.src_port,
+      dest_ip: a.dest_ip,
+      dest_port: a.dest_port,
+      protocol: a.protocol,
+      signature: a.alert?.signature || a.signature,
+      severity: a.alert?.severity || a.severity,
+    })));
+  });
   socket.on("bulk_alerts", (payload) => {
     if (!payload || !Array.isArray(payload.alerts)) {
       console.warn("⚠️ Malformed payload received:", payload);
@@ -536,7 +553,7 @@ const alertsPerHourOptions = {
         <button
           onClick={() => {
             navigator.clipboard.writeText(key.key ?? "");
-            alert("API key copied to clipboard!");
+            alert("API key copied to clipboard");
           }}
           className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
         >

@@ -13,17 +13,17 @@ export const useSocketLogger = () => {
     timeout: 20000, // 20 seconds
   });
 
-  socket.on("connect", () => {
-    console.log("[SocketLogger] ✅ Connected to backend socket:", socket.id);
-  });
+  // socket.on("connect", () => {
+  //   console.log("[SocketLogger] ✅ Connected to backend socket:", socket.id);
+  // });
 
-  socket.on("disconnect", (reason) => {
-    console.warn("[SocketLogger] ⚠️ Disconnected:", reason);
-  });
+  // socket.on("disconnect", (reason) => {
+  //   console.warn("[SocketLogger] ⚠️ Disconnected:", reason);
+  // });
 
-  socket.onAny((event, ...args) => {
-    console.log("[SocketLogger] 📡 Event received:", event, args);
-  });
+  // socket.onAny((event, ...args) => {
+  //   console.log("[SocketLogger] 📡 Event received:", event, args);
+  // });
   socket.io.on("ping", () => console.log("[SocketLogger] 🔁 Ping received"));
   socket.on("pong", (latency) => console.log("[SocketLogger] 🔁 Pong latency:", latency, "ms"));
 
