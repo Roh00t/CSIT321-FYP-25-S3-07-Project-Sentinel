@@ -218,7 +218,7 @@ def get_alert_options_for_user(user_id):
     if filter_obj and filter_obj.alerts_options:
         return filter_obj.alerts_options
     # Default options
-    return {"high": True, "medium": False, "low": False}
+    return {"high": True, "medium": False, "low": False, "threshold": 100}
 
 
 def send_alert_email_if_needed(alert):
@@ -227,6 +227,9 @@ def send_alert_email_if_needed(alert):
 
     key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
     user_id = key.user_id if key else None
+    print(f"User ID: {user_id}")
+    alert_options = get_alert_options_for_user(user_id)
+    print(alert_options)
 
     # ✅ Always count all activity (even benign)
     if user_id:

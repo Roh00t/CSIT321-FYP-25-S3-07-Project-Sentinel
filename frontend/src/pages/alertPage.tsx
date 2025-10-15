@@ -260,7 +260,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           high: opts.high ?? true,
           medium: opts.medium ?? false,
           low: opts.low ?? false,
-          threshold: res.data.report_frequency ? Number(res.data.report_frequency) : 100,
+          threshold: opts.threshold ? Number(opts.threshold) : 100,
         });
       } catch (err) {
         console.error("Failed to fetch alert options:", err);
