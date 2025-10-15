@@ -23,6 +23,11 @@ class AppUser(User):
     owned_teams = db.relationship('AppUserTeam', back_populates='owner', cascade='all, delete-orphan')
     team_memberships = db.relationship('AppUserTeamMember', back_populates='user', cascade='all, delete-orphan')
 
+    # Email verification columns
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    verification_token = db.Column(db.String(100), unique=True, nullable=True)
+    verification_token_expires = db.Column(db.DateTime, nullable=True)
+
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
     }

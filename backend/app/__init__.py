@@ -15,12 +15,14 @@ from flask_socketio import SocketIO
 from app.routes.socketIO import AlertsNamespace  # just ensures file is loaded
 import threading
 import time
+from flask_mail import Mail
 
 load_dotenv()
 
 db = SQLAlchemy()
 jwt = JWTManager()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet', ping_interval=10, ping_timeout=30)
+mail = Mail()
 socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
 
 def create_app():
@@ -30,8 +32,9 @@ def create_app():
     # Initialize extensions (required before using db.get_engine)
     db.init_app(app)
     jwt.init_app(app)
+    mail.init_app(app)
     socketio.init_app(app)
-    
+
     socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
 
     # Import and register blueprints

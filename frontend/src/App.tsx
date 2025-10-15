@@ -18,6 +18,8 @@ import AdminManageUserPage from './pages/AdminManageUserPage';
 import AppUserBasicAlertPage from './pages/AppUserBasicAlertPage';
 import PlanProtectedRoute from './components/PlanProtectedRoute';
 import ManagePlanPage from './pages/ManagePlanPage';
+import CheckEmailPage from './pages/CheckEmailPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 function App() {
   return (
@@ -30,6 +32,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/pricing" element={<PricingPlansPage />} />
+          <Route path="/check-email" element={<CheckEmailPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           {/* Protected Admin Routes */}
           <Route

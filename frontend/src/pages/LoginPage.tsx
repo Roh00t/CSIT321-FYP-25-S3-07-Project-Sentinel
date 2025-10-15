@@ -53,7 +53,11 @@ export default function LoginPage() {
 
         navigate('/dashboard');
       } else {
-        setMessage(data.msg || 'Login failed. Please check your credentials.');
+        if (res.status === 403 && data.msg?.includes('verify')) {
+          setMessage('Please verify your email before logging in.');
+        } else {
+          setMessage(data.msg || 'Login failed. Please check your credentials.');
+        }
       }
     } catch (err) {
       setMessage('Network error. Please try again later.');

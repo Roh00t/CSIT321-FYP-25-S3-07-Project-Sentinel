@@ -9,76 +9,137 @@ import stripe
 import os
 import datetime
 from sqlalchemy.exc import SQLAlchemyError
+import secrets
+from flask_mail import Message
+from urllib.parse import urljoin
+from app import mail
 
 auth_bp = Blueprint('auth', __name__)
 
-# Registration
+def generate_verification_token():
+    return secrets.token_urlsafe(32)
+
+def send_verification_email(mail, to_email, token, frontend_url):
+    msg = Message(
+        subject="Verify Your SENTINEL Account",
+        recipients=[to_email],
+        html=f"""
+        <h2>Welcome to SENTINEL!</h2>
+        <p>Please verify your email address by clicking the link below:</p>
+        <a href="{frontend_url}/verify-email?token={token}" 
+           style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
+           Verify Email
+        </a>
+        <p>This link expires in 24 hours.</p>
+        <p>If you didn’t create an account, please ignore this email.</p>
+        """
+    )
+    mail.send(msg)
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     if not data:
         return jsonify({"msg": "Missing JSON body"}), 400
 
-    # Validate required fields
     required_fields = ['first_name', 'last_name', 'username', 'email', 'password']
     for field in required_fields:
         if field not in data or not data[field].strip():
             return jsonify({"msg": f"'{field}' is required"}), 400
 
-    # CRITICAL: Use AppUser, NOT User
     if AppUser.query.filter_by(username=data['username']).first():
         return jsonify({"msg": "Username already exists"}), 400
-
     if AppUser.query.filter_by(email=data['email']).first():
         return jsonify({"msg": "Email already exists"}), 400
 
     # Hash password
     hashed = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt())
 
-    # Create AppUser
+    # Generate verification token
+    token = secrets.token_urlsafe(32)
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
+
+    # Create AppUser (NOT verified)
     user = AppUser(
         first_name=data['first_name'],
         last_name=data['last_name'],
         username=data['username'],
         email=data['email'],
         password=hashed.decode('utf-8'),
-        subscription_plan="Basic"
+        subscription_plan="Basic",
+        email_verified=False,
+        verification_token=token,
+        verification_token_expires=expires
     )
-
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({"msg": "User registered successfully"}), 201
+    # Send verification email
+    try:
+        frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+        send_verification_email(
+            mail,
+            user.email,
+            token,
+            frontend_url
+        )
+    except Exception as e:
+        current_app.logger.error(f"Failed to send verification email: {str(e)}")
+        return jsonify({"msg": "Registration successful, but failed to send verification email. Please contact support."}), 201
 
-# Login
+    return jsonify({
+        "msg": "Registration successful! Please check your email to verify your account.",
+        "needs_verification": True
+    }), 201
+
+@auth_bp.route('/verify-email', methods=['GET'])
+def verify_email():
+    token = request.args.get('token')
+    if not token:
+        return jsonify({"msg": "Invalid or missing token"}), 400
+
+    user = AppUser.query.filter_by(verification_token=token).first()
+    if not user:
+        return jsonify({"msg": "Invalid or expired token"}), 400
+
+    now_utc_naive = datetime.datetime.utcnow()
+    if user.verification_token_expires < now_utc_naive:
+        return jsonify({"msg": "Token has expired"}), 400
+
+    # Verify user
+    user.email_verified = True
+    user.verification_token = None
+    user.verification_token_expires = None
+    db.session.commit()
+
+    return jsonify({"msg": "Email verified successfully! You can now log in."}), 200
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     if not data or not data.get('username') or not data.get('password'):
         return jsonify({"msg": "Username and password required"}), 400
 
-    # Try to find user in AppUser first
     user = AppUser.query.filter_by(username=data['username']).first()
-
-    # If not found, try Admin
     if not user:
         user = Admin.query.filter_by(username=data['username']).first()
 
-    # Validate password
-    if not user or not bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
+    if not user:
         return jsonify({"msg": "Invalid username or password"}), 401
 
-    # ✅ REMOVED: Stripe subscription check during login
-    # Let webhooks handle subscription state
+    # For AppUser only: check email verification
+    if isinstance(user, AppUser) and not user.email_verified:
+        return jsonify({"msg": "Please verify your email before logging in."}), 403
 
-    # Create JWT token
+    if not bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
+        return jsonify({"msg": "Invalid username or password"}), 401
+
     access_token = create_access_token(identity=str(user.id))
-
     return jsonify({
         "access_token": access_token,
         "user_type": user.user_type,
         "username": user.username,
-        "subscription_plan": getattr(user, 'subscription_plan', 'Basic')  # Optional: send plan to frontend
+        "subscription_plan": getattr(user, 'subscription_plan', 'Basic')
     }), 200
 
 @auth_bp.route('/admin/profile', methods=['GET'])

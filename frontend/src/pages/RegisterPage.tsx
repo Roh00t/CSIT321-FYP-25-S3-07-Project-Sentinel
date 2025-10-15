@@ -1,9 +1,11 @@
 // src/pages/RegisterPage.tsx
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom'; // 👈 Add this
 
 interface RegisterResponse {
   msg?: string;
+  needs_verification?: boolean; // 👈 Add this field
 }
 
 export default function RegisterPage() {
@@ -17,6 +19,7 @@ export default function RegisterPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const navigate = useNavigate(); // 👈 Initialize navigate
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,8 +36,14 @@ export default function RegisterPage() {
       const data: RegisterResponse = await res.json();
 
       if (res.ok) {
-        setMessage(data.msg || 'Registered successfully!');
-        setError(false);
+        // ✅ If backend says verification is needed → redirect
+        if (data.needs_verification) {
+          navigate('/check-email', { state: { email: formData.email } });
+        } else {
+          // Fallback: show success message (unlikely in your case)
+          setMessage(data.msg || 'Registered successfully!');
+          setError(false);
+        }
       } else {
         setMessage(data.msg || 'Registration failed');
         setError(true);
@@ -160,7 +169,7 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {/* Message Feedback */}
+        {/* Message Feedback — only shown if NOT redirecting */}
         {message && (
           <p
             className={`mt-5 text-sm px-4 py-3 rounded-md text-center ${
