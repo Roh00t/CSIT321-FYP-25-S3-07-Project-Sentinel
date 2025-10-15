@@ -227,9 +227,8 @@ def send_alert_email_if_needed(alert):
 
     key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
     user_id = key.user_id if key else None
-    print(f"User ID: {user_id}")
     alert_options = get_alert_options_for_user(user_id)
-    print(alert_options)
+    #print(alert_options)
 
     # ✅ Always count all activity (even benign)
     if user_id:

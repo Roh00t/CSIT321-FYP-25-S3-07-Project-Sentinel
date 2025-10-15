@@ -17,7 +17,6 @@ def send_alert_email(to_email, subject, message_body):
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "your_password")
     FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
 
-    print(SMTP_PASSWORD, SMTP_USERNAME)
     msg = MIMEMultipart()
     msg["From"] = FROM_EMAIL
     msg["To"] = to_email
