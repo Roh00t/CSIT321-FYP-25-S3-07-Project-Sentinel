@@ -959,11 +959,20 @@ def cancel_subscription():
             status='active',
             limit=1
         )
-        
-        if not subscriptions.data:
+
+        subscriptionTrial = stripe.Subscription.list(
+            customer=user.stripe_customer_id,
+            status='trialing',
+            limit=1
+        )
+
+        if not subscriptions.data and not subscriptionTrial.data:
             return jsonify({"msg": "No active subscription found"}), 400
 
-        sub = subscriptions.data[0]
+        if subscriptionTrial.data:
+            sub = subscriptionTrial.data[0]
+        else:
+            sub = subscriptions.data[0]
         
         # CANCEL AT PERIOD END (not immediately)
         updated_sub = stripe.Subscription.modify(
