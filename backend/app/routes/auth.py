@@ -457,11 +457,25 @@ def get_appuser_profile():
 
     if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
         try:
-            subscriptions = stripe.Subscription.list(
+            subscriptions = None
+
+            subscriptionsActive = stripe.Subscription.list(
                 customer=user.stripe_customer_id,
                 status='active',
                 limit=1
             )
+            
+            subscriptionTrial = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='trialing',
+                limit=1
+            )
+
+            if subscriptionsActive.data:
+                subscriptions = subscriptionsActive
+            elif subscriptionTrial.data:
+                subscriptions = subscriptionTrial
+
             if subscriptions.data:
                 sub = stripe.Subscription.retrieve(subscriptions.data[0].id)
                 
