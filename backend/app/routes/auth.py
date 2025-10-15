@@ -457,11 +457,25 @@ def get_appuser_profile():
 
     if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
         try:
-            subscriptions = stripe.Subscription.list(
+            subscriptions = None
+
+            subscriptionsActive = stripe.Subscription.list(
                 customer=user.stripe_customer_id,
                 status='active',
                 limit=1
             )
+            
+            subscriptionTrial = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='trialing',
+                limit=1
+            )
+
+            if subscriptionsActive.data:
+                subscriptions = subscriptionsActive
+            elif subscriptionTrial.data:
+                subscriptions = subscriptionTrial
+
             if subscriptions.data:
                 sub = stripe.Subscription.retrieve(subscriptions.data[0].id)
                 
@@ -959,11 +973,20 @@ def cancel_subscription():
             status='active',
             limit=1
         )
-        
-        if not subscriptions.data:
+
+        subscriptionTrial = stripe.Subscription.list(
+            customer=user.stripe_customer_id,
+            status='trialing',
+            limit=1
+        )
+
+        if not subscriptions.data and not subscriptionTrial.data:
             return jsonify({"msg": "No active subscription found"}), 400
 
-        sub = subscriptions.data[0]
+        if subscriptionTrial.data:
+            sub = subscriptionTrial.data[0]
+        else:
+            sub = subscriptions.data[0]
         
         # CANCEL AT PERIOD END (not immediately)
         updated_sub = stripe.Subscription.modify(
