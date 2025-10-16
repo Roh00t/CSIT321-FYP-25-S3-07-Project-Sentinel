@@ -20,6 +20,7 @@ import PlanProtectedRoute from './components/PlanProtectedRoute';
 import ManagePlanPage from './pages/ManagePlanPage';
 import CheckEmailPage from './pages/CheckEmailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
           <Route path="/pricing" element={<PricingPlansPage />} />
           <Route path="/check-email" element={<CheckEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/verify-admin-email" element={<VerifyAdminEmailPage />} />
 
           {/* Protected Admin Routes */}
           <Route

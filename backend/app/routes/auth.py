@@ -1,7 +1,7 @@
 # app/routes/auth.py
 from re import sub
 from flask import Blueprint, request, jsonify, current_app
-from app.models import User, AppUser, Admin, AppUserTeam, AppUserTeamMember
+from app.models import User, AppUser, Admin, AppUserTeam, AppUserTeamMember, AdminEmailVerification
 from app import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 import bcrypt
@@ -113,6 +113,89 @@ def verify_email():
     db.session.commit()
 
     return jsonify({"msg": "Email verified successfully! You can now log in."}), 200
+
+@auth_bp.route('/admin-email/request', methods=['POST'])
+@jwt_required()
+def request_admin_email_change():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    data = request.get_json()
+    new_email = data.get('email', '').strip()
+
+    if not new_email:
+        return jsonify({"msg": "Email is required"}), 400
+    if '@' not in new_email or '.' not in new_email.split('@')[-1]:
+        return jsonify({"msg": "Invalid email format"}), 400
+    if new_email == user.email:
+        return jsonify({"msg": "Cannot use your primary email as admin email"}), 400
+
+    # Optional: Prevent duplicate pending requests
+    existing = AdminEmailVerification.query.filter_by(
+        user_id=user.id,
+        verified=False
+    ).first()
+    if existing and not existing.is_expired():
+        return jsonify({"msg": "A verification email was already sent. Please check your inbox."}), 400
+
+    # Create verification record
+    verification = AdminEmailVerification(user_id=user.id, email=new_email)
+    db.session.add(verification)
+    db.session.commit()
+
+    # Send verification email
+    try:
+        frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+        msg = Message(
+            subject="Verify Your SENTINEL Admin Email",
+            recipients=[new_email],
+            html=f"""
+            <h2>Verify Admin Email for SENTINEL</h2>
+            <p>You requested to set this email as your admin contact.</p>
+            <p>Please confirm by clicking the link below:</p>
+            <a href="{frontend_url}/verify-admin-email?token={verification.token}"
+               style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
+               Confirm Admin Email
+            </a>
+            <p>This link expires in 24 hours.</p>
+            <p>If you didn’t make this request, please ignore this email.</p>
+            """
+        )
+        mail.send(msg)
+    except Exception as e:
+        current_app.logger.error(f"Failed to send admin email verification: {str(e)}")
+        return jsonify({"msg": "Request received, but failed to send verification email."}), 202
+
+    return jsonify({"msg": "Verification email sent. Please check your inbox."}), 200
+
+@auth_bp.route('/verify-admin-email', methods=['GET'])
+def verify_admin_email():
+    token = request.args.get('token')
+    if not token:
+        return jsonify({"msg": "Invalid or missing token"}), 400
+
+    verification = AdminEmailVerification.query.filter_by(token=token).first()
+    if not verification:
+        return jsonify({"msg": "Invalid or expired token"}), 400
+
+    now_utc_naive = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    if now_utc_naive > verification.expires_at:
+        return jsonify({"msg": "Token has expired"}), 400
+
+    if verification.verified:
+        return jsonify({"msg": "This email has already been verified"}), 200
+
+    user = AppUser.query.get(verification.user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    user.admin_email = verification.email
+    verification.verified = True
+    db.session.commit()
+
+    return jsonify({"msg": "Admin email updated successfully!"}), 200
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

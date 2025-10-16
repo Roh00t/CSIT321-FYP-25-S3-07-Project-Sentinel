@@ -23,6 +23,11 @@ export default function AppUserProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [showAdminEmailModal, setShowAdminEmailModal] = useState(false);
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminEmailSubmitting, setAdminEmailSubmitting] = useState(false);
+  const [adminEmailMessage, setAdminEmailMessage] = useState('');
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (!token) {
@@ -95,6 +100,37 @@ export default function AppUserProfilePage() {
     }
   };
 
+  const handleRequestAdminEmail = async () => {
+    if (!token || !adminEmailInput.trim()) return;
+
+    setAdminEmailSubmitting(true);
+    setAdminEmailMessage('');
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/auth/admin-email/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: adminEmailInput.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAdminEmailMessage('Verification email sent! Please check your inbox.');
+        setAdminEmailInput('');
+        setTimeout(() => setShowAdminEmailModal(false), 2000);
+      } else {
+        setAdminEmailMessage(data.msg || 'Failed to send verification email.');
+      }
+    } catch (err) {
+      setAdminEmailMessage('Network error. Please try again.');
+    } finally {
+      setAdminEmailSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4">
       {/* Header */}
@@ -164,6 +200,13 @@ export default function AppUserProfilePage() {
           </button>
 
           <button
+            onClick={() => setShowAdminEmailModal(true)}
+            className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+          >
+            Set Admin Email
+          </button>
+
+          <button
             onClick={handleDeleteAccount}
             className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow transition duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
@@ -171,6 +214,45 @@ export default function AppUserProfilePage() {
           </button>
         </div>
       </div>
+
+      {/* Admin Email Modal */}
+      {showAdminEmailModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Set Admin Email</h3>
+            <p className="text-gray-600 mb-4">
+              This email will be used for administrative communications. You’ll need to verify it.
+            </p>
+            <input
+              type="email"
+              value={adminEmailInput}
+              onChange={(e) => setAdminEmailInput(e.target.value)}
+              placeholder="admin@example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            {adminEmailMessage && (
+              <p className={`mt-2 text-sm ${adminEmailMessage.includes('successfully') ? 'text-green-600' : 'text-red-600'}`}>
+                {adminEmailMessage}
+              </p>
+            )}
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setShowAdminEmailModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestAdminEmail}
+                disabled={adminEmailSubmitting}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg disabled:opacity-60"
+              >
+                {adminEmailSubmitting ? 'Sending...' : 'Send Verification'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="mt-16 text-center text-gray-500 text-sm">
         © {new Date().getFullYear()} SENTINEL | App User Profile
