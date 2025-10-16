@@ -1297,3 +1297,43 @@ def remove_team_member():
     db.session.commit()
     
     return jsonify({"msg": "Member removed successfully"}), 200
+
+@auth_bp.route('/teams/leave', methods=['POST'])
+@jwt_required()
+def leave_team():
+    user_id = get_jwt_identity()
+    user = AppUser.query.get(int(user_id))
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if user.subscription_plan != 'Team':
+        return jsonify({"msg": "You are not on a Team plan"}), 400
+
+    # Check if user is a team owner → block leaving
+    owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+    if owned_team:
+        return jsonify({"msg": "Team owners cannot leave their own team. Please delete the team or transfer ownership first."}), 403
+
+    # Find active membership
+    membership = AppUserTeamMember.query.filter_by(
+        user_id=user.id,
+        is_active=True
+    ).first()
+
+    if not membership:
+        return jsonify({"msg": "You are not a member of any team"}), 404
+
+    # Deactivate membership
+    membership.is_active = False
+
+    # Downgrade user to Basic
+    user.subscription_plan = "Basic"
+
+    try:
+        db.session.commit()
+        current_app.logger.info(f"User {user.id} left team {membership.team_id}")
+        return jsonify({"msg": "You have successfully left the team and been downgraded to the Basic plan."}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error leaving team for user {user.id}: {str(e)}")
+        return jsonify({"msg": "Failed to leave team"}), 500

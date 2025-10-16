@@ -36,6 +36,7 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState('');
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -81,7 +82,7 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
       
       if (response.ok) {
         setInviteEmail('');
-        onTeamUpdate(); // Refresh team data
+        onTeamUpdate();
       } else {
         setError(data.msg || 'Failed to invite user');
       }
@@ -116,6 +117,37 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     }
   };
 
+  // ✅ New: Handle leaving the team
+  const handleLeaveTeam = async () => {
+    if (!token) return;
+    if (!window.confirm('Are you sure you want to leave this team? You will lose access to all Team plan features and be downgraded to the Basic plan.')) {
+      return;
+    }
+
+    setLeaving(true);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/auth/teams/leave', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.msg);
+        onTeamUpdate(); // This will trigger a profile refresh in parent
+      } else {
+        alert(data.msg || 'Failed to leave team');
+      }
+    } catch (err) {
+      alert('Network error while leaving team');
+    } finally {
+      setLeaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-gray-600">Loading team...</div>;
   }
@@ -123,6 +155,12 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
   if (!teamData) {
     return <div className="text-gray-600">No team data available</div>;
   }
+
+  // Determine if current user is the owner
+  const currentUserId = getUserIdFromToken(token);
+  const isOwner = currentUserId 
+    ? teamData.members.some(m => m.user_id === parseInt(currentUserId, 10) && m.is_owner)
+    : false;
 
   return (
     <div className="mt-8 p-6 bg-green-50 rounded-lg border border-green-200">
@@ -187,6 +225,36 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
           ))}
         </div>
       </div>
+
+      {/* ✅ Leave Team Button (for non-owners) */}
+      {!isOwner && (
+        <div className="mt-6 pt-4 border-t border-green-200">
+          <button
+            onClick={handleLeaveTeam}
+            disabled={leaving}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg disabled:opacity-50 text-sm"
+          >
+            {leaving ? 'Leaving...' : 'Leave Team'}
+          </button>
+          <p className="text-xs text-gray-600 mt-2">
+            Leaving the team will downgrade your account to the Basic plan.
+          </p>
+        </div>
+      )}
     </div>
   );
+}
+
+// Helper to extract user ID from JWT (simple base64 decode)
+function getUserIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const json = JSON.parse(decoded);
+    return json.sub || null;
+  } catch (e) {
+    console.warn('Failed to parse JWT');
+    return null;
+  }
 }
