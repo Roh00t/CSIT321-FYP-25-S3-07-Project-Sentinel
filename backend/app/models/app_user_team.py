@@ -10,6 +10,11 @@ class AppUserTeam(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('app_users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.now(datetime.timezone.utc))
 
+    # Subscription metadata (mirrored from owner's Stripe subscription)
+    stripe_subscription_id = db.Column(db.String(255), nullable=True)
+    subscription_end_date = db.Column(db.String(255), nullable=True)
+    is_cancelling = db.Column(db.Boolean, default=False)
+
     # Relationships
     members = db.relationship('AppUserTeamMember', back_populates='team', cascade='all, delete-orphan')
     owner = db.relationship('AppUser', foreign_keys=[owner_id])
@@ -20,5 +25,8 @@ class AppUserTeam(db.Model):
             'name': self.name,
             'owner_id': self.owner_id,
             'owner_name': f"{self.owner.first_name} {self.owner.last_name}" if self.owner else None,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'stripe_subscription_id': self.stripe_subscription_id,
+            'subscription_end_date': self.subscription_end_date,
+            'is_cancelling': self.is_cancelling
         }

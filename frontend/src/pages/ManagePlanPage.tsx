@@ -15,6 +15,11 @@ interface AppProfile {
   subscription_end_date: string | null;
   is_cancelling: boolean;
   is_eligible_for_free_trial: boolean;
+  team_info: {
+    id: number;
+    name: string;
+    role: string; // "owner", "admin", "member"
+  } | null;
 }
 
 export default function ManagePlanPage() {
@@ -213,7 +218,7 @@ export default function ManagePlanPage() {
                 </p>
               )}
             </div>
-            {!isBasic && !isCancelling && (
+            {!isBasic && !isCancelling && profile.team_info?.role !== 'member' && (
               <button
                 onClick={handleCancelPlan}
                 disabled={actionLoading}

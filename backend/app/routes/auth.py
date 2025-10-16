@@ -388,29 +388,54 @@ def update_user(user_id):
 
     return jsonify({"msg": "User updated successfully"}), 200
 
-# Helper function to cancel user's subscription
 def cancel_user_subscription(user):
-    """Cancel user's Stripe subscription if it exists"""
+    """Cancel user's Stripe subscription if it exists and handle team cleanup if user is a Team owner."""
     if user.subscription_plan == "Basic" or not user.stripe_customer_id:
         return None
-    
+
     try:
-        # Get all subscriptions (active, trialing, past_due, etc.)
+        # Get active/trialing subscription
         subscriptions = stripe.Subscription.list(
             customer=user.stripe_customer_id,
+            status='active',
             limit=1
         )
-        
-        if subscriptions.data:
-            sub = subscriptions.data[0]
-            # Only cancel if it's not already canceled
+        trial_subs = stripe.Subscription.list(
+            customer=user.stripe_customer_id,
+            status='trialing',
+            limit=1
+        )
+        all_subs = subscriptions.data + trial_subs.data
+
+        if all_subs:
+            sub = all_subs[0]
             if sub.status != 'canceled':
                 stripe.Subscription.delete(sub.id)
                 current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for deleted user {user.id}")
-                return sub.id
+
+        # 🔑 CRITICAL: If user is a Team owner, downgrade all team members to Basic
+        if user.subscription_plan == "Team":
+            owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+            if owned_team:
+                # Downgrade all ACTIVE members (including those who joined via invitation)
+                members = AppUserTeamMember.query.filter_by(
+                    team_id=owned_team.id,
+                    is_active=True
+                ).all()
+                for membership in members:
+                    member_user = AppUser.query.get(membership.user_id)
+                    if member_user and member_user.subscription_plan == "Team":
+                        member_user.subscription_plan = "Basic"
+                        current_app.logger.info(f"Downgraded team member {member_user.id} to Basic due to owner deletion")
+
+                # Optional: Delete the team (will cascade-delete memberships due to `cascade='all, delete-orphan'`)
+                db.session.delete(owned_team)
+
+        return all_subs[0].id if all_subs else None
+
     except Exception as e:
-        current_app.logger.error(f"Error cancelling subscription for user {user.id}: {str(e)}")
-        # Don't raise exception - account deletion should proceed even if Stripe fails
+        current_app.logger.error(f"Error in cancel_user_subscription for user {user.id}: {str(e)}")
+        # Don't raise — allow account deletion to proceed
     return None
 
 # DELETE: Admin deletes a user
@@ -455,49 +480,55 @@ def get_appuser_profile():
     subscription_end_date = None
     is_cancelling = False
 
+    # 1. Try to get subscription from Stripe (for owners or Pro users)
     if user.subscription_plan in ['Pro', 'Team'] and user.stripe_customer_id:
         try:
             subscriptions = None
-
             subscriptionsActive = stripe.Subscription.list(
                 customer=user.stripe_customer_id,
                 status='active',
                 limit=1
             )
-            
             subscriptionTrial = stripe.Subscription.list(
                 customer=user.stripe_customer_id,
                 status='trialing',
                 limit=1
             )
-
             if subscriptionsActive.data:
                 subscriptions = subscriptionsActive
             elif subscriptionTrial.data:
                 subscriptions = subscriptionTrial
 
-            if subscriptions.data:
+            if subscriptions and subscriptions.data:
                 sub = stripe.Subscription.retrieve(subscriptions.data[0].id)
-                
-                # Check if subscription is set to cancel at period end
                 is_cancelling = bool(sub.get('cancel_at_period_end', False))
-                
                 items = sub.get('items', {}).get('data', [])
-                if items:
-                    end = items[0].get('current_period_end')
-                else:
-                    end = None
+                end = items[0].get('current_period_end') if items else None
 
-                if end is None:
-                    current_app.logger.error(f"No current_period_end found in subscription items for {sub.id}")
-                elif isinstance(end, int) and end > 0:
-                    # Stripe always returns timestamps as ints in raw JSON
+                if end and isinstance(end, int) and end > 0:
                     subscription_end_date = datetime.datetime.utcfromtimestamp(end).isoformat() + "Z"
                 else:
-                    current_app.logger.warning(f"Unexpected current_period_end value: {end} (type: {type(end)})")
-
+                    current_app.logger.warning(f"Unexpected current_period_end: {end}")
+            # 🔴 Do NOT put team fallback here — it only runs if stripe_customer_id exists
         except Exception:
             current_app.logger.exception("Error fetching subscription from Stripe")
+
+    # ✅ 2. FALLBACK: If still no subscription_end_date AND user is on Team plan → get from team
+    if user.subscription_plan == 'Team' and subscription_end_date is None:
+        try:
+            team_membership = AppUserTeamMember.query.filter_by(
+                user_id=user.id,
+                is_active=True
+            ).first()
+            if team_membership and team_membership.team:
+                team = team_membership.team
+                if team.subscription_end_date:
+                    end_dt = team.subscription_end_date
+
+                subscription_end_date = end_dt
+                is_cancelling = team.is_cancelling
+        except Exception:
+            current_app.logger.exception("Error fetching team subscription info")
     
     # Add team information if user is on Team plan
     team_info = None
@@ -742,7 +773,7 @@ def create_checkout_session():
 
         customer_id = user.stripe_customer_id
 
-        # 🔴 CRITICAL: Check for existing active subscription
+        # Check for existing active subscription
         active_subs = stripe.Subscription.list(
             customer=customer_id,
             status='active',
@@ -757,9 +788,8 @@ def create_checkout_session():
             # If same plan, don't create new session
             if (current_plan == PRICE_IDS[plan]):
                 return jsonify({"msg": "You're already subscribed to this plan."}), 400
-
-            # Optional: Allow upgrade/downgrade by canceling current at period end
-            # Then proceed to create new subscription
+            
+            # Cancel current subscription at period end
             stripe.Subscription.modify(
                 current_sub.id,
                 cancel_at_period_end=True
@@ -806,6 +836,7 @@ def create_checkout_session():
         current_app.logger.error(f"Checkout error: {str(e)}")
         return jsonify({'msg': 'Failed to create checkout session'}), 500
 
+# Stripe webhook endpoint
 @auth_bp.route('/webhooks/stripe', methods=['POST'])
 def stripe_webhook():
     payload = request.get_data(as_text=True)
@@ -858,7 +889,7 @@ def stripe_webhook():
             if not user.stripe_customer_id:
                 user.stripe_customer_id = customer_id
 
-            # Check if this is a trial subscription
+            # Handle trial
             trial_end = subscription.get('trial_end')
             if trial_end:
                 user.free_trial_used = True
@@ -866,10 +897,9 @@ def stripe_webhook():
                 trial_end_datetime = datetime.datetime.fromtimestamp(trial_end, tz=datetime.timezone.utc)
                 user.free_trial_ends_at = trial_end_datetime
             
-            # Finally, upgrade the user's plan
+            # Upgrade plan
             user.subscription_plan = plan
 
-            # Create team if upgrading to Team plan and doesn't already have one
             if plan == 'Team':
                 existing_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
                 if not existing_team:
@@ -888,6 +918,23 @@ def stripe_webhook():
                         joined_at=datetime.datetime.now(datetime.timezone.utc)
                     )
                     db.session.add(owner_membership)
+                    team_to_update = new_team
+                else:
+                    team_to_update = existing_team
+
+                # 🔑 Extract subscription end date from Stripe
+                item = subscription.get('items', {}).get('data', [])
+                if item:
+                    current_period_end = item[0].get('current_period_end')
+                else:
+                    current_period_end = None
+
+                end_date = datetime.datetime.utcfromtimestamp(current_period_end).isoformat() + "Z" if current_period_end else None
+
+                # 🔑 Update team with subscription metadata
+                team_to_update.stripe_subscription_id = subscription_id
+                team_to_update.subscription_end_date = end_date
+                team_to_update.is_cancelling = False  # New subscription = not cancelling
 
             db.session.commit()
             current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")
@@ -973,7 +1020,6 @@ def cancel_subscription():
             status='active',
             limit=1
         )
-
         subscriptionTrial = stripe.Subscription.list(
             customer=user.stripe_customer_id,
             status='trialing',
@@ -983,12 +1029,9 @@ def cancel_subscription():
         if not subscriptions.data and not subscriptionTrial.data:
             return jsonify({"msg": "No active subscription found"}), 400
 
-        if subscriptionTrial.data:
-            sub = subscriptionTrial.data[0]
-        else:
-            sub = subscriptions.data[0]
+        sub = subscriptionTrial.data[0] if subscriptionTrial.data else subscriptions.data[0]
         
-        # CANCEL AT PERIOD END (not immediately)
+        # CANCEL AT PERIOD END
         updated_sub = stripe.Subscription.modify(
             sub.id,
             cancel_at_period_end=True
@@ -996,14 +1039,17 @@ def cancel_subscription():
         
         current_app.logger.info(f"Set subscription {sub.id} to cancel at period end")
 
-        # Handle team plan cancellation logic
-        was_team_plan = (user.subscription_plan == "Team")
-        
-        # SAFELY ACCESS FIELDS USING .get() METHOD
+        # 🟢 Update team's is_cancelling flag if user is a Team owner
+        if user.subscription_plan == "Team":
+            team = AppUserTeam.query.filter_by(owner_id=user.id).first()
+            if team:
+                team.is_cancelling = True
+                db.session.add(team)
+                db.session.commit()  # Commit the flag update
+
+        # Prepare response data
         cancel_at_period_end = updated_sub.get('cancel_at_period_end', False)
         current_period_end = updated_sub.get('current_period_end')
-        
-        # Convert timestamp to ISO format if it exists
         current_period_end_iso = None
         if current_period_end:
             if isinstance(current_period_end, int):
@@ -1011,14 +1057,8 @@ def cancel_subscription():
             elif isinstance(current_period_end, datetime.datetime):
                 current_period_end_iso = current_period_end.isoformat().replace('+00:00', 'Z')
 
-        # If this is a team owner cancelling, we need to handle team members
-        # Note: We don't downgrade team members immediately since the subscription
-        # is only cancelled at period end. The webhook will handle the actual downgrade
-        # when the subscription status changes to 'canceled'
-        
-        # However, we should inform the user about team implications
         message = "Subscription cancelled. You'll keep access until the end of your billing period."
-        if was_team_plan:
+        if user.subscription_plan == "Team":
             message += " All team members will lose access to Team plan features when your subscription ends."
 
         return jsonify({
@@ -1028,6 +1068,7 @@ def cancel_subscription():
         }), 200
 
     except Exception as e:
+        db.session.rollback()
         current_app.logger.exception("Error cancelling subscription")
         return jsonify({"msg": "Failed to cancel subscription", "error": str(e)}), 500
     
