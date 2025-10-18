@@ -408,7 +408,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
   // Filter alerts based on selected filters
   let filteredAlerts = filteredAlertsByApiKey.filter((a) => {
-  if (filters.alertsOnly && a.severity == "0") return false;
+  if (filters.alertsOnly && (a.severity == "0" || a.severity == null)) return false;
   if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
   if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
   if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
