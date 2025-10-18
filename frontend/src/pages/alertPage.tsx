@@ -1208,8 +1208,28 @@ const alertsPerHourOptions = {
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
-              </div>
-            )}
+               <button
+                 className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                 disabled={!selectedSavedFilterId}
+                 onClick={async () => {
+                   try {
+                     await axios.delete(
+                       `http://localhost:5000/api/filters/${selectedSavedFilterId}`,
+                       { headers: { Authorization: `Bearer ${token}` } }
+                     );
+                     setSavedFilters(prev => prev.filter(f => f.id !== Number(selectedSavedFilterId)));
+                     setSelectedSavedFilterId("");
+                     showToast("Filter deleted");
+                   } catch (err) {
+                     console.error(err);
+                     showRToast("Failed to delete filter");
+                   }
+                 }}
+               >
+                 Delete Filter
+               </button>
+            </div>
+          )}
           </div>
         </>
       )}
