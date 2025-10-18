@@ -11,8 +11,9 @@ alert_buffer = []
 BUFFER_INTERVAL = 1.0  # seconds between flushes
 LAST_N = 100 
 DEFAULT_ADMIN_EMAIL = os.getenv("MAIL_USERNAME", "projectsentinelfyp@gmail.com")
-import os
 EVE_PATH = os.path.join(os.path.dirname(__file__), "..", "uploads", "eve.json")
+
+# 🔹 Create the app instance once for app_context
 
 class AlertsNamespace(Namespace):
     def handle_connect(self):
@@ -36,7 +37,6 @@ class AlertsNamespace(Namespace):
                 except Exception:
                     continue
 
-            #print(f"📤 Sending {len(alerts)} pre-existing alerts to new client")
             emit("bulk_alerts", {"alerts": alerts})
 
         except Exception as e:
@@ -103,7 +103,6 @@ class AlertsNamespace(Namespace):
         
         alert_buffer.append(normalized)
         send_alert_email_if_needed(normalized)
-        #print(f"📥 Buffered alert: {normalized.get('signature') or event_type} (API Key: {api_key})")
 
 
 # 🔹 DNS events: lightweight normalization for display
@@ -148,7 +147,6 @@ def normalize_alert(alert: dict) -> dict:
         or (alert.get("dst_ap").split(":")[0] if alert.get("dst_ap") and ":" in alert.get("dst_ap") else None)
     )
 
-    # ✅ Add port detection here
     src_port = (
         alert.get("src_port")
         or alert.get("sport")
@@ -200,7 +198,6 @@ def normalize_alert(alert: dict) -> dict:
 def get_admin_email_for_api_key(api_key_value):
     from app.models.app_user import AppUser
     from app.models.api_keys import APIKey
-    from app import db
     if not api_key_value or api_key_value == "0":
         return DEFAULT_ADMIN_EMAIL
     key = APIKey.query.filter_by(key=api_key_value).first()
@@ -213,35 +210,27 @@ def get_admin_email_for_api_key(api_key_value):
 
 def get_alert_options_for_user(user_id):
     from app.models.filter import Filter
-    # Find the latest filter for this user (or use defaults)
     filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
     if filter_obj and filter_obj.alerts_options:
         return filter_obj.alerts_options
-    # Default options
     return {"high": True, "medium": False, "low": False, "threshold": 100}
 
 
 def send_alert_email_if_needed(alert):
-    api_key = alert.get("api_key")
     from app.models.api_keys import APIKey
-
+    api_key = alert.get("api_key")
     key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
     user_id = key.user_id if key else None
-    alert_options = get_alert_options_for_user(user_id)
-    #print(alert_options)
 
-    # ✅ Always count all activity (even benign)
+    # Count all activity
     if user_id:
         now = datetime.utcnow()
         one_hour_ago = now - timedelta(hours=1)
         user_alerts = recent_alerts_per_user.setdefault(user_id, [])
         user_alerts.append(now)
-
-        # Clean up old entries (>1h)
         user_alerts = [t for t in user_alerts if t > one_hour_ago]
         recent_alerts_per_user[user_id] = user_alerts
 
-        # Load user’s threshold (default 100/hour)
         alert_options = get_alert_options_for_user(user_id)
         threshold = alert_options.get("threshold", 100)
 
@@ -253,10 +242,9 @@ def send_alert_email_if_needed(alert):
                 "⚠️ High Activity Volume Detected",
                 f"You have received {len(user_alerts)} total events in the past hour (threshold: {threshold})."
             )
-            # Prevent spam: reset counter
             recent_alerts_per_user[user_id] = []
 
-    # ✅ Then check if this specific alert deserves a severity email
+    # Severity email
     alert_options = get_alert_options_for_user(user_id) if user_id else {"high": True, "medium": False, "low": False}
     severity = int(alert.get("severity") or 0)
     should_send = (
@@ -264,7 +252,6 @@ def send_alert_email_if_needed(alert):
         (severity == 2 and alert_options.get("medium")) or
         (severity == 3 and alert_options.get("low"))
     )
-
     if should_send:
         admin_email = get_admin_email_for_api_key(api_key)
         print(f"✉️ Sending alert email from {DEFAULT_ADMIN_EMAIL} to {admin_email} for alert: {alert['signature']}")
@@ -274,33 +261,73 @@ def send_alert_email_if_needed(alert):
             f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
         )
 
+def persist_alert_to_db(alert_item):
+    from app import db
+    from app.models.alert import Alert
+
+    ts = None
+    try:
+        if alert_item.get("timestamp"):
+            ts = datetime.fromisoformat(alert_item["timestamp"].replace("Z", "+00:00"))
+    except Exception:
+        ts = datetime.utcnow()
+    if ts is None:
+        ts = datetime.utcnow()
+
+    alertobj = Alert(
+        timestamp=ts,
+        src_ip=alert_item.get("src_ip"),
+        src_port=alert_item.get("src_port"),
+        dest_ip=alert_item.get("dest_ip"),
+        dest_port=alert_item.get("dest_port"),
+        protocol=alert_item.get("protocol"),
+        signature=alert_item.get("signature"),
+        severity=alert_item.get("severity"),
+        api_key=alert_item.get("api_key"),
+        created_at=datetime.utcnow()
+    )
+
+    try:
+        db.session.add(alertobj)
+        db.session.commit()
+        #print(f"💾 Persisted alert to DB: {alertobj.signature}")
+    except Exception as e:
+        db.session.rollback()
+        print("⚠️ Error persisting alert to DB:", e)
+
+_app = None  # module-level global
+
+def set_app(flask_app):
+    global _app
+    _app = flask_app
 
 # 🔹 Background task that flushes buffer every second
 def bulk_alert_sender():
     from app import socketio
     print("🚀 Bulk alert sender started (running every 1s)")
+    
     while True:
         eventlet.sleep(BUFFER_INTERVAL)
         if alert_buffer:
             batch = list(alert_buffer)
             alert_buffer.clear()
+
+            # Emit to frontend
             try:
-                #print("🧾 Example alert being sent:", batch[0])
-                # Emit all alerts including their api_key field
-                socketio.emit(
-                    "bulk_alerts",
-                    {"alerts": batch},
-                    namespace="/api/alerts/stream"
-                )
-                #print(f"📤 Sent {len(batch)} buffered alerts to frontend")
+                socketio.emit("bulk_alerts", {"alerts": batch}, namespace="/api/alerts/stream")
             except Exception as e:
                 print(f"⚠️ Error emitting alerts: {e}")
+
+            # Persist alerts **inside app context**
+            with _app.app_context():
+                for item in batch:
+                    persist_alert_to_db(item)
+
 
 
 # 🔹 Start background sender only once
 def start_bulk_sender():
-    from app import socketio  # ✅ Lazy import here too
+    from app import socketio  # Lazy import
     if not getattr(start_bulk_sender, "started", False):
         socketio.start_background_task(bulk_alert_sender)
         start_bulk_sender.started = True
-        #print("🧵 Started background alert sender thread")

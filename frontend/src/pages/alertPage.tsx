@@ -115,6 +115,40 @@ export default function AlertsPage() {
   }
 };
 
+const [page, setPage] = useState(1);
+const [perPage] = useState(100);
+const [totalAlerts, setTotalAlerts] = useState(0);
+const [loadingAlerts, setLoadingAlerts] = useState(false);
+
+const fetchAlertsPage = async (pageNumber = 1) => {
+  if (!token) return;
+  setLoadingAlerts(true);
+
+  try {
+    const res = await axios.get(`http://localhost:5000/api/alerts_api?page=${pageNumber}&per_page=${perPage}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    setAlerts((prev) => {
+      // append new page to existing alerts
+      return [...prev, ...res.data.alerts];
+    });
+
+    setTotalAlerts(res.data.total);
+    setPage(res.data.page);
+  } catch (err) {
+    console.error("Failed to fetch alerts:", err);
+  } finally {
+    setLoadingAlerts(false);
+  }
+};
+
+// Fetch first page on mount
+useEffect(() => {
+  fetchAlertsPage(1);
+}, [token]);
+
+
 useEffect(() => {
   if (showApiKeySettings) fetchApiKeys();
 }, [showApiKeySettings]);
@@ -131,7 +165,10 @@ useEffect(() => {
 
   // Sorting state
   const [sortField, setSortField] = useState<string>("timestamp");
-  const [sortAsc, setSortAsc] = useState<boolean>(true);
+  const [sortAsc, setSortAsc] = useState<boolean>(false); // default newest → oldest
+
+  // Manage selected saved filter dropdown
+  const [selectedSavedFilterId, setSelectedSavedFilterId] = useState<string>("");
 
 const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (!e.target.files) return;
@@ -1124,9 +1161,10 @@ const alertsPerHourOptions = {
 
 
           <button
-            onClick={() =>
-              setFilters({agent: "All", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } })
-            }
+            onClick={() => {
+              setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
+              setSelectedSavedFilterId(""); // reset saved filter dropdown
+            }}
             className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
           >
             Show All
@@ -1156,8 +1194,11 @@ const alertsPerHourOptions = {
             <div className="flex items-center gap-2">
               <label className="mr-2">Load Saved:</label>
               <select
+                value={selectedSavedFilterId}
                 onChange={(e) => {
-                  const f = savedFilters.find(sf => sf.id === Number(e.target.value));
+                  const value = e.target.value;
+                  setSelectedSavedFilterId(value);
+                  const f = savedFilters.find(sf => sf.id === Number(value));
                   if (f) applySavedFilter(f);
                 }}
                 className="border rounded px-2 py-1"
@@ -1247,18 +1288,31 @@ const alertsPerHourOptions = {
               })}
             </tbody>
           </table>
+                <div className="mt-4 flex items-center space-x-4">
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+          disabled={loadingAlerts || alerts.length >= totalAlerts}
+          onClick={() => fetchAlertsPage(page + 1)}
+        >
+          Load More
+        </button>
+        <span className="text-gray-700">
+          Showing {alerts.length} / {totalAlerts} alerts
+        </span>
+      </div>
+
         </div>
       )}
 
       {/* No Alerts */}
       {!loading && alerts.length === 0 && (
-        <p className="text-gray-600 mt-4">
-          The dashboard isnt getting info, is:
+        <div className="text-gray-600 mt-4">
+          <p>The dashboard isnt getting info, is:</p>
           <ul className="list-disc list-inside">
             <li>Suricata or Snort running and generating alerts?</li>
             <li>The agent connected?</li>
-            </ul>
-        </p>
+          </ul>
+        </div>
       )}
 
       {/* Inspect Modal */}

@@ -44,13 +44,21 @@ def create_app():
     from app.routes.filters import filters_bp
     from app.routes.threatint import threat_bp
     from app.routes.api_key import api_keys_bp
+    from app.routes.alerts_api import adbp
 
 
-    CORS(app, 
-        origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization"],
-        supports_credentials=True
+    # Initialize CORS with all necessary settings
+    CORS(app,
+        resources={
+            r"/api/*": {
+                "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+                "expose_headers": ["Content-Type", "Authorization"],
+                "max_age": 600
+            }
+        }
     )
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -60,6 +68,9 @@ def create_app():
     app.register_blueprint(filters_bp)
     app.register_blueprint(threat_bp)
     app.register_blueprint(api_keys_bp)
+    app.register_blueprint(adbp, url_prefix="/api/alerts_api")
+
+     # Ensure database and tables exist
 
     with app.app_context():
         # Extract config values

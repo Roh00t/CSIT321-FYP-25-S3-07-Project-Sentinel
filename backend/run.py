@@ -1,11 +1,13 @@
 import eventlet
 eventlet.monkey_patch()
 from app import create_app, socketio
-from app.routes.socketIO import AlertsNamespace, start_bulk_sender
+from app.routes.socketIO import AlertsNamespace, start_bulk_sender, set_app
 
 app = create_app()
+set_app(app)
 socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))
 start_bulk_sender()
+
 
 
 if __name__ == "__main__":
