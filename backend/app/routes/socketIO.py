@@ -17,31 +17,8 @@ EVE_PATH = os.path.join(os.path.dirname(__file__), "..", "uploads", "eve.json")
 
 class AlertsNamespace(Namespace):
     def handle_connect(self):
-        print("🔌 Client connected — sending all alerts from eve.json")
-
-        if not os.path.exists(EVE_PATH):
-            print("⚠️ eve.json not found, skipping preload")
-            emit("bulk_alerts", {"alerts": []})
-            return
-
-        try:
-            with open(EVE_PATH, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-            alerts = []
-            for line in lines:
-                try:
-                    event = json.loads(line.strip())
-                    if event.get("event_type") == "alert":
-                        alerts.append(event)
-                except Exception:
-                    continue
-
-            emit("bulk_alerts", {"alerts": alerts})
-
-        except Exception as e:
-            print(f"⚠️ Failed to read eve.json: {e}")
-            emit("bulk_alerts", {"alerts": []})
+        print("🔌 Client connected")
+        # No automatic preload; client must emit on_get_last_alerts when ready
 
     def on_get_last_alerts(self, data=None):
         """Called by the frontend on page load to fetch the last N alerts"""

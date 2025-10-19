@@ -125,13 +125,23 @@ const fetchAlertsPage = async (pageNumber = 1) => {
   setLoadingAlerts(true);
 
   try {
-    const res = await axios.get(`http://localhost:5000/api/alerts_api?page=${pageNumber}&per_page=${perPage}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await axios.get(
+      `http://localhost:5000/api/alerts_api?page=${pageNumber}&per_page=${perPage}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
 
     setAlerts((prev) => {
-      // append new page to existing alerts
-      return [...prev, ...res.data.alerts];
+      // dedupe: skip alerts already present by timestamp, src/dest IP, ports, and api_key
+      const existingKeys = new Set(
+        prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
+      );
+      const newFiltered = res.data.alerts.filter((a: any) => {
+        const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+      return [...prev, ...newFiltered];
     });
 
     setTotalAlerts(res.data.total);
@@ -307,7 +317,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }, [token]);
   //live monitoring via websockets
     useEffect(() => {
-  // Connect to your backend Socket.IO endpoint
+  // Connect to backend Socket.IO endpoint for real-time updates only
   const socket = io("http://localhost:5000/api/alerts/stream", {
     transports: ["websocket"],
     reconnection: true,
@@ -315,72 +325,53 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     reconnectionDelay: 2000,
   });
 
-  // --- Socket Event Handlers ---
-  socket.on("connect", () => {
-    console.log("✅ Connected to Socket.IO stream");
-    setTimeout(() => {
-        socket.emit("on_get_last_alerts");
-    }, 50);
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected from Socket.IO stream");
+    });
+    socket.on("bulk_alerts", (payload) => {
+      if (!payload || !Array.isArray(payload.alerts)) {
+        console.warn("⚠️ Malformed payload received:", payload);
+        return;
+      }
 
-  });
+      const alerts = payload.alerts.map((a: any, i: number) => {
+        console.log(`🔹 [${i + 1}/${payload.alerts.length}]`, a);
+        return {
+          api_key: a.api_key || "unknown",
+          id: crypto.randomUUID(),
+          timestamp: a.timestamp || new Date().toISOString(),
+          src_ip: a.src_ip || "unknown",
+          src_port: a.src_port ?? null,
+          dest_ip: a.dest_ip || "unknown",
+          dest_port: a.dest_port ?? null,
+          protocol: a.protocol || "N/A",
+          signature: a.signature || "Unlabeled Alert",
+          severity: a.severity ?? 0,
+        };
+      });
 
-  socket.on("disconnect", () => {
-    console.log("❌ Disconnected from Socket.IO stream");
-  });
-  socket.on("initial_alerts", (payload) => {
-    if (!payload?.alerts) {
-      console.warn("⚠️ Malformed initial payload:", payload);
-      return;
-    }
+      console.log(`📦 Processed ${alerts.length} alerts`);
 
-    console.log(`📦 Received initial ${payload.alerts.length} alerts`);
-
-    setAlerts(payload.alerts.map((a: any) => ({
-      id: crypto.randomUUID(),
-      timestamp: a.timestamp,
-      src_ip: a.src_ip,
-      src_port: a.src_port,
-      dest_ip: a.dest_ip,
-      dest_port: a.dest_port,
-      protocol: a.protocol,
-      signature: a.alert?.signature || a.signature,
-      severity: a.alert?.severity || a.severity,
-    })));
-  });
-  socket.on("bulk_alerts", (payload) => {
-    if (!payload || !Array.isArray(payload.alerts)) {
-      console.warn("⚠️ Malformed payload received:", payload);
-      return;
-    }
-
-    const alerts = payload.alerts.map((a: any, i: number) => {
-      console.log(`🔹 [${i + 1}/${payload.alerts.length}]`, a);
-      return {
-        api_key: a.api_key || "unknown",
-        id: crypto.randomUUID(),
-        timestamp: a.timestamp || new Date().toISOString(),
-        src_ip: a.src_ip || "unknown",
-        src_port: a.src_port ?? null,
-        dest_ip: a.dest_ip || "unknown",
-        dest_port: a.dest_port ?? null,
-        protocol: a.protocol || "N/A",
-        signature: a.signature || "Unlabeled Alert",
-        severity: a.severity ?? 0,
-      };
+      // ✅ Add new alerts to the top of the list with deduplication
+      setAlerts((prev: any[]) => {
+        const existingKeys = new Set(
+          prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
+        );
+        const newFiltered = alerts.filter((a: any) => {
+          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
+          if (existingKeys.has(key)) return false;
+          existingKeys.add(key);
+          return true;
+        });
+        return [...newFiltered, ...prev];
+      });
     });
 
-    console.log(`📦 Processed ${alerts.length} alerts`);
-
-    // ✅ Add new alerts to the top of the list
-    setAlerts((prev) => [...alerts, ...prev]);
-  });
-
-  // --- Cleanup on component unmount ---
-  return () => {
-    console.log("🧹 Cleaning up socket connection");
-    socket.disconnect();
-  };
-}, [token]);
+    return () => {
+      console.log("🧹 Cleaning up socket connection");
+      socket.disconnect();
+    };
+  }, [token]);
   //api keys fetch
   useEffect(() => {
   if (!token) return;
@@ -1317,7 +1308,7 @@ const alertsPerHourOptions = {
           Load More
         </button>
         <span className="text-gray-700">
-          Showing {alerts.length} / {totalAlerts} alerts
+          Showing {alerts.length} unique alerts
         </span>
       </div>
 
