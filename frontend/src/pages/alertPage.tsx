@@ -21,6 +21,8 @@ import { Line, Bar, Doughnut } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
 import { io } from "socket.io-client";
 import { useSocketLogger } from "../hooks/useSocketLogger";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 function showToast(message: string, duration = 3000) {
   let toast = document.getElementById("toast");
@@ -499,75 +501,142 @@ const summary = useMemo(() => {
   };
 
   // --- Activity / Alerts per hour (detected threats vs non-threat activity) ---
-const hours = Array.from({ length: 24 }, (_, i) => i);
-const hourLabels = hours.map(h => `${h}:00`);
+const alertsPerHourOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    y: {
+      beginAtZero: true, // always start at 0
+      ticks: {
+        precision: 0, // no decimals
+      },
+    },
+  },
+  plugins: {
+    legend: { position: 'top' as const },
+  },
+};
+// --- Time Range View (Today / Week / Month / Year) ---
+const [timeRangeView, setTimeRangeView] = useState<"today" | "week" | "month" | "year">("today");
 
-// helper to safely get hour number or null
-const getHour = (a: any): number | null => {
-  if (!a?.timestamp) return null;
+// Compute the start time for filtering
+const now = new Date();
+let startTime = new Date();
+
+if (timeRangeView === "today") {
+  startTime.setHours(0, 0, 0, 0);
+} else if (timeRangeView === "week") {
+  const day = now.getDay();
+  startTime = new Date(now);
+  startTime.setDate(now.getDate() - day);
+  startTime.setHours(0, 0, 0, 0);
+} else if (timeRangeView === "month") {
+  startTime = new Date(now.getFullYear(), now.getMonth(), 1);
+} else if (timeRangeView === "year") {
+  startTime = new Date(now.getFullYear(), 0, 1);
+}
+
+// 🧠 Filter alerts to the selected time range
+const filteredByTime = filteredAlerts.filter((a) => {
   const d = new Date(a.timestamp);
-  if (isNaN(d.getTime())) return null;
-  return d.getHours(); // NOTE: local timezone. Use getUTCHours() if you want UTC.
+  return d >= startTime && d <= now;
+});
+
+// console.log(`Range: ${timeRangeView}`);
+// console.log(`From ${startTime.toISOString()} to ${now.toISOString()}`);
+// console.log(`Total alerts: ${filteredAlerts.length}, In range: ${filteredByTime.length}`);
+
+// --- Group alerts by hour/day/week/month dynamically ---
+const groupAlerts = (unit: string, source: any[]) => {
+  const map = new Map<string, { threats: number; activity: number }>();
+  source.forEach((a) => {
+    const d = new Date(a.timestamp);
+    if (isNaN(d.getTime())) return;
+
+    let key = "";
+    if (unit === "hour") key = `${d.getHours()}:00`;
+    else if (unit === "day") key = d.toLocaleDateString();
+    else if (unit === "week") {
+      const firstDay = new Date(d);
+      firstDay.setDate(d.getDate() - d.getDay());
+      key = `Week of ${firstDay.toLocaleDateString()}`;
+    } else if (unit === "month") {
+      key = d.toLocaleString("default", { month: "short", year: "numeric" });
+    }
+
+    const isThreat = [1, 2, 3].includes(a.severity);
+    const entry = map.get(key) || { threats: 0, activity: 0 };
+    if (isThreat) entry.threats++;
+    else entry.activity++;
+    map.set(key, entry);
+  });
+  return map;
 };
 
-// Detected threats = severity 1,2,3
-const detectedPerHour = hours.map((h) =>
-  filteredAlerts.reduce((acc, a) => {
-    const hr = getHour(a);
-    if (hr === h && (a.severity === 1 || a.severity === 2 || a.severity === 3)) return acc + 1;
-    return acc;
-  }, 0)
-);
+// Pick grouping unit based on view
+const unit =
+  timeRangeView === "today"
+    ? "hour"
+    : timeRangeView === "week"
+    ? "day"
+    : timeRangeView === "month"
+    ? "day"
+    : "month";
 
-// Activity (non-threat) = items without severity 1|2|3
-const activityPerHour = hours.map((h) =>
-  filteredAlerts.reduce((acc, a) => {
-    const hr = getHour(a);
-    // treat as activity if no severity 1|2|3 present
-    const isThreat = (a.severity === 1 || a.severity === 2 || a.severity === 3);
-    if (hr === h && !isThreat) return acc + 1;
-    return acc;
-  }, 0)
-);
+const groupedData = groupAlerts(unit, filteredByTime);
 
-const alertsPerHourData = {
-  labels: hourLabels,
+//console.log("Grouped data:", Array.from(groupedData.entries()));
+
+// --- Generate full labels dynamically ---
+let fullLabels: string[] = [];
+
+if (timeRangeView === "today") {
+  fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+} else if (timeRangeView === "week") {
+  const startOfWeek = new Date();
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  fullLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return d.toLocaleDateString();
+  });
+} else if (timeRangeView === "month") {
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  fullLabels = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
+    return d.toLocaleDateString();
+  });
+} else if (timeRangeView === "year") {
+  fullLabels = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(i);
+    return d.toLocaleString("default", { month: "short", year: "numeric" });
+  });
+}
+
+// --- Map groupedData onto fullLabels, fill 0 if missing ---
+const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
+const activity = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
+
+// --- Chart data ---
+const alertsOverTimeData = {
+  labels: fullLabels,
   datasets: [
     {
       label: "Detected Threats",
-      data: detectedPerHour,
+      data: detected,
       borderColor: "#ef4444",
       backgroundColor: "rgba(239,68,68,0.15)",
-      fill: false,
       tension: 0.3,
     },
     {
       label: "Activity (non-threat)",
-      data: activityPerHour,
+      data: activity,
       borderColor: "#0b97f5",
       backgroundColor: "rgba(11,151,245,0.12)",
-      fill: false,
       tension: 0.3,
     },
   ],
-};
-
-const alertsPerHourOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { position: "top" as const },
-    title: { display: false },
-  },
-  scales: {
-    x: {
-      ticks: { maxRotation: 0, autoSkip: true },
-    },
-    y: {
-      beginAtZero: true,
-      ticks: { stepSize: 1 },
-    },
-  },
 };
 
   // Toggle protocol in Set
@@ -592,8 +661,8 @@ const alertsPerHourOptions = {
       axios.post("http://localhost:5000/api/threatintel", { ip: srcIP }),
       axios.post("http://localhost:5000/api/threatintel", { ip: destIP }),
     ]);
-    console.log("Source Threat Intel:", srcRes.data);
-    console.log("Destination Threat Intel:", destRes.data);
+    // console.log("Source Threat Intel:", srcRes.data);
+    // console.log("Destination Threat Intel:", destRes.data);
     
       setThreatIntel({
         abuse: srcRes.data.abuse,
@@ -607,6 +676,178 @@ const alertsPerHourOptions = {
       setLoadingIntel(false);
     }
   };
+  //hidden charts for report generation
+  type TimeRange = "today" | "week" | "month" | "year";
+
+const generateAlertsOverTimeData = (timeRangeView: TimeRange, alerts: any[]) => {
+  const now = new Date();
+  let startTime = new Date();
+
+  // Compute start time based on range
+  if (timeRangeView === "today") startTime.setHours(0, 0, 0, 0);
+  else if (timeRangeView === "week") {
+    startTime.setDate(now.getDate() - now.getDay());
+    startTime.setHours(0, 0, 0, 0);
+  } else if (timeRangeView === "month") {
+    startTime = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (timeRangeView === "year") {
+    startTime = new Date(now.getFullYear(), 0, 1);
+  }
+
+  // Filter alerts to range
+  const filtered = alerts.filter(a => {
+    const d = new Date(a.timestamp);
+    return d >= startTime && d <= now;
+  });
+
+  // Grouping unit
+  const unit = timeRangeView === "today" ? "hour" : timeRangeView === "week" || timeRangeView === "month" ? "day" : "month";
+
+  // Group alerts
+  const grouped = new Map<string, { threats: number; activity: number }>();
+  filtered.forEach(a => {
+    const d = new Date(a.timestamp);
+    if (isNaN(d.getTime())) return;
+
+    let key = "";
+    if (unit === "hour") key = `${d.getHours()}:00`;
+    else if (unit === "day") key = d.toLocaleDateString();
+    else if (unit === "month") key = d.toLocaleString("default", { month: "short", year: "numeric" });
+
+    const isThreat = [1, 2, 3].includes(a.severity);
+    const entry = grouped.get(key) || { threats: 0, activity: 0 };
+    if (isThreat) entry.threats++;
+    else entry.activity++;
+    grouped.set(key, entry);
+  });
+
+  // Generate full labels
+  let labels: string[] = [];
+  if (timeRangeView === "today") labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  else if (timeRangeView === "week") {
+    const startOfWeek = new Date();
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    labels = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      return d.toLocaleDateString();
+    });
+  } else if (timeRangeView === "month") {
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    labels = Array.from({ length: daysInMonth }, (_, i) => new Date(now.getFullYear(), now.getMonth(), i + 1).toLocaleDateString());
+  } else if (timeRangeView === "year") {
+    labels = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(i);
+      return d.toLocaleString("default", { month: "short", year: "numeric" });
+    });
+  }
+
+  // Map grouped data to labels, fill missing with 0
+  const detected = labels.map(label => grouped.get(label)?.threats || 0);
+  const activity = labels.map(label => grouped.get(label)?.activity || 0);
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Detected Threats",
+        data: detected,
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239,68,68,0.15)",
+        tension: 0.3,
+      },
+      {
+        label: "Activity (non-threat)",
+        data: activity,
+        borderColor: "#0b97f5",
+        backgroundColor: "rgba(11,151,245,0.12)",
+        tension: 0.3,
+      },
+    ],
+  };
+};
+
+  const alertsOverTimeDataToday = generateAlertsOverTimeData("today", filteredAlerts);
+const alertsOverTimeDataWeek = generateAlertsOverTimeData("week", filteredAlerts);
+const alertsOverTimeDataMonth = generateAlertsOverTimeData("month", filteredAlerts);
+
+
+
+const generateReport = async () => {
+  const doc = new jsPDF("p", "mm", "a4");
+  let yPos = 10;
+
+  // --- Title ---
+  doc.setFontSize(18);
+  doc.text("Alerts Management Report", 105, yPos, { align: "center" });
+  yPos += 10;
+
+  // --- Date / Time ---
+  doc.setFontSize(10);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 10, yPos);
+  yPos += 10;
+
+  // --- Summary Section ---
+  doc.setFontSize(12);
+  doc.text("Summary", 10, yPos);
+  yPos += 6;
+
+  doc.setFontSize(10);
+  doc.text(`Total Alerts: ${summary.total}`, 10, yPos);
+  yPos += 5;
+
+  // Function to write top items line by line
+  const top = (label: string, arr: [string, number][]) => {
+    doc.setFontSize(10);
+    doc.text(`${label}:`, 10, yPos);
+    yPos += 5;
+    arr.forEach(([key, val]) => {
+      doc.text(`  ${key}: ${val}`, 15, yPos);
+      yPos += 5;
+    });
+    yPos += 2;
+  };
+
+  top("Top Talkers", summary.topTalkers);
+  top("Top Hosts", summary.topHosts);
+  top("Top Signatures", summary.topSignatures);
+
+  yPos += 4;
+
+  // --- Chart Section ---
+  const addChart = async (canvasId: string, title: string) => {
+    const canvasEl = document.getElementById(canvasId) as HTMLCanvasElement;
+    if (!canvasEl) return;
+
+    // Chart title
+    doc.setFontSize(12);
+    doc.text(title, 10, yPos);
+    yPos += 6;
+
+    const imgData = canvasEl.toDataURL("image/png");
+    const imgProps = (doc as any).getImageProperties(imgData);
+    const pdfWidth = 180; // mm
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    if (yPos + pdfHeight > 280) {
+      doc.addPage();
+      yPos = 10;
+    }
+
+    doc.addImage(imgData, "PNG", 15, yPos, pdfWidth, pdfHeight);
+    yPos += pdfHeight + 10;
+  };
+
+  // Single charts
+  await addChart("severity-chart", "Severity Levels");
+  await addChart("protocol-chart", "Activity by Protocol");
+  await addChart("alerts-over-time-chart", "Alerts Over Time");
+
+  // --- Save PDF ---
+  doc.save("alerts_management_report.pdf");
+};
+
 
   return (
     <div className="p-8">
@@ -785,6 +1026,12 @@ const alertsPerHourOptions = {
             >
               ⚙️ Alert Preferences
             </button>
+            <button
+              onClick={generateReport}
+              className="ml-4 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Generate Management Report
+            </button>
             {showAlertSettings && (
               <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
                 <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
@@ -834,7 +1081,7 @@ const alertsPerHourOptions = {
                     min={1}
                   />
                 </div>
-                {/* Report Frequency Dropdown */}
+                {/* Report Frequency Dropdown
                 <div className="mt-4">
                   <label className="block mb-1 text-sm font-medium">Report Frequency</label>
                   <select
@@ -847,7 +1094,7 @@ const alertsPerHourOptions = {
                     <option value="monthly">Monthly</option>
                     <option value="none">None</option>
                   </select>
-                </div>
+                </div> */}
                 <div className="mt-4 flex justify-end space-x-2">
                   <button
                     onClick={() => setShowAlertSettings(false)}
@@ -895,6 +1142,7 @@ const alertsPerHourOptions = {
             <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
               <span className="text-lg font-semibold mb-2">Severity Levels</span>
               <Bar
+                id="severity-chart"
                 data={severityData}
                 options={{responsive: true, maintainAspectRatio: false, 
                   plugins: {
@@ -909,6 +1157,7 @@ const alertsPerHourOptions = {
             <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
               <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
               <Doughnut
+                id="protocol-chart"
                 key={"protocol-" + filteredAlerts.length}
                 data={protocolData}
                 options={{ responsive: true, maintainAspectRatio: false }}
@@ -916,20 +1165,36 @@ const alertsPerHourOptions = {
               />
             </div>
 
-            {/* Alerts per Hour */}
-            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-              <span className="text-lg font-semibold mb-2">Activity over time</span>
+            {/* Activity over time (dynamic range) */}
+            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
+              <div className="flex items-center justify-between w-full mb-2">
+                <span className="text-lg font-semibold">Activity over time</span>
+                <div className="flex gap-2">
+                  {["today", "week", "month", "year"].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setTimeRangeView(r as any)}
+                      className={`px-2 py-1 text-sm rounded ${
+                        timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+                      }`}
+                    >
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <Line
-                key={filteredAlerts.length}
-                data={alertsPerHourData}
+              id="alerts-over-time-chart"
+                key={`${timeRangeView}-${filteredAlerts.length}`}
+                data={alertsOverTimeData}
                 options={alertsPerHourOptions}
                 height={200}
               />
             </div>
+
           </div>
         )}
-
-
         {/*  summary counters and GeoIP map */}
         {alerts.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
