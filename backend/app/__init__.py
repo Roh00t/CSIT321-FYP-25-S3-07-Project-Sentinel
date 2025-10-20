@@ -45,12 +45,22 @@ def create_app():
     from app.routes.threatint import threat_bp
     from app.routes.api_key import api_keys_bp
     from app.routes.alerts_api import adbp
+    from app.routes.pcap import pcap_bp
 
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(main_bp, url_prefix='/api')
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
+    app.register_blueprint(geo_bp)
+    app.register_blueprint(filters_bp)
+    app.register_blueprint(threat_bp)
+    app.register_blueprint(api_keys_bp)
+    app.register_blueprint(adbp, url_prefix="/api/alerts_api")
+    app.register_blueprint(pcap_bp)
 
-    # Initialize CORS with all necessary settings
+    # Initialize CORS after blueprints are registered
     CORS(app,
         resources={
-            r"/api/*": {
+            r"/*": {
                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": ["Content-Type", "Authorization"],
@@ -61,14 +71,7 @@ def create_app():
         }
     )
 
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(main_bp, url_prefix='/api')
-    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
-    app.register_blueprint(geo_bp)
-    app.register_blueprint(filters_bp)
-    app.register_blueprint(threat_bp)
-    app.register_blueprint(api_keys_bp)
-    app.register_blueprint(adbp, url_prefix="/api/alerts_api")
+
 
      # Ensure database and tables exist
 

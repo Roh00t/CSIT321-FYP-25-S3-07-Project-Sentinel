@@ -91,6 +91,9 @@ export default function AlertsPage() {
   const [newApiKeyName, setNewApiKeyName] = useState("");
   const [newApiKeyType, setNewApiKeyType] = useState("suricata");
   const [loadingKeys, setLoadingKeys] = useState(false);
+  const [pcapFiles, setPcapFiles] = useState<any[]>([]);
+  const [loadingPcap, setLoadingPcap] = useState(false);
+  const [alertPackets, setAlertPackets] = useState<any[]>([]);
   const filteredAlertsByApiKey = useMemo(() => {
   if (!apiKeys.length) return [];
 
@@ -218,6 +221,38 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.target.value = '';
   }
 };
+
+  const handlePcapUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("time_window", "5"); // 5 second matching window
+
+    setLoadingPcap(true);
+    try {
+      const res = await axios.post(
+        "http://localhost:5000/api/pcaps/upload",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      showToast(`PCAP uploaded! ${res.data.matches_found} matches found`);
+      setPcapFiles((prev) => [res.data.pcap_file, ...prev]);
+    } catch (err: any) {
+      console.error(err);
+      const errorMsg = err.response?.data?.error || "Failed to upload PCAP";
+      showRToast(errorMsg);
+    } finally {
+      setLoadingPcap(false);
+      e.target.value = "";
+    }
+  };
 
   //filters fetch
   useEffect(() => {
@@ -650,20 +685,25 @@ const alertsOverTimeData = {
   const handleInspect = async (alert: any) => {
     const srcIP = alert.src_ip;
     const destIP = alert.dest_ip;
-    
+
     setSelectedAlert(alert.original || alert);
     setThreatIntel(null);
     setLoadingIntel(true);
-    
-    setLoadingIntel(true);
+    setAlertPackets([]); // Reset PCAP packets
+
+    // Fetch PCAP packets first, show as soon as ready
+    axios.get(`http://localhost:5000/api/alerts/${alert.id}/packets`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((pcapRes) => setAlertPackets(pcapRes.data || []))
+      .catch(() => setAlertPackets([]));
+
+    // Fetch threat intel in parallel
     try {
-    const [srcRes, destRes] = await Promise.all([
-      axios.post("http://localhost:5000/api/threatintel", { ip: srcIP }),
-      axios.post("http://localhost:5000/api/threatintel", { ip: destIP }),
-    ]);
-    // console.log("Source Threat Intel:", srcRes.data);
-    // console.log("Destination Threat Intel:", destRes.data);
-    
+      const [srcRes, destRes] = await Promise.all([
+        axios.post("http://localhost:5000/api/threatintel", { ip: srcIP }),
+        axios.post("http://localhost:5000/api/threatintel", { ip: destIP })
+      ]);
       setThreatIntel({
         abuse: srcRes.data.abuse,
         vt: srcRes.data.vt,
@@ -860,6 +900,15 @@ const generateReport = async () => {
               type="file"
               accept=".json,.csv"
               onChange={handleUpload}
+              className="hidden"
+            />
+          </label>
+          <label className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-purple-700 transition">
+            <span>📦 Upload PCAP</span>
+            <input
+              type="file"
+              accept=".pcap,.pcapng,.cap"
+              onChange={handlePcapUpload}
               className="hidden"
             />
           </label>
@@ -1550,7 +1599,17 @@ const generateReport = async () => {
                     <td className="p-3">{a.src_port ?? "-"}</td>
                     <td className="p-3">{a.dest_ip || "-"}</td>
                     <td className="p-3">{a.dest_port ?? "-"}</td>
-                    <td className="p-3">{a.signature || "-"}</td>
+                    <td className="p-3 flex items-center gap-2">
+                      {a.signature || "-"}
+                      {a.pcap_match_count > 0 && (
+                        <span 
+                          className="inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white rounded-full text-xs font-bold" 
+                          title={`${a.pcap_match_count} PCAP packet${a.pcap_match_count > 1 ? 's' : ''} matched`}
+                        >
+                          📦
+                        </span>
+                      )}
+                    </td>
                     <td className="p-3 font-semibold">{a.severity || "-"}</td>
                     <td className="p-3">
                       {a.api_key === "0"
@@ -1610,113 +1669,131 @@ const generateReport = async () => {
                 ))}
               </tbody>
             </table>
+
+            {/* PCAP Packet Matches */}
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2 text-gray-800">
+                📦 Matched PCAP Packets {alertPackets.length > 0 ? `(${alertPackets.length})` : ''}
+              </h3>
+              <div className="overflow-x-auto">
+                {alertPackets.length > 0 ? (
+                  <table className="min-w-full border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-2">PCAP File</th>
+                        <th className="p-2">Packet #</th>
+                        <th className="p-2">Timestamp</th>
+                        <th className="p-2">Src → Dst</th>
+                        <th className="p-2">Protocol</th>
+                        <th className="p-2">Length</th>
+                        <th className="p-2">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {alertPackets.map((pkt, idx) => (
+                        <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
+                          <td className="p-2 text-sm">{pkt.pcap_filename}</td>
+                          <td className="p-2 text-sm text-center">{pkt.packet_number}</td>
+                          <td className="p-2 text-sm">{new Date(pkt.timestamp).toLocaleString()}</td>
+                          <td className="p-2 text-sm">
+                            {pkt.src_ip}:{pkt.src_port || "N/A"} → {pkt.dst_ip}:{pkt.dst_port || "N/A"}
+                          </td>
+                          <td className="p-2 text-sm text-center">{pkt.protocol}</td>
+                          <td className="p-2 text-sm text-center">{pkt.packet_length} B</td>
+                          <td className="p-2 text-sm text-center">
+                            <span className={`px-2 py-1 rounded ${
+                              pkt.match_confidence > 0.9 ? "bg-green-200" : 
+                              pkt.match_confidence > 0.7 ? "bg-yellow-200" : "bg-gray-200"
+                            }`}>
+                              {(pkt.match_confidence * 100).toFixed(0)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-gray-500 p-4">No matched PCAP packets.</div>
+                )}
+              </div>
+            </div>
+
+            {/* Add a line of margin between tables */}
+            <div className="my-6" />
+
             {/* Threat Intelligence Table */}
             <div className="overflow-x-auto">
-              <table className="min-w-full border border-gray-200 rounded-lg">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2 border-r">Data source</th>
-                    <th className="p-2 border-r">Field</th>
-                    <th className="p-2 border-r">Source ({selectedAlert.src_ip})</th>
-                    <th className="p-2">Destination ({selectedAlert.dest_ip})</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    "Confidence",
-                    "Total Reports",
-                    "Country",
-                    "Domain",
-                    "ASN Owner",
-                    "ASN",
-                    "Reputation",
-                  ].map((field) => {
-                    const getAbuseValue = (abuseData: any) => {
-                      if (!abuseData?.data) return "-";
-                      switch (field) {
-                        case "Confidence":
-                          return abuseData.data.abuseConfidenceScore ?? "-";
-                        case "Total Reports":
-                          return abuseData.data.totalReports ?? "-";
-                        case "Country":
-                          return abuseData.data.countryCode ?? "-";
-                        case "Domain":
-                          return abuseData.data.domain ?? "-";
-                        default:
-                          return "-";
-                      }
-                    };
-
-                    const getVTValue = (vtData: any) => {
-                      if (!vtData?.data?.attributes) return "-";
-                      switch (field) {
-                        case "ASN Owner":
-                          return vtData.data.attributes.as_owner ?? "-";
-                        case "ASN":
-                          return vtData.data.attributes.asn ?? "-";
-                        case "Reputation":
-                          return vtData.data.attributes.reputation ?? "-";
-                        default:
-                          return "-";
-                      }
-                    };
-
-                    return (
-                      <tr key={field} className="border-b border-gray-200">
-                        {/* Data Source */}
-                        <td className="p-2 font-medium bg-gray-50">
-                          {["Confidence", "Total Reports", "Country", "Domain"].includes(field)
-                            ? "AbuseIPDB"
-                            : "VirusTotal"}
-                        </td>
-
-                        {/* Field Name */}
-                        <td className="p-2 font-medium bg-gray-50">{field}</td>
-
-                        {/* Source Value */}
-                      <td
-                        className={`p-2 border-r ${
-                          !loadingIntel && field === "Reputation"
-                            ? (() => {
-                                const rep = threatIntel?.vt?.data?.attributes?.reputation ?? 0;
-                                if (rep < 0) return "bg-red-200 text-red-800 font-bold";
-                                if (rep === 0) return "bg-yellow-200 text-yellow-800 font-bold";
-                                return "bg-green-200 text-green-800 font-bold";
-                              })()
-                            : ""
-                        }`}
-                      >
-                                                {loadingIntel
-                          ? "Loading..."
-                          : ["Confidence", "Total Reports", "Country", "Domain"].includes(field)
-                          ? getAbuseValue(threatIntel?.abuse)
-                          : getVTValue(threatIntel?.vt)}
-                      </td>
-
-                      {/* Destination Value */}
-                      <td
-                        className={`p-2 ${
-                          !loadingIntel && field === "Reputation"
-                            ? (() => {
-                                const rep = threatIntel?.destVT?.data?.attributes?.reputation ?? 0;
-                                if (rep < 0) return "bg-red-200 text-red-800 font-bold";
-                                if (rep === 0) return "bg-yellow-200 text-yellow-800 font-bold";
-                                return "bg-green-200 text-green-800 font-bold";
-                              })()
-                            : ""
-                        }`}
-                      >
-                        {loadingIntel
-                          ? "Loading..."
-                          : ["Confidence", "Total Reports", "Country", "Domain"].includes(field)
-                          ? getAbuseValue(threatIntel?.destAbuse)
-                          : getVTValue(threatIntel?.destVT)}
-                      </td>
+              {loadingIntel ? (
+                <div className="text-gray-500 p-4">Loading threat intelligence...</div>
+              ) : (
+                <table className="min-w-full border border-gray-200 rounded-lg">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="p-2 border-r">Data source</th>
+                      <th className="p-2 border-r">Field</th>
+                      <th className="p-2 border-r">Source ({selectedAlert.src_ip})</th>
+                      <th className="p-2">Destination ({selectedAlert.dest_ip})</th>
                     </tr>
-                  );
-                })}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {[
+                      "Confidence",
+                      "Total Reports",
+                      "Country",
+                      "Domain",
+                      "ASN Owner",
+                      "ASN",
+                      "Reputation",
+                    ].map((field) => {
+                      const getAbuseValue = (abuseData: any) => {
+                        if (!abuseData?.data) return "-";
+                        switch (field) {
+                          case "Confidence":
+                            return abuseData.data.abuseConfidenceScore ?? "-";
+                          case "Total Reports":
+                            return abuseData.data.totalReports ?? "-";
+                          case "Country":
+                            return abuseData.data.countryCode ?? "-";
+                          case "Domain":
+                            return abuseData.data.domain ?? "-";
+                          default:
+                            return "-";
+                        }
+                      };
+
+                      const getVTValue = (vtData: any) => {
+                        if (!vtData?.data?.attributes) return "-";
+                        switch (field) {
+                          case "ASN Owner":
+                            return vtData.data.attributes.as_owner ?? "-";
+                          case "ASN":
+                            return vtData.data.attributes.asn ?? "-";
+                          case "Reputation":
+                            return vtData.data.attributes.reputation ?? "-";
+                          default:
+                            return "-";
+                        }
+                      };
+
+                      return (
+                        <tr key={field} className="border-b border-gray-200">
+                          {/* Data Source */}
+                          <td className="p-2 font-medium bg-gray-50">
+                            {["Confidence", "Total Reports", "Country", "Domain"].includes(field)
+                              ? "AbuseIPDB"
+                              : "VirusTotal"}
+                          </td>
+                          <td className="p-2">{field}</td>
+                          <td className="p-2">{getAbuseValue(threatIntel?.src)}</td>
+                          <td className="p-2">{getAbuseValue(threatIntel?.dest)}</td>
+                          <td className="p-2">{getVTValue(threatIntel?.src)}</td>
+                          <td className="p-2">{getVTValue(threatIntel?.dest)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             <div className="mt-4 flex justify-end">

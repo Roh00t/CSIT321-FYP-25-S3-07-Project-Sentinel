@@ -5,6 +5,7 @@ from app import db
 from app.models.alert import Alert
 from app.models.api_keys import APIKey
 from app.models.app_user import AppUser
+from app.models.pcap import AlertPcapMatch
 
 adbp = Blueprint("alerts_api_init", __name__)
 
@@ -34,8 +35,16 @@ def get_alerts_for_user():
     total = query.count()
     alerts = query.offset((page - 1) * per_page).limit(per_page).all()
 
+    # Add pcap match count to each alert
+    alerts_data = []
+    for alert in alerts:
+        alert_dict = alert.to_dict()
+        match_count = AlertPcapMatch.query.filter_by(alert_id=alert.id).count()
+        alert_dict["pcap_match_count"] = match_count
+        alerts_data.append(alert_dict)
+
     return jsonify({
-        "alerts": [a.to_dict() for a in alerts],
+        "alerts": alerts_data,
         "total": total,
         "page": page,
         "per_page": per_page,

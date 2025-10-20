@@ -4,6 +4,7 @@ from app import models
 from app.models import AppUser, Admin, Filter
 import bcrypt
 from app.models.api_keys import APIKey  # Ensure model is imported
+from app.models.pcap import PcapFile, PcapPacket, AlertPcapMatch  # Ensure model is imported
 
 app = create_app()
 
@@ -104,6 +105,12 @@ with app.app_context():
     if not db.engine.dialect.has_table(db.engine.connect(), APIKey.__tablename__):
         APIKey.__table__.create(db.engine)
         print("Table 'api_keys' created.")
+
+    # --- Ensure PCAP tables exist ---
+    for model in [PcapFile, PcapPacket, AlertPcapMatch]:
+        if not db.engine.dialect.has_table(db.engine.connect(), model.__tablename__):
+            model.__table__.create(db.engine)
+            print(f"Table '{model.__tablename__}' created.")
 
     db.session.commit()
     print("Database seeded successfully.")
