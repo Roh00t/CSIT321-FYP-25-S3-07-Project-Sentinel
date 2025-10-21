@@ -69,7 +69,8 @@ def register():
         subscription_plan="Basic",
         email_verified=False,
         verification_token=token,
-        verification_token_expires=expires
+        verification_token_expires=expires,
+        admin_email=data['email'] 
     )
     db.session.add(user)
     db.session.commit()
@@ -129,8 +130,6 @@ def request_admin_email_change():
         return jsonify({"msg": "Email is required"}), 400
     if '@' not in new_email or '.' not in new_email.split('@')[-1]:
         return jsonify({"msg": "Invalid email format"}), 400
-    if new_email == user.email:
-        return jsonify({"msg": "Cannot use your primary email as admin email"}), 400
 
     # Optional: Prevent duplicate pending requests
     existing = AdminEmailVerification.query.filter_by(
@@ -592,11 +591,10 @@ def get_appuser_profile():
                     subscription_end_date = datetime.datetime.utcfromtimestamp(end).isoformat() + "Z"
                 else:
                     current_app.logger.warning(f"Unexpected current_period_end: {end}")
-            # 🔴 Do NOT put team fallback here — it only runs if stripe_customer_id exists
         except Exception:
             current_app.logger.exception("Error fetching subscription from Stripe")
 
-    # ✅ 2. FALLBACK: If still no subscription_end_date AND user is on Team plan → get from team
+    # If still no subscription_end_date AND user is on Team plan -> get from team
     if user.subscription_plan == 'Team' and subscription_end_date is None:
         try:
             team_membership = AppUserTeamMember.query.filter_by(
@@ -664,7 +662,8 @@ def get_appuser_profile():
         "is_cancelling": is_cancelling,
         "is_eligible_for_free_trial": user.is_eligible_for_free_trial(),
         "team_info": team_info,
-        "pending_team_invitation": pending_team_invitation
+        "pending_team_invitation": pending_team_invitation,
+        "admin_email": user.admin_email
     })
 
 # PUT Update AppUser Profile

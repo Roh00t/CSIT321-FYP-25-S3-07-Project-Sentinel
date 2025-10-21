@@ -12,7 +12,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
 from app.routes.alerts import alerts_bp
 from flask_socketio import SocketIO
-from app.routes.socketIO import AlertsNamespace  # just ensures file is loaded
+from app.routes.socketIO import AlertsNamespace
 import threading
 import time
 from flask_mail import Mail
@@ -71,10 +71,6 @@ def create_app():
         }
     )
 
-
-
-     # Ensure database and tables exist
-
     with app.app_context():
         # Extract config values
         db_user = app.config['DB_USER']
@@ -82,7 +78,7 @@ def create_app():
         db_host = app.config['DB_HOST']
         db_name = app.config['DB_NAME']
 
-        # Step 1: Check if database exists, create if not
+        # Check if database exists, create if not
         try:
             # Try to connect to the target database
             engine = db.get_engine()
@@ -105,7 +101,7 @@ def create_app():
                 print(f"Failed to create database: {str(create_error)}")
                 raise
 
-        # Step 2: Create tables if they don't exist
+        # Create tables if they don't exist
         try:
             inspector = inspect(db.get_engine())
             if not inspector.get_table_names():
@@ -116,8 +112,5 @@ def create_app():
         except Exception as table_error:
             print(f"Error during table creation: {str(table_error)}")
             raise
-
-        # Debug: Print the database path
-        print("DATABASE PATH:", db.engine.url)
 
     return app

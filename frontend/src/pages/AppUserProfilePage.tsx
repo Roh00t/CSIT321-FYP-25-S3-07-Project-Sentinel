@@ -12,7 +12,8 @@ interface AppProfile {
   last_name: string;
   subscription_plan: string; // e.g., "Basic", "Pro", "Team"
   created_at: string | null;
-  subscription_end_date: string | null; // ← Add this
+  subscription_end_date: string | null;
+  admin_email: string;
 }
 
 export default function AppUserProfilePage() {
@@ -159,6 +160,11 @@ export default function AppUserProfilePage() {
           <div className="bg-gray-50 p-5 rounded-lg border">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Email</h3>
             <p className="text-xl text-gray-700">{profile.email}</p>
+          </div>
+
+          <div className="bg-gray-50 p-5 rounded-lg border">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Admin Email</h3>
+            <p className="text-xl text-gray-700">{profile.admin_email}</p>
           </div>
 
           <div className="bg-green-50 p-5 rounded-lg border">

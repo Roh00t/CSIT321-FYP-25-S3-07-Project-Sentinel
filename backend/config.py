@@ -1,6 +1,7 @@
 # config.py
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
@@ -14,12 +15,14 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+
     SECRET_KEY = os.getenv('SECRET_KEY')
 
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
     MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
     MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
-    MAIL_USERNAME = os.getenv('MAIL_USERNAME')        # e.g., your@gmail.com
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME')        # Gmail email address
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')        # Gmail App Password
     MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', MAIL_USERNAME)
 
