@@ -19,8 +19,9 @@ import {
   Legend,
   BarElement,
 } from "chart.js";
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend, ChartDataLabels);
 
 // Socket.IO
 import { io, Socket } from "socket.io-client";
@@ -1067,10 +1068,22 @@ export default function AlertsPage() {
           <Bar
             id="severity-chart"
             data={severityData}
-            options={{responsive: true, maintainAspectRatio: false, 
+            options={{
+              responsive: true, 
+              maintainAspectRatio: false, 
               plugins: {
                 legend: {},
-              },}}
+                datalabels: {
+                  display: true,
+                  color: '#fff',
+                  font: {
+                    weight: 'bold' as const,
+                    size: 14
+                  },
+                  formatter: (value: number) => value > 0 ? value : ''
+                }
+              },
+            }}
             height={200}
           />
         </div>
@@ -1080,7 +1093,21 @@ export default function AlertsPage() {
             id="protocol-chart"
             key={"protocol-" + filteredAlerts.length}
             data={protocolData}
-            options={{ responsive: true, maintainAspectRatio: false }}
+            options={{ 
+              responsive: true, 
+              maintainAspectRatio: false,
+              plugins: {
+                datalabels: {
+                  display: true,
+                  color: '#fff',
+                  font: {
+                    weight: 'bold' as const,
+                    size: 14
+                  },
+                  formatter: (value: number) => value > 0 ? value : ''
+                }
+              }
+            }}
             height={200}
           />
         </div>
