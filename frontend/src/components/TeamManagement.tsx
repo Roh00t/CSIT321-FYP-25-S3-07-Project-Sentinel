@@ -1,5 +1,7 @@
-// frontend/src/components/TeamManagement.tsx
+// src/components/TeamManagement.tsx
+
 import { useState, useEffect } from 'react';
+import apiClient from '../components/apiClient';
 
 interface TeamMember {
   id: number;
@@ -43,15 +45,9 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     
     const fetchTeam = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/teams', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          setTeamData(data);
-        }
-      } catch (err) {
+        const res = await apiClient.get('/api/auth/teams');
+        setTeamData(res.data);
+      } catch (err: any) {
         console.error('Failed to fetch team:', err);
       } finally {
         setLoading(false);
@@ -69,25 +65,12 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     setError('');
     
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/teams/invite', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: inviteEmail }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setInviteEmail('');
-        onTeamUpdate();
-      } else {
-        setError(data.msg || 'Failed to invite user');
-      }
-    } catch (err) {
-      setError('Network error occurred');
+      await apiClient.post('/api/auth/teams/invite', { email: inviteEmail });
+      setInviteEmail('');
+      onTeamUpdate();
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      setError(err.response?.data?.msg || 'Failed to invite user');
     } finally {
       setInviting(false);
     }
@@ -97,27 +80,16 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     if (!token || !window.confirm('Are you sure you want to remove this team member?')) return;
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/teams/remove-member', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ user_id: userId }),
-      });
-
-      if (response.ok) {
-        onTeamUpdate();
-      } else {
-        const data = await response.json();
-        alert(data.msg || 'Failed to remove member');
-      }
-    } catch (err) {
-      alert('Failed to remove member');
+      // ✅ Use apiClient
+      await apiClient.post('/api/auth/teams/remove-member', { user_id: userId });
+      onTeamUpdate();
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      const msg = err.response?.data?.msg || 'Failed to remove member';
+      alert(msg);
     }
   };
 
-  // ✅ New: Handle leaving the team
   const handleLeaveTeam = async () => {
     if (!token) return;
     if (!window.confirm('Are you sure you want to leave this team? You will lose access to all Team plan features and be downgraded to the Basic plan.')) {
@@ -126,23 +98,13 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
 
     setLeaving(true);
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/teams/leave', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(data.msg);
-        onTeamUpdate(); // This will trigger a profile refresh in parent
-      } else {
-        alert(data.msg || 'Failed to leave team');
-      }
-    } catch (err) {
-      alert('Network error while leaving team');
+      const response = await apiClient.post('/api/auth/teams/leave');
+      alert(response.data.msg);
+      onTeamUpdate();
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      const msg = err.response?.data?.msg || 'Network error while leaving team';
+      alert(msg);
     } finally {
       setLeaving(false);
     }
@@ -156,7 +118,6 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     return <div className="text-gray-600">No team data available</div>;
   }
 
-  // Determine if current user is the owner
   const currentUserId = getUserIdFromToken(token);
   const isOwner = currentUserId 
     ? teamData.members.some(m => m.user_id === parseInt(currentUserId, 10) && m.is_owner)
@@ -226,7 +187,7 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
         </div>
       </div>
 
-      {/* ✅ Leave Team Button (for non-owners) */}
+      {/* Leave Team Button (for non-owners) */}
       {!isOwner && (
         <div className="mt-6 pt-4 border-t border-green-200">
           <button

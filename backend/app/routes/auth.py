@@ -207,14 +207,14 @@ def login():
         user = Admin.query.filter_by(username=data['username']).first()
 
     if not user:
-        return jsonify({"msg": "Invalid username or password"}), 401
+        return jsonify({"msg": "Invalid username or password"}), 403
 
     # For AppUser only: check email verification
     if isinstance(user, AppUser) and not user.email_verified:
         return jsonify({"msg": "Please verify your email before logging in."}), 403
 
     if not bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
-        return jsonify({"msg": "Invalid username or password"}), 401
+        return jsonify({"msg": "Invalid username or password"}), 403
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({
