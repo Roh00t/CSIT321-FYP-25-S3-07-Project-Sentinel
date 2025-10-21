@@ -1,6 +1,8 @@
 // src/pages/VerifyEmailPage.tsx
+
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import apiClient from '../components/apiClient';
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
@@ -11,11 +13,11 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     if (hasVerified.current) return;
-    
+
     const verify = async () => {
       // Small delay to ensure URL is stable
       await new Promise(resolve => setTimeout(resolve, 50));
-      
+
       const token = searchParams.get('token');
       if (!token) {
         setStatus('error');
@@ -25,21 +27,15 @@ export default function VerifyEmailPage() {
 
       setStatus('verifying');
       try {
-        const url = `http://127.0.0.1:5000/api/auth/verify-email?token=${encodeURIComponent(token)}`;
-        const res = await fetch(url, { method: 'GET' });
-        const data = await res.json();
-
-        if (res.ok) {
-          setStatus('success');
-          setMessage('Your email has been verified! Redirecting to login...');
-          setTimeout(() => navigate('/login'), 2000);
-        } else {
-          setStatus('error');
-          setMessage(data.msg || 'Verification failed.');
-        }
-      } catch (err) {
+        const res = await apiClient.get(`/api/auth/verify-email?token=${encodeURIComponent(token)}`);
+        
+        setStatus('success');
+        setMessage('Your email has been verified! Redirecting to login...');
+        setTimeout(() => navigate('/login'), 2000);
+      } catch (err: any) {
         setStatus('error');
-        setMessage('Network error. Please try again.');
+        const errorMsg = err.response?.data?.msg || 'Verification failed.';
+        setMessage(errorMsg);
       }
     };
 

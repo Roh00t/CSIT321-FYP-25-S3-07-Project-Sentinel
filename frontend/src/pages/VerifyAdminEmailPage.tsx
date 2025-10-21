@@ -1,6 +1,8 @@
-// frontend/src/pages/VerifyAdminEmailPage.tsx
+// src/pages/VerifyAdminEmailPage.tsx
+
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import apiClient from '../components/apiClient';
 
 export default function VerifyAdminEmailPage() {
   const [searchParams] = useSearchParams();
@@ -19,23 +21,17 @@ export default function VerifyAdminEmailPage() {
     const verifyToken = async () => {
       setStatus('verifying');
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/auth/verify-admin-email?token=${encodeURIComponent(token)}`);
-        const data = await res.json();
-
-        if (res.ok) {
-          setStatus('success');
-          setMessage(data.msg || 'Admin email verified successfully!');
-          // Redirect after 3 seconds
-          setTimeout(() => {
-            navigate('/app/profile');
-          }, 3000);
-        } else {
-          setStatus('error');
-          setMessage(data.msg || 'Verification failed. The token may be invalid or expired.');
-        }
-      } catch (err) {
+        const res = await apiClient.get(`/api/auth/verify-admin-email?token=${encodeURIComponent(token)}`);
+        
+        setStatus('success');
+        setMessage(res.data.msg || 'Admin email verified successfully!');
+        setTimeout(() => {
+          navigate('/app/profile');
+        }, 3000);
+      } catch (err: any) {
         setStatus('error');
-        setMessage('Network error. Please try again later.');
+        const errorMsg = err.response?.data?.msg || 'Verification failed. The token may be invalid or expired.';
+        setMessage(errorMsg);
       }
     };
 

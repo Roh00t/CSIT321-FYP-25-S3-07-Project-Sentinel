@@ -1,8 +1,10 @@
 // src/pages/AppDashboard.tsx
+
 import { useUserSession } from '../hooks/useUserSession';
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { refreshPlanFromBackend } from '../utils/refreshPlan';
+import apiClient from '../components/apiClient';
 
 interface ProfileData {
   username: string;
@@ -15,7 +17,7 @@ interface ProfileData {
 }
 
 export default function AppDashboard() {
-  const { token } = useUserSession(); // Get token for API calls
+  const { token } = useUserSession();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
@@ -30,16 +32,11 @@ export default function AppDashboard() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
+      const res = await apiClient.get('/api/auth/appuser/profile');
+      setProfile(res.data);
+    } catch (err: any) {
+      console.error('Failed to fetch profile:', err);
+      // 401 is handled globally — no need to act here
     } finally {
       setLoading(false);
     }
@@ -52,8 +49,7 @@ export default function AppDashboard() {
         setShowSuccessBanner(true);
         navigate('/app/dashboard', { replace: true });
         await refreshPlanFromBackend();
-        // Refresh profile after plan update
-        fetchProfile();
+        fetchProfile(); // Refresh profile after plan update
       }
     };
 
@@ -64,7 +60,7 @@ export default function AppDashboard() {
   useEffect(() => {
     fetchProfile();
     
-    // Optional: Refresh profile every 30 seconds to catch team invitations
+    // Refresh profile every 30 seconds to catch team invitations
     const interval = setInterval(fetchProfile, 30000);
     return () => clearInterval(interval);
   }, [token]);
@@ -81,24 +77,16 @@ export default function AppDashboard() {
     if (!token) return;
     
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/teams/accept-invitation', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        // Refresh profile to show updated plan and remove invitation
-        await fetchProfile();
-        await refreshPlanFromBackend(); // Update localStorage for useUserSession
-        // In handleAcceptInvitation success
-        alert("Invitation accepted!");
-      } else {
-        const errorData = await response.json();
-        alert(errorData.msg || 'Failed to accept invitation');
-      }
-    } catch (error) {
-      console.error('Failed to accept invitation:', error);
-      alert('Failed to accept invitation. Please try again.');
+      const response = await apiClient.post('/api/auth/teams/accept-invitation');
+
+      // Refresh profile and localStorage
+      await fetchProfile();
+      await refreshPlanFromBackend();
+      alert("Invitation accepted!");
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      const msg = err.response?.data?.msg || 'Failed to accept invitation. Please try again.';
+      alert(msg);
     }
   };
 
@@ -110,7 +98,6 @@ export default function AppDashboard() {
     );
   }
 
-  // Display logic: fallback to 'Basic' if null/undefined
   const displayPlan = profile?.subscription_plan || 'Basic';
 
   return (

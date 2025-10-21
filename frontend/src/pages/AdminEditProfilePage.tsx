@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
+import apiClient from '../components/apiClient';
 
 interface ProfileData {
   username: string;
@@ -32,35 +33,30 @@ export default function AdminEditProfilePage() {
   const [error, setError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // 🔁 Fetch current profile (including email) on mount
+  // Fetch current profile (including email) on mount
   useEffect(() => {
     const fetchProfile = async () => {
       if (!token) {
-        navigate('/login');
+        navigate('/login', { replace: true });
         return;
       }
 
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/admin/profile', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        const res = await apiClient.get('/api/auth/admin/profile');
+        const data = res.data;
 
-        if (!res.ok) throw new Error('Failed to load profile');
-
-        const data = await res.json();
         setFormData(prev => ({
           ...prev,
           username: data.username,
           email: data.email || '',
         }));
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to fetch profile:', err);
-        setMessage('Could not load profile. Redirecting...');
-        setError(true);
-        setTimeout(() => navigate('/login'), 1500);
+        if (err.response?.status !== 401) {
+          setMessage('Could not load profile. Redirecting...');
+          setError(true);
+          setTimeout(() => navigate('/login'), 1500);
+        }
       }
     };
 
@@ -94,7 +90,6 @@ export default function AdminEditProfilePage() {
 
     setLoading(true);
 
-    // ✅ Build payload: only include non-empty fields
     const payload: Partial<ProfileData> = {};
     if (formData.username.trim() !== currentUsername) {
       payload.username = formData.username.trim();
@@ -106,7 +101,6 @@ export default function AdminEditProfilePage() {
       payload.password = formData.password.trim();
     }
 
-    // If nothing to update
     if (Object.keys(payload).length === 0) {
       setMessage("No changes to save");
       setError(false);
@@ -115,36 +109,25 @@ export default function AdminEditProfilePage() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/admin/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await apiClient.put('/api/auth/admin/profile', payload);
+      const data: ApiResponse = res.data;
 
-      const data: ApiResponse = await res.json();
+      setMessage(data.msg || 'Profile updated successfully!');
+      setError(false);
 
-      if (res.ok) {
-        setMessage(data.msg || 'Profile updated successfully!');
-        setError(false);
+      // Update localStorage
+      if (data.username) localStorage.setItem('username', data.username);
+      if (data.email) localStorage.setItem('email', data.email);
+      window.dispatchEvent(new Event('sessionchange'));
 
-        // Update localStorage
-        if (data.username) localStorage.setItem('username', data.username);
-        if (data.email) localStorage.setItem('email', data.email);
-        window.dispatchEvent(new Event('sessionchange'));
-
-        // Redirect after success
-        setTimeout(() => {
-          navigate('/admin/profile');
-        }, 1500);
-      } else {
-        setMessage(data.msg || 'Update failed');
-        setError(true);
+      setTimeout(() => {
+        navigate('/admin/profile');
+      }, 1500);
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        return;
       }
-    } catch (err) {
-      setMessage('Network error. Please try again.');
+      setMessage(err.response?.data?.msg || 'Update failed');
       setError(true);
     } finally {
       setLoading(false);

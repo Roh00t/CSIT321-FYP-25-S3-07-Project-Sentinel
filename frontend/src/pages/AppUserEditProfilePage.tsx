@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
+import apiClient from '../components/apiClient';
 
 interface EditFormData {
   username: string;
@@ -39,14 +40,9 @@ export default function AppUserEditProfilePage() {
       }
 
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
+        const res = await apiClient.get('/api/auth/appuser/profile');
+        const data = res.data;
 
-        if (!res.ok) throw new Error('Failed to load');
-
-        const data = await res.json();
         setFormData({
           username: data.username || '',
           email: data.email || '',
@@ -55,10 +51,12 @@ export default function AppUserEditProfilePage() {
           password: '',
           confirmPassword: '',
         });
-      } catch (err) {
-        setError(true);
-        setMessage('Could not load profile');
-        setTimeout(() => navigate('/login'), 1500);
+      } catch (err: any) {
+        if (err.response?.status !== 401) {
+          setError(true);
+          setMessage('Could not load profile');
+          setTimeout(() => navigate('/login'), 1500);
+        }
       }
     };
 
@@ -116,32 +114,22 @@ export default function AppUserEditProfilePage() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await apiClient.put('/api/auth/appuser/profile', payload);
 
-      const data = await res.json();
+      setMessage(res.data.msg || 'Profile updated!');
+      setError(false);
 
-      if (res.ok) {
-        setMessage(data.msg || 'Profile updated!');
-        setError(false);
+      // Update local storage with new values
+      localStorage.setItem('username', res.data.username || formData.username);
+      if (res.data.email) localStorage.setItem('email', res.data.email);
+      window.dispatchEvent(new Event('sessionchange'));
 
-        localStorage.setItem('username', data.username || formData.username);
-        if (data.email) localStorage.setItem('email', data.email);
-        window.dispatchEvent(new Event('sessionchange'));
-
-        setTimeout(() => navigate('/app/profile'), 1500);
-      } else {
-        setMessage(data.msg || 'Update failed');
-        setError(true);
+      setTimeout(() => navigate('/app/profile'), 1500);
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        return;
       }
-    } catch (err) {
-      setMessage('Network error');
+      setMessage(err.response?.data?.msg || 'Update failed');
       setError(true);
     } finally {
       setLoading(false);

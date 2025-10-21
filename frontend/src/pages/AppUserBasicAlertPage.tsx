@@ -1,5 +1,7 @@
+// src/pages/AppUserBasicAlertPage.tsx
+
 import { useState, useMemo } from "react";
-import axios from "axios";
+import apiClient from "../components/apiClient";
 
 export default function AppUserBasicAlertPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -21,15 +23,15 @@ export default function AppUserBasicAlertPage() {
 
     setLoading(true);
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/alerts/upload-alerts",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      const res = await apiClient.post("/api/alerts/upload-alerts", formData);
       setAlerts(res.data.alerts || []);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to upload/parse file");
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      // 401 is handled globally — only show alert for other errors
+      if (err.response?.status === 401) {
+        return; // interceptor will redirect
+      }
+      alert(err.response?.data?.msg || "Failed to upload/parse file");
     } finally {
       setLoading(false);
     }
@@ -40,37 +42,39 @@ export default function AppUserBasicAlertPage() {
     if (filters.alertsOnly && !a.signature) return false;
     if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
     if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
-    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
+    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port)
+      return false;
     return true;
   });
 
   // Summary calculations
-const summary = useMemo(() => {
-  const alertEvents = filteredAlerts.filter(a => a.severity); // only severity events
-  const total = alertEvents.length;
+  const summary = useMemo(() => {
+    const alertEvents = filteredAlerts.filter((a) => a.severity); // only severity events
+    const total = alertEvents.length;
 
-  const topTalkers: Record<string, number> = {};
-  const topHosts: Record<string, number> = {};
-  const topSignatures: Record<string, number> = {};
+    const topTalkers: Record<string, number> = {};
+    const topHosts: Record<string, number> = {};
+    const topSignatures: Record<string, number> = {};
 
-  alertEvents.forEach((a) => {
-    if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
-    if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
-  });
-  filteredAlerts.forEach((a) => {
-    if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
-  });
-  const sortDesc = (obj: Record<string, number>) =>
-    Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    alertEvents.forEach((a) => {
+      if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
+      if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
+    });
+    filteredAlerts.forEach((a) => {
+      if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
+    });
+    const sortDesc = (obj: Record<string, number>) =>
+      Object.entries(obj)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
 
-  return {
-    total,
-    topTalkers: sortDesc(topTalkers),
-    topHosts: sortDesc(topHosts),
-    topSignatures: sortDesc(topSignatures),
-  };
-}, [filteredAlerts]);
-
+    return {
+      total,
+      topTalkers: sortDesc(topTalkers),
+      topHosts: sortDesc(topHosts),
+      topSignatures: sortDesc(topSignatures),
+    };
+  }, [filteredAlerts]);
 
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
@@ -93,6 +97,7 @@ const summary = useMemo(() => {
           <input type="file" onChange={handleUpload} className="hidden" />
         </label>
       </div>
+
       {/* Summary Counters */}
       {alerts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -149,7 +154,6 @@ const summary = useMemo(() => {
         </div>
       )}
 
-
       {/* Filters */}
       {alerts.length > 0 && (
         <div className="mb-4 flex gap-4 flex-wrap">
@@ -196,7 +200,9 @@ const summary = useMemo(() => {
               min={0}
               max={65535}
               value={filters.port ?? ""}
-              onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
+              onChange={(e) =>
+                setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })
+              }
               className="ml-2 border rounded px-2 py-1 w-20"
               placeholder="Any"
             />
@@ -210,7 +216,6 @@ const summary = useMemo(() => {
           >
             Show All
           </button>
-
         </div>
       )}
 

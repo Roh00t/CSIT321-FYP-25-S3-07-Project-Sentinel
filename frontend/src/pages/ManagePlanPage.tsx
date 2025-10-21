@@ -1,8 +1,10 @@
-// frontend/src/pages/ManagePlanPage.tsx
+// src/pages/ManagePlanPage.tsx
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
 import TeamManagement from '../components/TeamManagement';
+import apiClient from '../components/apiClient';
 
 interface AppProfile {
   id: number;
@@ -38,18 +40,14 @@ export default function ManagePlanPage() {
       }
 
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error('Failed to load profile');
-
-        const data = await res.json();
-        setProfile(data);
+        const res = await apiClient.get('/api/auth/appuser/profile');
+        setProfile(res.data);
       } catch (err: any) {
         console.error('Profile fetch error:', err);
-        alert('Failed to load plan info.');
-        navigate('/app/dashboard');
+        if (err.response?.status !== 401) {
+          alert('Failed to load plan info.');
+          navigate('/app/dashboard');
+        }
       } finally {
         setLoading(false);
       }
@@ -68,26 +66,14 @@ export default function ManagePlanPage() {
 
     setActionLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/checkout/create-session', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ plan }),
-      });
+      const response = await apiClient.post('/api/auth/checkout/create-session', { plan });
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.msg || 'Unknown error');
-      }
-
-      if (data.url) {
-        window.location.href = data.url;
+      if (response.data.url) {
+        window.location.href = response.data.url; // Redirect to Stripe
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      if (err.response?.status === 401) return;
+      alert(`Error: ${err.response?.data?.msg || err.message || 'Unknown error'}`);
     } finally {
       setActionLoading(false);
     }
@@ -95,7 +81,7 @@ export default function ManagePlanPage() {
 
   const handleCancelPlan = async () => {
     if (!token || !profile) return;
-    
+
     const confirmed = window.confirm(
       profile.subscription_plan === 'Pro'
         ? "Are you sure you want to cancel your Pro plan? You'll keep access until " + 
@@ -109,32 +95,21 @@ export default function ManagePlanPage() {
             : 'the end of your billing period') + 
           ". No further charges will be made."
     );
-    
+
     if (!confirmed) return;
 
     setActionLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/auth/subscription/cancel', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await apiClient.post('/api/auth/subscription/cancel');
 
-      const data = await response.json();
+      alert(response.data.msg);
 
-      if (response.ok) {
-        alert(data.msg);
-        const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const updatedProfile = await res.json();
-        setProfile(updatedProfile);
-      } else {
-        alert(data.msg || 'Failed to cancel plan.');
-      }
+      // Refresh profile after cancellation
+      const updatedRes = await apiClient.get('/api/auth/appuser/profile');
+      setProfile(updatedRes.data);
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      if (err.response?.status === 401) return;
+      alert(err.response?.data?.msg || 'Failed to cancel plan.');
     } finally {
       setActionLoading(false);
     }
@@ -156,23 +131,18 @@ export default function ManagePlanPage() {
   const isCancelling = profile.is_cancelling;
   const isEligibleForTrial = profile.is_eligible_for_free_trial;
 
-  // Determine if the current subscription (if any) has expired
   const now = new Date();
   const endDate = profile.subscription_end_date ? new Date(profile.subscription_end_date) : null;
   const isExpired = endDate && now > endDate;
-
-  // Allow plan switching ONLY if on Basic OR subscription is fully expired
   const canSwitchPlans = isBasic || isExpired;
   const showRestrictionMessage = !isBasic && !canSwitchPlans;
 
   const handleTeamUpdate = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const updatedProfile = await res.json();
-      setProfile(updatedProfile);
+      // ✅ Use apiClient
+      const res = await apiClient.get('/api/auth/appuser/profile');
+      setProfile(res.data);
       setShowTeamManagement(true);
     } catch (err) {
       console.error('Failed to refresh profile:', err);
@@ -235,7 +205,7 @@ export default function ManagePlanPage() {
           </div>
         </div>
 
-        {/* Restriction Message: Cannot switch until expired */}
+        {/* Restriction Message */}
         {showRestrictionMessage && (
           <div className="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg">
             <p className="text-gray-700">
@@ -309,7 +279,7 @@ export default function ManagePlanPage() {
           </div>
         </div>
 
-        {/* Team Management (only for Team plan users) */}
+        {/* Team Management */}
         {isTeam && (
           <div className="mt-8">
             <button

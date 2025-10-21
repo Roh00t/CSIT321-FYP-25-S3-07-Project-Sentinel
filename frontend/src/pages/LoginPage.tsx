@@ -1,9 +1,11 @@
 // src/pages/LoginPage.tsx
+
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import notifySessionChange from '../utils/notifySessionChange';
 import { useUserSession } from '../hooks/useUserSession';
+import apiClient from '../components/apiClient';
 
 interface LoginResponse {
   access_token: string;
@@ -23,44 +25,33 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const res = await apiClient.post('/api/auth/login', formData);
+      const data: LoginResponse = res.data;
 
-      const data: LoginResponse = await res.json();
+      // Store auth data
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user_type', data.user_type);
+      localStorage.setItem('username', data.username);
 
-      if (res.ok && data.access_token) {
-        // Store token, user_type, and username
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('user_type', data.user_type);
-        localStorage.setItem('username', data.username);
+      // If app user, fetch plan info
+      if (data.user_type === 'app_user') {
+        const profileRes = await apiClient.get('/api/auth/appuser/profile');
+        localStorage.setItem('plan_type', profileRes.data.subscription_plan);
+      }
 
-        if (data.user_type == 'app_user') {
-          const res1 = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${data.access_token}`,
-            },
-          });
-
-          const profileData = await res1.json();
-          localStorage.setItem('plan_type', profileData.subscription_plan);
-        }
-
-        notifySessionChange();
-
-        navigate('/dashboard');
-      } else {
-        if (res.status === 403 && data.msg?.includes('verify')) {
+      notifySessionChange();
+      navigate('/dashboard');
+    } catch (err: any) {
+      if (err.response) {
+        const { status, data } = err.response;
+        if (status === 403 && data?.msg?.includes('verify')) {
           setMessage('Please verify your email before logging in.');
         } else {
-          setMessage(data.msg || 'Login failed. Please check your credentials.');
+          setMessage(data?.msg || 'Login failed. Please check your credentials.');
         }
+      } else {
+        setMessage('Network error. Please try again later.');
       }
-    } catch (err) {
-      setMessage('Network error. Please try again later.');
     }
   };
 

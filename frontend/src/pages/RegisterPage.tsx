@@ -1,11 +1,13 @@
 // src/pages/RegisterPage.tsx
+
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom'; // 👈 Add this
+import { useNavigate } from 'react-router-dom';
+import apiClient from '../components/apiClient';
 
 interface RegisterResponse {
   msg?: string;
-  needs_verification?: boolean; // 👈 Add this field
+  needs_verification?: boolean;
 }
 
 export default function RegisterPage() {
@@ -19,7 +21,7 @@ export default function RegisterPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-  const navigate = useNavigate(); // 👈 Initialize navigate
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -27,29 +29,18 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const res = await apiClient.post('/api/auth/register', formData);
+      const data: RegisterResponse = res.data;
 
-      const data: RegisterResponse = await res.json();
-
-      if (res.ok) {
-        // ✅ If backend says verification is needed → redirect
-        if (data.needs_verification) {
-          navigate('/check-email', { state: { email: formData.email } });
-        } else {
-          // Fallback: show success message (unlikely in your case)
-          setMessage(data.msg || 'Registered successfully!');
-          setError(false);
-        }
+      if (data.needs_verification) {
+        navigate('/check-email', { state: { email: formData.email } });
       } else {
-        setMessage(data.msg || 'Registration failed');
-        setError(true);
+        setMessage(data.msg || 'Registered successfully!');
+        setError(false);
       }
-    } catch (err) {
-      setMessage('Network error. Please try again later.');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.msg || 'Registration failed. Please try again.';
+      setMessage(errorMsg);
       setError(true);
     } finally {
       setLoading(false);
@@ -169,7 +160,7 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {/* Message Feedback — only shown if NOT redirecting */}
+        {/* Message Feedback */}
         {message && (
           <p
             className={`mt-5 text-sm px-4 py-3 rounded-md text-center ${

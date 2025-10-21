@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUserSession } from '../hooks/useUserSession';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../components/apiClient';
 
 interface AppUser {
   id: number;
@@ -48,28 +49,28 @@ export default function AdminManageUserPage() {
   // Load all users
   useEffect(() => {
     const fetchUsers = async () => {
+      if (!token) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/admin/users', {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error('Failed to load users');
-
-        const data = await res.json();
-        setUsers(data.users);
+        const res = await apiClient.get('/api/auth/admin/users');
+        setUsers(res.data.users);
       } catch (err: any) {
-        setError(err.message);
+        if (err.response?.status !== 401) {
+          setError(err.response?.data?.msg || err.message || 'Failed to load users');
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    if (token) fetchUsers();
-  }, [token]);
+    fetchUsers();
+  }, [token, navigate]);
 
   // Open Edit Modal
-  const openEditModal = async (user: AppUser) => {
+  const openEditModal = (user: AppUser) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
@@ -130,27 +131,15 @@ export default function AdminManageUserPage() {
     if (formData.password.trim()) payload.password = formData.password.trim();
 
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/auth/admin/users/${editingUser?.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await apiClient.put(`/api/auth/admin/users/${editingUser?.id}`, payload);
 
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(data.msg || 'User updated successfully!');
-        // Update local list
-        setUsers(users.map(u => u.id === editingUser?.id ? { ...u, ...payload } : u));
-        closeEditModal();
-      } else {
-        setFormError(data.msg || 'Update failed');
-      }
-    } catch (err) {
-      setFormError('Network error. Please try again.');
+      alert(res.data.msg || 'User updated successfully!');
+      // Update local list
+      setUsers(users.map(u => u.id === editingUser?.id ? { ...u, ...payload } : u));
+      closeEditModal();
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      setFormError(err.response?.data?.msg || 'Update failed');
     } finally {
       setFormLoading(false);
     }
@@ -166,24 +155,14 @@ export default function AdminManageUserPage() {
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/auth/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiClient.delete(`/api/auth/admin/users/${userId}`);
 
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(data.msg || "User deleted successfully.");
-        // Remove from local list
-        setUsers(users.filter(u => u.id !== userId));
-      } else {
-        alert(data.msg || "Failed to delete user.");
-      }
-    } catch (err) {
-      alert("Network error. Please try again.");
+      alert(res.data.msg || "User deleted successfully.");
+      // Remove from local list
+      setUsers(users.filter(u => u.id !== userId));
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      alert(err.response?.data?.msg || "Failed to delete user.");
     }
   };
 

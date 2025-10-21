@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUserSession } from '../hooks/useUserSession';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../components/apiClient';
 
 interface AdminProfile {
   id: number;
@@ -12,7 +13,7 @@ interface AdminProfile {
 }
 
 export default function AdminProfilePage() {
-  const { token } = useUserSession(); // Use hook
+  const { token } = useUserSession();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState<AdminProfile | null>(null);
@@ -21,55 +22,43 @@ export default function AdminProfilePage() {
 
   useEffect(() => {
     if (!token) {
-      // If no token, don't fetch — just exit
       setLoading(false);
+      navigate('/login', { replace: true });
       return;
     }
 
-    const abortController = new AbortController(); // For cleanup
+    let isMounted = true;
 
     const fetchProfile = async () => {
-      setLoading(true);
-      let res;
       try {
-        res = await fetch('http://127.0.0.1:5000/api/auth/admin/profile', {
-          method: 'GET',
-          signal: abortController.signal, // Connect to abort
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const res = await apiClient.get('/api/auth/admin/profile');
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.msg || res.statusText);
-        }
+        if (!isMounted) return;
 
-        const data = await res.json();
+        const data = res.data;
         setProfile(data);
 
+        // Update session info
         localStorage.setItem('username', data.username);
         localStorage.setItem('email', data.email);
         window.dispatchEvent(new Event('sessionchange'));
-
       } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log('Fetch aborted (logout or nav away)');
-          return;
+        if (!isMounted) return;
+        
+        if (err.response?.status !== 401) {
+          setError(err.response?.data?.msg || err.message || 'Failed to load profile');
         }
-        console.error('Profile fetch error:', err);
-        setError(err.message);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchProfile();
 
-    // Cleanup: abort fetch if component unmounts or token changes
     return () => {
-      abortController.abort();
+      isMounted = false; // Prevent state updates if component unmounts
     };
   }, [token, navigate]);
 
@@ -78,7 +67,6 @@ export default function AdminProfilePage() {
   if (!profile) return <p className="text-center">No data available.</p>;
 
   return (
-    // ... rest of JSX (unchanged)
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4">
       {/* Header */}
       <div className="text-center mb-8">

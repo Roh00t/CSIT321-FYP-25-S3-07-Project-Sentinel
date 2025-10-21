@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
+import apiClient from '../components/apiClient';
 
 interface AppProfile {
   id: number;
@@ -10,7 +11,7 @@ interface AppProfile {
   email: string;
   first_name: string;
   last_name: string;
-  subscription_plan: string; // e.g., "Basic", "Pro", "Team"
+  subscription_plan: string;
   created_at: string | null;
   subscription_end_date: string | null;
   admin_email: string;
@@ -37,20 +38,13 @@ export default function AppUserProfilePage() {
       }
 
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/profile', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) throw new Error('Failed to load profile');
-
-        const data = await res.json();
-        setProfile(data);
+        const res = await apiClient.get('/api/auth/appuser/profile');
+        setProfile(res.data);
       } catch (err: any) {
         console.error('Fetch error:', err);
-        setError(err.message);
+        if (err.response?.status !== 401) {
+          setError(err.message || 'Failed to load profile');
+        }
       } finally {
         setLoading(false);
       }
@@ -70,63 +64,46 @@ export default function AppUserProfilePage() {
     if (!confirmed) return;
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/appuser/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ confirm: true })
+      const res = await apiClient.delete('/api/auth/appuser/delete', {
+        data: { confirm: true },
       });
 
-      const data = await res.json();
+      alert(res.data.msg || "Account deleted successfully.");
 
-      if (res.ok) {
-        alert(data.msg || "Account deleted successfully.");
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_type');
+      localStorage.removeItem('username');
+      localStorage.removeItem('email');
+      window.dispatchEvent(new Event('sessionchange'));
 
-        // Clear session
-        localStorage.removeItem('token');
-        localStorage.removeItem('user_type');
-        localStorage.removeItem('username');
-        localStorage.removeItem('email');
-        window.dispatchEvent(new Event('sessionchange'));
-
-        // Redirect to home
-        navigate('/');
-      } else {
-        alert(data.msg || "Failed to delete account.");
+      navigate('/');
+    } catch (err: any) {
+      if (err.response?.status !== 401) {
+        alert(err.response?.data?.msg || "Failed to delete account.");
       }
-    } catch (err) {
-      alert("Network error. Please try again.");
     }
   };
 
   const handleRequestAdminEmail = async () => {
-    if (!token || !adminEmailInput.trim()) return;
+    if (!adminEmailInput.trim()) return;
 
     setAdminEmailSubmitting(true);
     setAdminEmailMessage('');
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/auth/admin-email/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: adminEmailInput.trim() }),
+      const res = await apiClient.post('/api/auth/admin-email/request', {
+        email: adminEmailInput.trim(),
       });
 
-      const data = await res.json();
-      if (res.ok) {
-        setAdminEmailMessage('Verification email sent! Please check your inbox.');
-        setAdminEmailInput('');
-        setTimeout(() => setShowAdminEmailModal(false), 2000);
-      } else {
-        setAdminEmailMessage(data.msg || 'Failed to send verification email.');
+      setAdminEmailMessage('Verification email sent! Please check your inbox.');
+      setAdminEmailInput('');
+      setTimeout(() => setShowAdminEmailModal(false), 2000);
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        // Handled globally — do nothing here
+        return;
       }
-    } catch (err) {
-      setAdminEmailMessage('Network error. Please try again.');
+      setAdminEmailMessage(err.response?.data?.msg || 'Failed to send verification email.');
     } finally {
       setAdminEmailSubmitting(false);
     }
