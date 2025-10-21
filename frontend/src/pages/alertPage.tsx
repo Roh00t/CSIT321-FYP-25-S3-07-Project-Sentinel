@@ -28,7 +28,6 @@ import { useSocketLogger } from "../hooks/useSocketLogger";
 
 // PDF
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
 // Toast helpers
 function showToast(message: string, duration = 3000) {
@@ -93,14 +92,12 @@ export default function AlertsPage() {
     low: false,
     threshold: 100,
   });
-  const [reportFrequency, setReportFrequency] = useState("weekly");
+  const [reportFrequency] = useState("weekly");
   const [showApiKeySettings, setShowApiKeySettings] = useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newApiKeyName, setNewApiKeyName] = useState("");
   const [newApiKeyType, setNewApiKeyType] = useState("suricata");
   const [loadingKeys, setLoadingKeys] = useState(false);
-  const [pcapFiles, setPcapFiles] = useState<any[]>([]);
-  const [loadingPcap, setLoadingPcap] = useState(false);
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
 
   const filteredAlertsByApiKey = useMemo(() => {
@@ -129,12 +126,14 @@ export default function AlertsPage() {
   const [perPage] = useState(100);
   const [totalAlerts, setTotalAlerts] = useState(0);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [serverSummary, setServerSummary] = useState<any>(null);
 
-  const fetchAlertsPage = async (pageNumber = 1) => {
+  const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
     if (!token) return;
     setLoadingAlerts(true);
     try {
-      const res = await apiClient.get(`/api/alerts_api?page=${pageNumber}&per_page=${perPage}`);
+      const timeRangeParam = timeRange || "today";
+      const res = await apiClient.get(`/api/alerts_api?page=${pageNumber}&per_page=${perPage}&time_range=${timeRangeParam}`);
       setAlerts((prev) => {
         const existingKeys = new Set(
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
@@ -149,6 +148,7 @@ export default function AlertsPage() {
       });
       setTotalAlerts(res.data.total);
       setPage(res.data.page);
+      setServerSummary(res.data.summary);
     } catch (err: any) {
       if (err.response?.status === 401) return;
       console.error("Failed to fetch alerts:", err);
@@ -222,7 +222,7 @@ export default function AlertsPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("time_window", "5");
-    setLoadingPcap(true);
+    setLoading(true);
     try {
       const res = await apiClient.post("/api/pcaps/upload", formData, {
         headers: {
@@ -230,14 +230,13 @@ export default function AlertsPage() {
         },
       });
       showToast(`PCAP uploaded! ${res.data.matches_found} matches found`);
-      setPcapFiles((prev) => [res.data.pcap_file, ...prev]);
     } catch (err: any) {
       if (err.response?.status === 401) return;
       console.error(err);
       const errorMsg = err.response?.data?.error || "Failed to upload PCAP";
       showRToast(errorMsg);
     } finally {
-      setLoadingPcap(false);
+      setLoading(false);
       e.target.value = "";
     }
   };
@@ -348,7 +347,7 @@ export default function AlertsPage() {
         console.warn("⚠️ Malformed payload received:", payload);
         return;
       }
-      const alerts = payload.alerts.map((a: any, i: number) => ({
+      const alerts = payload.alerts.map((a: any) => ({
         api_key: a.api_key || "unknown",
         id: crypto.randomUUID(),
         timestamp: a.timestamp || new Date().toISOString(),
@@ -430,6 +429,15 @@ export default function AlertsPage() {
   });
 
   const summary = useMemo(() => {
+    if (serverSummary) {
+      return {
+        total: totalAlerts,
+        topTalkers: serverSummary.top_talkers || [],
+        topHosts: serverSummary.top_hosts || [],
+        topSignatures: serverSummary.top_signatures || [],
+      };
+    }
+    // Fallback to client-side calculation if server summary not available
     const alertEvents = filteredAlerts.filter(a => a.severity);
     const total = alertEvents.length;
     const topTalkers: Record<string, number> = {};
@@ -450,24 +458,24 @@ export default function AlertsPage() {
       topHosts: sortDesc(topHosts),
       topSignatures: sortDesc(topSignatures),
     };
-  }, [filteredAlerts]);
+  }, [filteredAlerts, serverSummary, totalAlerts]);
 
   const severityData = {
     labels: [' '],
     datasets: [
       {
         label: 'Low',
-        data: [filteredAlerts.filter(a => a.severity === 3).length],
+        data: [serverSummary?.severity?.low || filteredAlerts.filter(a => a.severity === 3).length],
         backgroundColor: '#10B981',
       },
       {
         label: 'Medium',
-        data: [filteredAlerts.filter(a => a.severity === 2).length],
+        data: [serverSummary?.severity?.medium || filteredAlerts.filter(a => a.severity === 2).length],
         backgroundColor: '#FBBF24',
       },
       {
         label: 'High',
-        data: [filteredAlerts.filter(a => a.severity === 1).length],
+        data: [serverSummary?.severity?.high || filteredAlerts.filter(a => a.severity === 1).length],
         backgroundColor: '#f85e4aff',
       }
     ]
@@ -477,10 +485,14 @@ export default function AlertsPage() {
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
       data: [
-        filteredAlerts.filter(a => a.protocol === 'TCP').length,
-        filteredAlerts.filter(a => a.protocol === 'UDP').length,
-        filteredAlerts.filter(a => a.protocol === 'ICMP').length,
-        filteredAlerts.filter(a => !['TCP','UDP','ICMP'].includes(a.protocol)).length
+        serverSummary?.protocols?.TCP || filteredAlerts.filter(a => a.protocol === 'TCP').length,
+        serverSummary?.protocols?.UDP || filteredAlerts.filter(a => a.protocol === 'UDP').length,
+        serverSummary?.protocols?.ICMP || filteredAlerts.filter(a => a.protocol === 'ICMP').length,
+        serverSummary ? 
+          Object.entries(serverSummary.protocols || {})
+            .filter(([proto]) => !['TCP', 'UDP', 'ICMP'].includes(proto))
+            .reduce((sum, [, count]) => sum + (count as number), 0)
+          : filteredAlerts.filter(a => !['TCP','UDP','ICMP'].includes(a.protocol)).length
       ],
       backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
     }]
@@ -504,107 +516,166 @@ export default function AlertsPage() {
 
   const [timeRangeView, setTimeRangeView] = useState<"today" | "week" | "month" | "year">("today");
 
-  const now = new Date();
-  let startTime = new Date();
-  if (timeRangeView === "today") {
-    startTime.setHours(0, 0, 0, 0);
-  } else if (timeRangeView === "week") {
-    const day = now.getDay();
-    startTime = new Date(now);
-    startTime.setDate(now.getDate() - day);
-    startTime.setHours(0, 0, 0, 0);
-  } else if (timeRangeView === "month") {
-    startTime = new Date(now.getFullYear(), now.getMonth(), 1);
-  } else if (timeRangeView === "year") {
-    startTime = new Date(now.getFullYear(), 0, 1);
-  }
+  // Generate labels based on time range
+  const generateLabels = (timeRange: string) => {
+    const now = new Date();
+    let fullLabels: string[] = [];
+    
+    if (timeRange === "today") {
+      fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    } else if (timeRange === "week") {
+      const startOfWeek = new Date();
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      fullLabels = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(startOfWeek);
+        d.setDate(startOfWeek.getDate() + i);
+        return d.toLocaleDateString();
+      });
+    } else if (timeRange === "month") {
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      fullLabels = Array.from({ length: daysInMonth }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
+        return d.toLocaleDateString();
+      });
+    } else if (timeRange === "year") {
+      fullLabels = Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(now.getFullYear(), i, 1);
+        return d.toLocaleString("default", { month: "short", year: "numeric" });
+      });
+    }
+    return fullLabels;
+  };
 
-  const filteredByTime = filteredAlerts.filter((a) => {
-    const d = new Date(a.timestamp);
-    return d >= startTime && d <= now;
-  });
+  // Use server data if available, otherwise fallback to client-side
+  const alertsOverTimeData = useMemo(() => {
+    if (serverSummary?.activity_over_time) {
+      const { threats, activity } = serverSummary.activity_over_time;
+      const fullLabels = generateLabels(timeRangeView);
+      
+      // Convert time buckets to match label format
+      const formatServerKey = (key: string) => {
+        const d = new Date(key);
+        if (timeRangeView === "today") {
+          return `${d.getHours()}:00`;
+        } else if (timeRangeView === "week" || timeRangeView === "month") {
+          return d.toLocaleDateString();
+        } else if (timeRangeView === "year") {
+          return d.toLocaleString("default", { month: "short", year: "numeric" });
+        }
+        return key;
+      };
+      
+      const detected = fullLabels.map((label) => {
+        // Find matching server key
+        const matchingKey = Object.keys(threats).find(k => formatServerKey(k) === label);
+        return matchingKey ? threats[matchingKey] : 0;
+      });
+      
+      const activityData = fullLabels.map((label) => {
+        const matchingKey = Object.keys(activity).find(k => formatServerKey(k) === label);
+        return matchingKey ? activity[matchingKey] : 0;
+      });
+      
+      return {
+        labels: fullLabels,
+        datasets: [
+          {
+            label: "Detected Threats",
+            data: detected,
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239,68,68,0.15)",
+            tension: 0.3,
+          },
+          {
+            label: "Activity (non-threat)",
+            data: activityData,
+            borderColor: "#0b97f5",
+            backgroundColor: "rgba(11,151,245,0.12)",
+            tension: 0.3,
+          },
+        ],
+      };
+    }
+    
+    // Fallback to client-side calculation
+    const now = new Date();
+    let startTime = new Date();
+    if (timeRangeView === "today") {
+      startTime.setHours(0, 0, 0, 0);
+    } else if (timeRangeView === "week") {
+      const day = now.getDay();
+      startTime = new Date(now);
+      startTime.setDate(now.getDate() - day);
+      startTime.setHours(0, 0, 0, 0);
+    } else if (timeRangeView === "month") {
+      startTime = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (timeRangeView === "year") {
+      startTime = new Date(now.getFullYear(), 0, 1);
+    }
 
-  const groupAlerts = (unit: string, source: any[]) => {
-    const map = new Map<string, { threats: number; activity: number }>();
-    source.forEach((a) => {
+    const filteredByTime = filteredAlerts.filter((a) => {
       const d = new Date(a.timestamp);
-      if (isNaN(d.getTime())) return;
-      let key = "";
-      if (unit === "hour") key = `${d.getHours()}:00`;
-      else if (unit === "day") key = d.toLocaleDateString();
-      else if (unit === "week") {
-        const firstDay = new Date(d);
-        firstDay.setDate(d.getDate() - d.getDay());
-        key = `Week of ${firstDay.toLocaleDateString()}`;
-      } else if (unit === "month") {
-        key = d.toLocaleString("default", { month: "short", year: "numeric" });
-      }
-      const isThreat = [1, 2, 3].includes(a.severity);
-      const entry = map.get(key) || { threats: 0, activity: 0 };
-      if (isThreat) entry.threats++;
-      else entry.activity++;
-      map.set(key, entry);
+      return d >= startTime && d <= now;
     });
-    return map;
-  };
 
-  const unit =
-    timeRangeView === "today"
-      ? "hour"
-      : timeRangeView === "week"
-      ? "day"
-      : timeRangeView === "month"
-      ? "day"
-      : "month";
-  const groupedData = groupAlerts(unit, filteredByTime);
+    const groupAlerts = (unit: string, source: any[]) => {
+      const map = new Map<string, { threats: number; activity: number }>();
+      source.forEach((a) => {
+        const d = new Date(a.timestamp);
+        if (isNaN(d.getTime())) return;
+        let key = "";
+        if (unit === "hour") key = `${d.getHours()}:00`;
+        else if (unit === "day") key = d.toLocaleDateString();
+        else if (unit === "week") {
+          const firstDay = new Date(d);
+          firstDay.setDate(d.getDate() - d.getDay());
+          key = `Week of ${firstDay.toLocaleDateString()}`;
+        } else if (unit === "month") {
+          key = d.toLocaleString("default", { month: "short", year: "numeric" });
+        }
+        const isThreat = [1, 2, 3].includes(a.severity);
+        const entry = map.get(key) || { threats: 0, activity: 0 };
+        if (isThreat) entry.threats++;
+        else entry.activity++;
+        map.set(key, entry);
+      });
+      return map;
+    };
 
-  let fullLabels: string[] = [];
-  if (timeRangeView === "today") {
-    fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-  } else if (timeRangeView === "week") {
-    const startOfWeek = new Date();
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    fullLabels = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      return d.toLocaleDateString();
-    });
-  } else if (timeRangeView === "month") {
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    fullLabels = Array.from({ length: daysInMonth }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
-      return d.toLocaleDateString();
-    });
-  } else if (timeRangeView === "year") {
-    fullLabels = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(i);
-      return d.toLocaleString("default", { month: "short", year: "numeric" });
-    });
-  }
+    const unit =
+      timeRangeView === "today"
+        ? "hour"
+        : timeRangeView === "week"
+        ? "day"
+        : timeRangeView === "month"
+        ? "day"
+        : "month";
+    const groupedData = groupAlerts(unit, filteredByTime);
 
-  const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
-  const activity = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
+    const fullLabels = generateLabels(timeRangeView);
+    const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
+    const activityData = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
 
-  const alertsOverTimeData = {
-    labels: fullLabels,
-    datasets: [
-      {
-        label: "Detected Threats",
-        data: detected,
-        borderColor: "#ef4444",
-        backgroundColor: "rgba(239,68,68,0.15)",
-        tension: 0.3,
-      },
-      {
-        label: "Activity (non-threat)",
-        data: activity,
-        borderColor: "#0b97f5",
-        backgroundColor: "rgba(11,151,245,0.12)",
-        tension: 0.3,
-      },
-    ],
-  };
+    return {
+      labels: fullLabels,
+      datasets: [
+        {
+          label: "Detected Threats",
+          data: detected,
+          borderColor: "#ef4444",
+          backgroundColor: "rgba(239,68,68,0.15)",
+          tension: 0.3,
+        },
+        {
+          label: "Activity (non-threat)",
+          data: activityData,
+          borderColor: "#0b97f5",
+          backgroundColor: "rgba(11,151,245,0.12)",
+          tension: 0.3,
+        },
+      ],
+    };
+  }, [serverSummary, timeRangeView, filteredAlerts]);
 
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
@@ -640,95 +711,6 @@ export default function AlertsPage() {
       setLoadingIntel(false);
     }
   };
-
-const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | "year", alerts: any[]) => {
-  const now = new Date();
-  let startTime = new Date(now);
-  if (timeRangeView === "today") {
-    startTime.setHours(0, 0, 0, 0);
-  } else if (timeRangeView === "week") {
-    startTime.setDate(now.getDate() - now.getDay());
-    startTime.setHours(0, 0, 0, 0);
-  } else if (timeRangeView === "month") {
-    startTime = new Date(now.getFullYear(), now.getMonth(), 1);
-  } else if (timeRangeView === "year") {
-    startTime = new Date(now.getFullYear(), 0, 1);
-  }
-
-  const filtered = alerts.filter(a => {
-    const d = new Date(a.timestamp);
-    return d >= startTime && d <= now;
-  });
-
-  const unit = timeRangeView === "today" ? "hour" : 
-               timeRangeView === "week" || timeRangeView === "month" ? "day" : "month";
-
-  const grouped = new Map<string, { threats: number; activity: number }>();
-  filtered.forEach(a => {
-    const d = new Date(a.timestamp);
-    if (isNaN(d.getTime())) return;
-    let key = "";
-    if (unit === "hour") key = `${d.getHours()}:00`;
-    else if (unit === "day") key = d.toLocaleDateString();
-    else if (unit === "month") key = d.toLocaleString("default", { month: "short", year: "numeric" });
-    
-    const isThreat = [1, 2, 3].includes(a.severity);
-    const entry = grouped.get(key) || { threats: 0, activity: 0 };
-    if (isThreat) entry.threats++;
-    else entry.activity++;
-    grouped.set(key, entry);
-  });
-
-  let labels: string[] = [];
-  if (timeRangeView === "today") {
-    labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-  } else if (timeRangeView === "week") {
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    labels = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      return d.toLocaleDateString();
-    });
-  } else if (timeRangeView === "month") {
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    labels = Array.from({ length: daysInMonth }, (_, i) => {
-      const d = new Date(year, month, i + 1);
-      return d.toLocaleDateString();
-    });
-  } else if (timeRangeView === "year") {
-    labels = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), i, 1);
-      return d.toLocaleString("default", { month: "short", year: "numeric" });
-    });
-  }
-
-  const detected = labels.map(label => grouped.get(label)?.threats ?? 0);
-  const activity = labels.map(label => grouped.get(label)?.activity ?? 0);
-
-  return {
-    labels,
-    datasets: [
-      {
-        label: "Detected Threats",
-        data: detected,
-        borderColor: "#ef4444",
-        backgroundColor: "rgba(239,68,68,0.15)",
-        tension: 0.3,
-      },
-      {
-        label: "Activity (non-threat)",
-        data: activity,
-        borderColor: "#0b97f5",
-        backgroundColor: "rgba(11,151,245,0.12)",
-        tension: 0.3,
-      },
-    ],
-  };
-};
 
   const generateReport = async () => {
     const doc = new jsPDF("p", "mm", "a4");
@@ -1077,7 +1059,10 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
                 {["today", "week", "month", "year"].map((r) => (
                   <button
                     key={r}
-                    onClick={() => setTimeRangeView(r as any)}
+                    onClick={() => {
+                      setTimeRangeView(r as any);
+                      fetchAlertsPage(1, r);
+                    }}
                     className={`px-2 py-1 text-sm rounded ${
                       timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
                     }`}
@@ -1107,7 +1092,7 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
             <h3 className="font-semibold mb-2">Top Talkers</h3>
             <table className="w-full text-sm">
               <tbody>
-                {summary.topTalkers.map(([ip, count]) => (
+                {summary.topTalkers.map(([ip, count]: [string, number]) => (
                   <tr key={ip}>
                     <td>{ip}</td>
                     <td className="text-right font-semibold">{count}</td>
@@ -1120,7 +1105,7 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
             <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
             <table className="w-full text-sm">
               <tbody>
-                {summary.topHosts.map(([ip, count]) => (
+                {summary.topHosts.map(([ip, count]: [string, number]) => (
                   <tr key={ip}>
                     <td>{ip}</td>
                     <td className="text-right font-semibold">{count}</td>
@@ -1133,9 +1118,9 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
             <h3 className="font-semibold mb-2">Top Signatures</h3>
             <table className="w-full text-sm">
               <tbody>
-                {summary.topSignatures.map(([sig, count]) => (
+                {summary.topSignatures.map(([sig, count]: [string, number]) => (
                   <tr key={sig}>
-                    <td>{sig}</td>
+                    <td title={sig}>{sig.length > 30 ? sig.substring(0, 30) + '...' : sig}</td>
                     <td className="text-right font-semibold">{count}</td>
                   </tr>
                 ))}
