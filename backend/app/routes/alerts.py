@@ -1,6 +1,16 @@
 from flask import Blueprint, request, jsonify, current_app
 import os, json
 from werkzeug.utils import secure_filename
+from app.utils.email_utils import send_alert_email
+try:
+    from app.models.app_user import AppUser
+    from app.models.api_keys import ApiKey
+    from app import db
+except ImportError:
+    # These imports should be done after db is initialized in app/__init__.py
+    AppUser = None
+    ApiKey = None
+    db = None
 
 alerts_bp = Blueprint("alerts", __name__)
 UPLOAD_FOLDER = "uploads"
@@ -120,6 +130,9 @@ def normalize_alert(alert: dict) -> dict:
         except ValueError:
             dest_port = None
 
+    api_key = alert.get("api_key")
+    admin_email = get_admin_email_for_api_key(api_key)
+
     return {
         "timestamp": ts,
         "src_ip": src_ip,
@@ -134,7 +147,19 @@ def normalize_alert(alert: dict) -> dict:
         "original": alert,
         "src_port": src_port,
         "dest_port": dest_port,
+        "api_key": api_key,
+        "admin_email": admin_email,
     }
+
+def get_admin_email_for_api_key(api_key_value):
+    if not api_key_value or api_key_value == "0":
+        return None
+    key = ApiKey.query.filter_by(key=api_key_value).first()
+    if key and key.user_id:
+        user = AppUser.query.filter_by(id=key.user_id).first()
+        if user and user.admin_email:
+            return user.admin_email
+    return None
 
     
 @alerts_bp.route("/upload-alerts", methods=["POST"])
@@ -152,33 +177,77 @@ def upload_alerts():
     file.save(save_path)
 
     alerts = []
-
     try:
+        from app.models.app_user import AppUser
+        from app.models.alert import Alert
+        from app import db
+        user_id = request.form.get("user_id") or request.args.get("user_id")
+        app_user = None
+        if user_id:
+            app_user = AppUser.query.filter_by(id=user_id).first()
+
         with open(save_path, "r") as f:
             first_char = f.read(1)
             f.seek(0)
-
             if first_char == "[":
                 data = json.load(f)
-                for alert in data:
-                    # Skip stats-only events
-                    if alert.get("event_type") == "stats":
-                        continue
-                    alerts.append(normalize_alert(alert))
+                alert_objs = data
             else:
+                alert_objs = []
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
                     try:
                         alert = json.loads(line)
-                        if alert.get("event_type") == "stats":
-                            continue
-                        alerts.append(normalize_alert(alert))
+                        alert_objs.append(alert)
                     except json.JSONDecodeError:
                         continue
 
-        return jsonify({"alerts": alerts}), 200
+        # If Pro user, persist alerts
+        print(app_user.subscription_plan)
+        if app_user and app_user.subscription_plan == "Pro":
+            for alert in alert_objs:
+                if alert.get("event_type") == "stats":
+                    continue
+                norm = normalize_alert(alert)
+                alert_model = Alert(
+                    timestamp=datetime.fromisoformat(norm["timestamp"]) if norm["timestamp"] else datetime.utcnow(),
+                    src_ip=norm["src_ip"],
+                    src_port=norm["src_port"],
+                    dest_ip=norm["dest_ip"],
+                    dest_port=norm["dest_port"],
+                    protocol=norm["protocol"],
+                    signature=norm["signature"],
+                    severity=norm["severity"],
+                    api_key=norm.get("api_key"),
+                    source_forwarder_name=None,
+                    user_id=app_user.id
+                )
+                db.session.add(alert_model)
+                alerts.append(alert_model.to_dict())
+            db.session.commit()
+        else:
+            # Basic user: do not persist, just normalize
+            for alert in alert_objs:
+                if alert.get("event_type") == "stats":
+                    continue
+                alerts.append(normalize_alert(alert))
 
+        return jsonify({"alerts": alerts}), 200
     except Exception as e:
-        return jsonify({"error": f"Failed to parse file: {str(e)}"}), 400
+        return jsonify({"error": f"Failed to parse or save alerts: {str(e)}"}), 400
+
+@alerts_bp.route("/stream/send-email", methods=["POST"])
+def send_alert_stream_email():
+    data = request.get_json()
+    to_email = data.get("to")
+    message = data.get("message")
+    if not to_email or not message:
+        return jsonify({"error": "Missing 'to' or 'message' field"}), 400
+    subject = "Security Alert Notification"
+    success = send_alert_email(to_email, subject, message)
+    if success:
+        return jsonify({"status": "sent"}), 200
+    else:
+        return jsonify({"error": "Failed to send email"}), 500

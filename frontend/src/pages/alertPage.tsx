@@ -719,15 +719,11 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
   };
 };
 
-  const alertsOverTimeDataToday = generateAlertsOverTimeData("today", filteredAlerts);
-  const alertsOverTimeDataWeek = generateAlertsOverTimeData("week", filteredAlerts);
-  const alertsOverTimeDataMonth = generateAlertsOverTimeData("month", filteredAlerts);
-
   const generateReport = async () => {
     const doc = new jsPDF("p", "mm", "a4");
     let yPos = 10;
     doc.setFontSize(18);
-    doc.text("Alerts Management Report", 105, yPos, { align: "center" });
+    doc.text(" Sentinel Alerts Management Report", 105, yPos, { align: "center" });
     yPos += 10;
     doc.setFontSize(10);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 10, yPos);
@@ -749,8 +745,8 @@ const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | 
       yPos += 2;
     };
     top("Top Talkers", summary.topTalkers);
-    top("Top Hosts", summary.topHosts);
-    top("Top Signatures", summary.topSignatures);
+    top("Top Attacked Hosts", summary.topHosts);
+    top("Top Detected Signatures", summary.topSignatures);
     yPos += 4;
     const addChart = async (canvasId: string, title: string) => {
       const canvasEl = document.getElementById(canvasId) as HTMLCanvasElement;

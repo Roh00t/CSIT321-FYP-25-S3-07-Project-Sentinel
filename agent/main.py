@@ -24,13 +24,17 @@ class MultiForwarderGUI:
         self.tree.column("status", width=100)
         self.tree.pack(padx=10, pady=(10, 5), fill="x")
 
+
         # === Buttons ===
         btn_frame = tk.Frame(root)
         btn_frame.pack(pady=5)
         tk.Button(btn_frame, text="Add Source", command=self.add_source).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Remove Selected", command=self.remove_source).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Start Selected", command=self.start_selected).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Stop Selected", command=self.stop_selected).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Start All", command=self.start_all).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Stop All", command=self.stop_all).pack(side="left", padx=5)
+
 
         # === Log box ===
         self.log_box = scrolledtext.ScrolledText(root, width=90, height=18, state="disabled", wrap="word")
@@ -181,6 +185,22 @@ class MultiForwarderGUI:
                     self.log(f"🔄 Loaded source: {path}")
         except Exception as e:
             self.log(f"⚠️ Failed to load sources: {e}")
+    def start_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("No selection", "Please select a source to start.")
+            return
+        for iid in selected:
+            self.start_forwarder(iid)
+
+    def stop_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("No selection", "Please select a source to stop.")
+            return
+        for iid in selected:
+            self.stop_forwarder(iid)
+
 
 
 # ----------------------------
