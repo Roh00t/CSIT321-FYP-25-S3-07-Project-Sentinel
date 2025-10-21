@@ -128,24 +128,74 @@ export default function AlertsPage() {
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [serverSummary, setServerSummary] = useState<any>(null);
 
+  const [filters, setFilters] = useState({
+    minSeverity: 0,
+    alertsOnly: false,
+    protocols: new Set<string>(),
+    port: undefined as number | undefined,
+    ip: "",
+    timeRange: { start: null as string | null, end: null as string | null },
+    agent: ""
+  });
+
   const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
     if (!token) return;
     setLoadingAlerts(true);
     try {
       const timeRangeParam = timeRange || "today";
-      const res = await apiClient.get(`/api/alerts_api?page=${pageNumber}&per_page=${perPage}&time_range=${timeRangeParam}`);
-      setAlerts((prev) => {
-        const existingKeys = new Set(
-          prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
-        );
-        const newFiltered = res.data.alerts.filter((a: any) => {
-          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
-          if (existingKeys.has(key)) return false;
-          existingKeys.add(key);
-          return true;
-        });
-        return [...prev, ...newFiltered];
+      
+      // Build query params with filters
+      const params = new URLSearchParams({
+        page: pageNumber.toString(),
+        per_page: perPage.toString(),
+        time_range: timeRangeParam,
       });
+      
+      // Add filters
+      if (filters.minSeverity > 0) {
+        params.append("min_severity", filters.minSeverity.toString());
+      }
+      if (filters.alertsOnly) {
+        params.append("alerts_only", "true");
+      }
+      if (filters.protocols.size > 0) {
+        params.append("protocols", Array.from(filters.protocols).join(","));
+      }
+      if (filters.port !== undefined) {
+        params.append("port", filters.port.toString());
+      }
+      if (filters.ip) {
+        params.append("ip", filters.ip);
+      }
+      if (filters.agent) {
+        params.append("agent", filters.agent);
+      }
+      if (filters.timeRange.start) {
+        params.append("start_time", filters.timeRange.start);
+      }
+      if (filters.timeRange.end) {
+        params.append("end_time", filters.timeRange.end);
+      }
+      
+      const res = await apiClient.get(`/api/alerts_api?${params.toString()}`);
+      
+      // If this is page 1, replace alerts; otherwise append
+      if (pageNumber === 1) {
+        setAlerts(res.data.alerts);
+      } else {
+        setAlerts((prev) => {
+          const existingKeys = new Set(
+            prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
+          );
+          const newFiltered = res.data.alerts.filter((a: any) => {
+            const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
+            if (existingKeys.has(key)) return false;
+            existingKeys.add(key);
+            return true;
+          });
+          return [...prev, ...newFiltered];
+        });
+      }
       setTotalAlerts(res.data.total);
       setPage(res.data.page);
       setServerSummary(res.data.summary);
@@ -161,19 +211,17 @@ export default function AlertsPage() {
     fetchAlertsPage(1);
   }, [token]);
 
+  // Refetch when filters change
+  useEffect(() => {
+    if (token) {
+      setPage(1);
+      fetchAlertsPage(1);
+    }
+  }, [filters, token]);
+
   useEffect(() => {
     if (showApiKeySettings) fetchApiKeys();
   }, [showApiKeySettings]);
-
-  const [filters, setFilters] = useState({
-    minSeverity: 0,
-    alertsOnly: false,
-    protocols: new Set<string>(),
-    port: undefined as number | undefined,
-    ip: "",
-    timeRange: { start: null as string | null, end: null as string | null },
-    agent: ""
-  });
 
   const [sortField, setSortField] = useState<string>("timestamp");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
@@ -396,24 +444,9 @@ export default function AlertsPage() {
     fetchApiKeys();
   }, [token]);
 
-  let filteredAlerts = filteredAlertsByApiKey.filter((a) => {
-    if (filters.alertsOnly && (a.severity == "0" || a.severity == null)) return false;
-    if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
-    if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
-    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
-    if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
-    if (filters.agent && a.api_key !== filters.agent) return false;
-    if (filters.timeRange.start || filters.timeRange.end) {
-      const ts = a.timestamp ? new Date(a.timestamp) : null;
-      if (ts) {
-        if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
-        if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
-      }
-    }
-    return true;
-  });
-
-  filteredAlerts = [...filteredAlerts].sort((a, b) => {
+  // No client-side filtering - all filtering is done server-side
+  // Just apply sorting to the alerts from the API
+  let filteredAlerts = [...filteredAlertsByApiKey].sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
     if (sortField === "agent") {
@@ -1028,62 +1061,59 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
-      {alerts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-            <span className="text-lg font-semibold mb-2">Severity Levels</span>
-            <Bar
-              id="severity-chart"
-              data={severityData}
-              options={{responsive: true, maintainAspectRatio: false, 
-                plugins: {
-                  legend: {},
-                },}}
-              height={200}
-            />
-          </div>
-          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-            <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
-            <Doughnut
-              id="protocol-chart"
-              key={"protocol-" + filteredAlerts.length}
-              data={protocolData}
-              options={{ responsive: true, maintainAspectRatio: false }}
-              height={200}
-            />
-          </div>
-          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-lg font-semibold">Activity over time</span>
-              <div className="flex gap-2">
-                {["today", "week", "month", "year"].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => {
-                      setTimeRangeView(r as any);
-                      fetchAlertsPage(1, r);
-                    }}
-                    className={`px-2 py-1 text-sm rounded ${
-                      timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
-                    }`}
-                  >
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Line
-              id="alerts-over-time-chart"
-              key={`${timeRangeView}-${filteredAlerts.length}`}
-              data={alertsOverTimeData}
-              options={alertsPerHourOptions}
-              height={200}
-            />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+          <span className="text-lg font-semibold mb-2">Severity Levels</span>
+          <Bar
+            id="severity-chart"
+            data={severityData}
+            options={{responsive: true, maintainAspectRatio: false, 
+              plugins: {
+                legend: {},
+              },}}
+            height={200}
+          />
         </div>
-      )}
-      {alerts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
+        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+          <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
+          <Doughnut
+            id="protocol-chart"
+            key={"protocol-" + filteredAlerts.length}
+            data={protocolData}
+            options={{ responsive: true, maintainAspectRatio: false }}
+            height={200}
+          />
+        </div>
+        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
+          <div className="flex items-center justify-between w-full mb-2">
+            <span className="text-lg font-semibold">Activity over time</span>
+            <div className="flex gap-2">
+              {["today", "week", "month", "year"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => {
+                    setTimeRangeView(r as any);
+                    fetchAlertsPage(1, r);
+                  }}
+                  className={`px-2 py-1 text-sm rounded ${
+                    timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+                  }`}
+                >
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Line
+            id="alerts-over-time-chart"
+            key={`${timeRangeView}-${filteredAlerts.length}`}
+            data={alertsOverTimeData}
+            options={alertsPerHourOptions}
+            height={200}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
           <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
             <span className="text-4xl font-bold">{summary.total}</span>
             <span className="mt-2 font-medium">Total Alerts</span>
@@ -1180,10 +1210,7 @@ export default function AlertsPage() {
             </div>
           </div>
         </div>
-      )}
-      {alerts.length > 0 && (
-        <>
-          <div className="mb-4 flex gap-4 flex-wrap">
+      <div className="mb-4 flex gap-4 flex-wrap">
             {apiKeys.filter(k => !k.revoked).length > 0 && (
               <label className="ml-4">
                 Agent:
@@ -1344,8 +1371,6 @@ export default function AlertsPage() {
               </div>
             )}
           </div>
-        </>
-      )}
       {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
       {filteredAlerts.length > 0 && (
         <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
@@ -1442,12 +1467,20 @@ export default function AlertsPage() {
         </div>
       )}
       {!loading && alerts.length === 0 && (
-        <div className="text-gray-600 mt-4">
-          <p>The dashboard isn't getting info, is:</p>
-          <ul className="list-disc list-inside">
-            <li>Suricata or Snort running and generating alerts?</li>
-            <li>The agent connected?</li>
-          </ul>
+        <div className="text-gray-600 mt-4 bg-gray-100 p-6 rounded-lg">
+          <p className="font-semibold mb-2">No alerts found</p>
+          {(filters.minSeverity > 0 || filters.alertsOnly || filters.protocols.size > 0 || filters.port || filters.ip || filters.agent || filters.timeRange.start || filters.timeRange.end) ? (
+            <p>No alerts match your current filters. Try adjusting or clearing the filters above.</p>
+          ) : (
+            <>
+              <p>The dashboard isn't receiving data. Check if:</p>
+              <ul className="list-disc list-inside mt-2">
+                <li>Suricata or Snort is running and generating alerts</li>
+                <li>The agent is connected</li>
+                <li>You have uploaded any alert files</li>
+              </ul>
+            </>
+          )}
         </div>
       )}
       {selectedAlert && (
