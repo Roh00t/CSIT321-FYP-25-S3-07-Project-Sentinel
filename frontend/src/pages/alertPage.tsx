@@ -1,10 +1,12 @@
-//frontend/src/pages/alertPage.tsx
+// src/pages/AlertsPage.tsx
+
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import apiClient from "../components/apiClient";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import React from "react";
-// near top of your AlertsPage.tsx (or a Chart component file)
+
+// Chart.js
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -19,11 +21,16 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend);
-import { io } from "socket.io-client";
+
+// Socket.IO
+import { io, Socket } from "socket.io-client";
 import { useSocketLogger } from "../hooks/useSocketLogger";
+
+// PDF
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
+// Toast helpers
 function showToast(message: string, duration = 3000) {
   let toast = document.getElementById("toast");
   if (!toast) {
@@ -45,6 +52,7 @@ function showToast(message: string, duration = 3000) {
     toast!.style.display = "none";
   }, duration);
 }
+
 function showRToast(message: string, duration = 3000) {
   let toast = document.getElementById("toast");
   if (!toast) {
@@ -85,7 +93,7 @@ export default function AlertsPage() {
     low: false,
     threshold: 100,
   });
-  const [reportFrequency, setReportFrequency] = useState("weekly"); // default value
+  const [reportFrequency, setReportFrequency] = useState("weekly");
   const [showApiKeySettings, setShowApiKeySettings] = useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newApiKeyName, setNewApiKeyName] = useState("");
@@ -94,79 +102,63 @@ export default function AlertsPage() {
   const [pcapFiles, setPcapFiles] = useState<any[]>([]);
   const [loadingPcap, setLoadingPcap] = useState(false);
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
+
   const filteredAlertsByApiKey = useMemo(() => {
-  if (!apiKeys.length) return [];
+    if (!apiKeys.length) return [];
+    const activeKeys = apiKeys.filter(k => !k.revoked);
+    const userKeysSet = new Set(activeKeys.map(k => k.key));
+    return alerts.filter(a => a.api_key && userKeysSet.has(a.api_key) || a.api_key === "0");
+  }, [alerts, apiKeys]);
 
-  const activeKeys = apiKeys.filter(k => !k.revoked);
-  const userKeysSet = new Set(activeKeys.map(k => k.key));
-  //console.log("Active API Keys:", Array.from(userKeysSet));
-
-  const filtered = alerts.filter(a => {
-    const match = a.api_key && userKeysSet.has(a.api_key) || a.api_key === "0";
-    return match;
-  });
-
-  //console.log("Filtered alerts count:", filtered.length);
-  return filtered;
-}, [alerts, apiKeys]);
   const fetchApiKeys = async () => {
-  try {
-    const res = await axios.get("http://localhost:5000/api/apikeys", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setApiKeys(res.data);
-  } catch (err) {
-    console.error(err);
-  }
-};
+    try {
+      const res = await apiClient.get("/api/apikeys");
+      setApiKeys(res.data);
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      console.error(err);
+    }
+  };
 
-const [page, setPage] = useState(1);
-const [perPage] = useState(100);
-const [totalAlerts, setTotalAlerts] = useState(0);
-const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(100);
+  const [totalAlerts, setTotalAlerts] = useState(0);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
 
-const fetchAlertsPage = async (pageNumber = 1) => {
-  if (!token) return;
-  setLoadingAlerts(true);
-
-  try {
-    const res = await axios.get(
-      `http://localhost:5000/api/alerts_api?page=${pageNumber}&per_page=${perPage}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-
-    setAlerts((prev) => {
-      // dedupe: skip alerts already present by timestamp, src/dest IP, ports, and api_key
-      const existingKeys = new Set(
-        prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
-      );
-      const newFiltered = res.data.alerts.filter((a: any) => {
-        const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
-        if (existingKeys.has(key)) return false;
-        existingKeys.add(key);
-        return true;
+  const fetchAlertsPage = async (pageNumber = 1) => {
+    if (!token) return;
+    setLoadingAlerts(true);
+    try {
+      const res = await apiClient.get(`/api/alerts_api?page=${pageNumber}&per_page=${perPage}`);
+      setAlerts((prev) => {
+        const existingKeys = new Set(
+          prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
+        );
+        const newFiltered = res.data.alerts.filter((a: any) => {
+          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
+          if (existingKeys.has(key)) return false;
+          existingKeys.add(key);
+          return true;
+        });
+        return [...prev, ...newFiltered];
       });
-      return [...prev, ...newFiltered];
-    });
+      setTotalAlerts(res.data.total);
+      setPage(res.data.page);
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      console.error("Failed to fetch alerts:", err);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
 
-    setTotalAlerts(res.data.total);
-    setPage(res.data.page);
-  } catch (err) {
-    console.error("Failed to fetch alerts:", err);
-  } finally {
-    setLoadingAlerts(false);
-  }
-};
+  useEffect(() => {
+    fetchAlertsPage(1);
+  }, [token]);
 
-// Fetch first page on mount
-useEffect(() => {
-  fetchAlertsPage(1);
-}, [token]);
-
-
-useEffect(() => {
-  if (showApiKeySettings) fetchApiKeys();
-}, [showApiKeySettings]);
+  useEffect(() => {
+    if (showApiKeySettings) fetchApiKeys();
+  }, [showApiKeySettings]);
 
   const [filters, setFilters] = useState({
     minSeverity: 0,
@@ -178,73 +170,59 @@ useEffect(() => {
     agent: ""
   });
 
-  // Sorting state
   const [sortField, setSortField] = useState<string>("timestamp");
-  const [sortAsc, setSortAsc] = useState<boolean>(false); // default newest → oldest
-
-  // Manage selected saved filter dropdown
+  const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [selectedSavedFilterId, setSelectedSavedFilterId] = useState<string>("");
 
-const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (!e.target.files) return;
-  const file = e.target.files[0];
-  const formData = new FormData();
-  formData.append("file", file);
-
-  setLoading(true);
-  try {
-    const res = await axios.post(
-      "http://localhost:5000/api/alerts/upload-alerts",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
-
-    const newAlerts = res.data.alerts || [];
-    const newAlertsWithKey = newAlerts.map((a: any) => ({ ...a, api_key: "0" }));
-
-    // Deduplicate: only add alerts that don't already exist
-    setAlerts((prev) => {
-      const existingSet = new Set(prev.map(a => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`));
-      const filteredNew = newAlertsWithKey.filter((a: any) =>
-        !existingSet.has(`${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`)
-      );
-      return [...filteredNew, ...prev];
-    });
-
-    showToast(`${newAlerts.length} alerts uploaded (duplicates skipped)`);
-  } catch (err) {
-    console.error(err);
-    showRToast("Failed to upload/parse file");
-  } finally {
-    setLoading(false);
-    // reset input so same file can be re-uploaded if needed
-    e.target.value = '';
-  }
-};
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+    setLoading(true);
+    try {
+      const res = await apiClient.post("/api/alerts/upload-alerts", formData, {
+        headers: {
+          // Do NOT set Content-Type — axios handles boundary
+        },
+      });
+      const newAlerts = res.data.alerts || [];
+      const newAlertsWithKey = newAlerts.map((a: any) => ({ ...a, api_key: "0" }));
+      setAlerts((prev) => {
+        const existingSet = new Set(prev.map(a => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`));
+        const filteredNew = newAlertsWithKey.filter((a: any) =>
+          !existingSet.has(`${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.signature}`)
+        );
+        return [...filteredNew, ...prev];
+      });
+      showToast(`${newAlerts.length} alerts uploaded (duplicates skipped)`);
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      console.error(err);
+      showRToast("Failed to upload/parse file");
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
 
   const handlePcapUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("time_window", "5"); // 5 second matching window
-
+    formData.append("time_window", "5");
     setLoadingPcap(true);
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/pcaps/upload",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
+      const res = await apiClient.post("/api/pcaps/upload", formData, {
+        headers: {
+          // Content-Type handled automatically
+        },
+      });
       showToast(`PCAP uploaded! ${res.data.matches_found} matches found`);
       setPcapFiles((prev) => [res.data.pcap_file, ...prev]);
     } catch (err: any) {
+      if (err.response?.status === 401) return;
       console.error(err);
       const errorMsg = err.response?.data?.error || "Failed to upload PCAP";
       showRToast(errorMsg);
@@ -254,91 +232,78 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
-  //filters fetch
   useEffect(() => {
-  axios.get("http://localhost:5000/api/filters/", {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-    .then(res => setSavedFilters(res.data))
-    .catch(err => console.error("Failed to load filters", err));
-}, []);
+    apiClient.get("/api/filters/")
+      .then(res => setSavedFilters(res.data))
+      .catch(err => {
+        if (err.response?.status !== 401) console.error("Failed to load filters", err);
+      });
+  }, []);
+
   const saveCurrentFilter = async () => {
     try {
-      const res = await axios.post("http://localhost:5000/api/filters/", {
+      const res = await apiClient.post("/api/filters/", {
         name: newFilterName || `Filter ${Date.now()}`,
         filters_json: {
           ...filters,
           protocols: Array.from(filters.protocols),
         }
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setSavedFilters([...savedFilters, res.data]);
       setNewFilterName("");
       showToast("Filter saved!");
-    } catch (err) {
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
       console.error(err);
       showRToast("Failed to save filter");
     }
   };
+
   const applySavedFilter = (f: any) => {
-  setFilters({
-    ...f.filters_json,
-    protocols: new Set(f.filters_json.protocols || []), // convert back to Set
-  });
-};
-
-    // --- Fetch GeoIP coordinates ---
-  useEffect(() => {
-  // Only process alerts the user is allowed to see
-  const alertsToProcess = filteredAlertsByApiKey;
-  if (!alertsToProcess.length) {
-    setAlertsWithGeo([]);
-    return;
-  }
-
-  const fetchGeo = async () => {
-    const ips = Array.from(
-      new Set(
-        alertsToProcess.flatMap(a => [a.src_ip, a.dest_ip]).filter(Boolean)
-      )
-    );
-
-    if (!ips.length) {
-      setAlertsWithGeo(alertsToProcess);
-      return;
-    }
-
-    try {
-      const res = await axios.post("http://localhost:5000/api/geo", { ips });
-      const geoMap: Record<string, { lat: number; lon: number }> = {};
-      res.data.forEach((loc: any) => {
-        geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
-      });
-
-      const geoAlerts = alertsToProcess.map(a => ({
-        ...a,
-        src_geo: a.src_ip ? geoMap[a.src_ip] : undefined,
-        dest_geo: a.dest_ip ? geoMap[a.dest_ip] : undefined
-      }));
-
-      setAlertsWithGeo(geoAlerts);
-    } catch (err) {
-      setAlertsWithGeo(alertsToProcess);
-    }
+    setFilters({
+      ...f.filters_json,
+      protocols: new Set(f.filters_json.protocols || []),
+    });
   };
 
-  fetchGeo();
-}, [filteredAlertsByApiKey]);
+  useEffect(() => {
+    const alertsToProcess = filteredAlertsByApiKey;
+    if (!alertsToProcess.length) {
+      setAlertsWithGeo([]);
+      return;
+    }
+    const fetchGeo = async () => {
+      const ips = Array.from(
+        new Set(alertsToProcess.flatMap(a => [a.src_ip, a.dest_ip]).filter(Boolean))
+      );
+      if (!ips.length) {
+        setAlertsWithGeo(alertsToProcess);
+        return;
+      }
+      try {
+        const res = await apiClient.post("/api/geo", { ips });
+        const geoMap: Record<string, { lat: number; lon: number }> = {};
+        res.data.forEach((loc: any) => {
+          geoMap[loc.ip] = { lat: loc.lat, lon: loc.lon };
+        });
+        const geoAlerts = alertsToProcess.map(a => ({
+          ...a,
+          src_geo: a.src_ip ? geoMap[a.src_ip] : undefined,
+          dest_geo: a.dest_ip ? geoMap[a.dest_ip] : undefined
+        }));
+        setAlertsWithGeo(geoAlerts);
+      } catch (err) {
+        setAlertsWithGeo(alertsToProcess);
+      }
+    };
+    fetchGeo();
+  }, [filteredAlertsByApiKey]);
 
-  // Load saved alert options for current user
   useEffect(() => {
     if (!token) return;
     const fetchAlertOptions = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/filters/alert-options", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiClient.get("/api/filters/alert-options");
         const opts = res.data.alerts_options || {};
         setAlertSettings({
           high: opts.high ?? true,
@@ -346,50 +311,45 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           low: opts.low ?? false,
           threshold: opts.threshold ? Number(opts.threshold) : 100,
         });
-      } catch (err) {
-        console.error("Failed to fetch alert options:", err);
+      } catch (err: any) {
+        if (err.response?.status !== 401) console.error("Failed to fetch alert options:", err);
       }
     };
     fetchAlertOptions();
   }, [token]);
-  //live monitoring via websockets
-    useEffect(() => {
-  // Connect to backend Socket.IO endpoint for real-time updates only
-  const socket = io("http://localhost:5000/api/alerts/stream", {
-    transports: ["websocket"],
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-  });
+
+  useEffect(() => {
+    if (!token) return;
+    const socket: Socket = io(`${import.meta.env.VITE_API_BASE_URL}/api/alerts/stream`, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      query: { token },
+    });
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected from Socket.IO stream");
     });
+
     socket.on("bulk_alerts", (payload) => {
       if (!payload || !Array.isArray(payload.alerts)) {
         console.warn("⚠️ Malformed payload received:", payload);
         return;
       }
+      const alerts = payload.alerts.map((a: any, i: number) => ({
+        api_key: a.api_key || "unknown",
+        id: crypto.randomUUID(),
+        timestamp: a.timestamp || new Date().toISOString(),
+        src_ip: a.src_ip || "unknown",
+        src_port: a.src_port ?? null,
+        dest_ip: a.dest_ip || "unknown",
+        dest_port: a.dest_port ?? null,
+        protocol: a.protocol || "N/A",
+        signature: a.signature || "Unlabeled Alert",
+        severity: a.severity ?? 0,
+      }));
 
-      const alerts = payload.alerts.map((a: any, i: number) => {
-        console.log(`🔹 [${i + 1}/${payload.alerts.length}]`, a);
-        return {
-          api_key: a.api_key || "unknown",
-          id: crypto.randomUUID(),
-          timestamp: a.timestamp || new Date().toISOString(),
-          src_ip: a.src_ip || "unknown",
-          src_port: a.src_port ?? null,
-          dest_ip: a.dest_ip || "unknown",
-          dest_port: a.dest_port ?? null,
-          protocol: a.protocol || "N/A",
-          signature: a.signature || "Unlabeled Alert",
-          severity: a.severity ?? 0,
-        };
-      });
-
-      console.log(`📦 Processed ${alerts.length} alerts`);
-
-      // ✅ Add new alerts to the top of the list with deduplication
       setAlerts((prev: any[]) => {
         const existingKeys = new Set(
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
@@ -409,59 +369,47 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       socket.disconnect();
     };
   }, [token]);
-  //api keys fetch
+
   useEffect(() => {
-  if (!token) return;
+    if (!token) return;
+    const fetchApiKeys = async () => {
+      setLoadingKeys(true);
+      try {
+        const res = await apiClient.get("/api/apikeys");
+        setApiKeys(res.data || []);
+      } catch (err: any) {
+        if (err.response?.status !== 401) console.error("Failed to load API keys:", err);
+      } finally {
+        setLoadingKeys(false);
+      }
+    };
+    fetchApiKeys();
+  }, [token]);
 
-  const fetchApiKeys = async () => {
-    setLoadingKeys(true);
-    try {
-      const res = await axios.get("http://localhost:5000/api/apikeys", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log("API Keys JSON:", res.data); // <-- Log the key objects for testing
-      setApiKeys(res.data || []);
-    } catch (err) {
-      console.error("Failed to load API keys:", err);
-    } finally {
-      setLoadingKeys(false);
-    }
-  };
-
-  fetchApiKeys();
-}, [token]);
-
-
-
-
-  // Filter alerts based on selected filters
   let filteredAlerts = filteredAlertsByApiKey.filter((a) => {
-  if (filters.alertsOnly && (a.severity == "0" || a.severity == null)) return false;
-  if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
-  if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
-  if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
-  if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
-  if (filters.agent && a.api_key !== filters.agent) return false;
-  if (filters.timeRange.start || filters.timeRange.end) {
-    const ts = a.timestamp ? new Date(a.timestamp) : null;
-    if (ts) {
-      if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
-      if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
+    if (filters.alertsOnly && (a.severity == "0" || a.severity == null)) return false;
+    if (filters.minSeverity && (!a.severity || a.severity > filters.minSeverity)) return false;
+    if (filters.protocols.size && !filters.protocols.has(a.protocol)) return false;
+    if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
+    if (filters.ip && !(a.src_ip?.includes(filters.ip) || a.dest_ip?.includes(filters.ip))) return false;
+    if (filters.agent && a.api_key !== filters.agent) return false;
+    if (filters.timeRange.start || filters.timeRange.end) {
+      const ts = a.timestamp ? new Date(a.timestamp) : null;
+      if (ts) {
+        if (filters.timeRange.start && ts < new Date(filters.timeRange.start)) return false;
+        if (filters.timeRange.end && ts > new Date(filters.timeRange.end)) return false;
+      }
     }
-  }
-  return true;
-});
+    return true;
+  });
 
-// Sorting logic
   filteredAlerts = [...filteredAlerts].sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
-    // Special handling for agent (api_key)
     if (sortField === "agent") {
       aVal = a.api_key;
       bVal = b.api_key;
     }
-    // Convert to string for comparison
     if (aVal == null) aVal = "";
     if (bVal == null) bVal = "";
     if (typeof aVal === "number" && typeof bVal === "number") {
@@ -470,58 +418,50 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     return sortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
   });
 
-
-  // Summary calculations
-const summary = useMemo(() => {
-  const alertEvents = filteredAlerts.filter(a => a.severity); // only severity events
-  const total = alertEvents.length;
-
-  const topTalkers: Record<string, number> = {};
-  const topHosts: Record<string, number> = {};
-  const topSignatures: Record<string, number> = {};
-
-  alertEvents.forEach((a) => {
-    if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
-    if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
-  });
-  filteredAlerts.forEach((a) => {
-    if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
-  });
-  const sortDesc = (obj: Record<string, number>) =>
-    Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  return {
-    total,
-    topTalkers: sortDesc(topTalkers),
-    topHosts: sortDesc(topHosts),
-    topSignatures: sortDesc(topSignatures),
-  };
-}, [filteredAlerts]);
-  //graphs
-  // --- Bar chart: Alerts by severity ---
-    // --- Severity Levels Data ---
-    const severityData = {
-      labels: [' '], // single category on x-axis
-      datasets: [
-        {
-          label: 'Low',
-          data: [filteredAlerts.filter(a => a.severity === 3).length],
-          backgroundColor: '#10B981',
-        },
-        {
-          label: 'Medium',
-          data: [filteredAlerts.filter(a => a.severity === 2).length],
-          backgroundColor: '#FBBF24',
-        },
-        {
-          label: 'High',
-          data: [filteredAlerts.filter(a => a.severity === 1).length],
-          backgroundColor: '#f85e4aff',
-        }
-      ]
+  const summary = useMemo(() => {
+    const alertEvents = filteredAlerts.filter(a => a.severity);
+    const total = alertEvents.length;
+    const topTalkers: Record<string, number> = {};
+    const topHosts: Record<string, number> = {};
+    const topSignatures: Record<string, number> = {};
+    alertEvents.forEach((a) => {
+      if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
+      if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
+    });
+    filteredAlerts.forEach((a) => {
+      if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
+    });
+    const sortDesc = (obj: Record<string, number>) =>
+      Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      total,
+      topTalkers: sortDesc(topTalkers),
+      topHosts: sortDesc(topHosts),
+      topSignatures: sortDesc(topSignatures),
     };
+  }, [filteredAlerts]);
 
-  // --- Alerts by Protocol ---
+  const severityData = {
+    labels: [' '],
+    datasets: [
+      {
+        label: 'Low',
+        data: [filteredAlerts.filter(a => a.severity === 3).length],
+        backgroundColor: '#10B981',
+      },
+      {
+        label: 'Medium',
+        data: [filteredAlerts.filter(a => a.severity === 2).length],
+        backgroundColor: '#FBBF24',
+      },
+      {
+        label: 'High',
+        data: [filteredAlerts.filter(a => a.severity === 1).length],
+        backgroundColor: '#f85e4aff',
+      }
+    ]
+  };
+
   const protocolData = {
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
@@ -535,197 +475,167 @@ const summary = useMemo(() => {
     }]
   };
 
-  // --- Activity / Alerts per hour (detected threats vs non-threat activity) ---
-const alertsPerHourOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    y: {
-      beginAtZero: true, // always start at 0
-      ticks: {
-        precision: 0, // no decimals
+  const alertsPerHourOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
       },
     },
-  },
-  plugins: {
-    legend: { position: 'top' as const },
-  },
-};
-// --- Time Range View (Today / Week / Month / Year) ---
-const [timeRangeView, setTimeRangeView] = useState<"today" | "week" | "month" | "year">("today");
+    plugins: {
+      legend: { position: 'top' as const },
+    },
+  };
 
-// Compute the start time for filtering
-const now = new Date();
-let startTime = new Date();
+  const [timeRangeView, setTimeRangeView] = useState<"today" | "week" | "month" | "year">("today");
 
-if (timeRangeView === "today") {
-  startTime.setHours(0, 0, 0, 0);
-} else if (timeRangeView === "week") {
-  const day = now.getDay();
-  startTime = new Date(now);
-  startTime.setDate(now.getDate() - day);
-  startTime.setHours(0, 0, 0, 0);
-} else if (timeRangeView === "month") {
-  startTime = new Date(now.getFullYear(), now.getMonth(), 1);
-} else if (timeRangeView === "year") {
-  startTime = new Date(now.getFullYear(), 0, 1);
-}
+  const now = new Date();
+  let startTime = new Date();
+  if (timeRangeView === "today") {
+    startTime.setHours(0, 0, 0, 0);
+  } else if (timeRangeView === "week") {
+    const day = now.getDay();
+    startTime = new Date(now);
+    startTime.setDate(now.getDate() - day);
+    startTime.setHours(0, 0, 0, 0);
+  } else if (timeRangeView === "month") {
+    startTime = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (timeRangeView === "year") {
+    startTime = new Date(now.getFullYear(), 0, 1);
+  }
 
-// 🧠 Filter alerts to the selected time range
-const filteredByTime = filteredAlerts.filter((a) => {
-  const d = new Date(a.timestamp);
-  return d >= startTime && d <= now;
-});
-
-// console.log(`Range: ${timeRangeView}`);
-// console.log(`From ${startTime.toISOString()} to ${now.toISOString()}`);
-// console.log(`Total alerts: ${filteredAlerts.length}, In range: ${filteredByTime.length}`);
-
-// --- Group alerts by hour/day/week/month dynamically ---
-const groupAlerts = (unit: string, source: any[]) => {
-  const map = new Map<string, { threats: number; activity: number }>();
-  source.forEach((a) => {
+  const filteredByTime = filteredAlerts.filter((a) => {
     const d = new Date(a.timestamp);
-    if (isNaN(d.getTime())) return;
-
-    let key = "";
-    if (unit === "hour") key = `${d.getHours()}:00`;
-    else if (unit === "day") key = d.toLocaleDateString();
-    else if (unit === "week") {
-      const firstDay = new Date(d);
-      firstDay.setDate(d.getDate() - d.getDay());
-      key = `Week of ${firstDay.toLocaleDateString()}`;
-    } else if (unit === "month") {
-      key = d.toLocaleString("default", { month: "short", year: "numeric" });
-    }
-
-    const isThreat = [1, 2, 3].includes(a.severity);
-    const entry = map.get(key) || { threats: 0, activity: 0 };
-    if (isThreat) entry.threats++;
-    else entry.activity++;
-    map.set(key, entry);
+    return d >= startTime && d <= now;
   });
-  return map;
-};
 
-// Pick grouping unit based on view
-const unit =
-  timeRangeView === "today"
-    ? "hour"
-    : timeRangeView === "week"
-    ? "day"
-    : timeRangeView === "month"
-    ? "day"
-    : "month";
+  const groupAlerts = (unit: string, source: any[]) => {
+    const map = new Map<string, { threats: number; activity: number }>();
+    source.forEach((a) => {
+      const d = new Date(a.timestamp);
+      if (isNaN(d.getTime())) return;
+      let key = "";
+      if (unit === "hour") key = `${d.getHours()}:00`;
+      else if (unit === "day") key = d.toLocaleDateString();
+      else if (unit === "week") {
+        const firstDay = new Date(d);
+        firstDay.setDate(d.getDate() - d.getDay());
+        key = `Week of ${firstDay.toLocaleDateString()}`;
+      } else if (unit === "month") {
+        key = d.toLocaleString("default", { month: "short", year: "numeric" });
+      }
+      const isThreat = [1, 2, 3].includes(a.severity);
+      const entry = map.get(key) || { threats: 0, activity: 0 };
+      if (isThreat) entry.threats++;
+      else entry.activity++;
+      map.set(key, entry);
+    });
+    return map;
+  };
 
-const groupedData = groupAlerts(unit, filteredByTime);
+  const unit =
+    timeRangeView === "today"
+      ? "hour"
+      : timeRangeView === "week"
+      ? "day"
+      : timeRangeView === "month"
+      ? "day"
+      : "month";
+  const groupedData = groupAlerts(unit, filteredByTime);
 
-//console.log("Grouped data:", Array.from(groupedData.entries()));
+  let fullLabels: string[] = [];
+  if (timeRangeView === "today") {
+    fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  } else if (timeRangeView === "week") {
+    const startOfWeek = new Date();
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    fullLabels = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      return d.toLocaleDateString();
+    });
+  } else if (timeRangeView === "month") {
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    fullLabels = Array.from({ length: daysInMonth }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
+      return d.toLocaleDateString();
+    });
+  } else if (timeRangeView === "year") {
+    fullLabels = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(i);
+      return d.toLocaleString("default", { month: "short", year: "numeric" });
+    });
+  }
 
-// --- Generate full labels dynamically ---
-let fullLabels: string[] = [];
+  const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
+  const activity = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
 
-if (timeRangeView === "today") {
-  fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-} else if (timeRangeView === "week") {
-  const startOfWeek = new Date();
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  fullLabels = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate() + i);
-    return d.toLocaleDateString();
-  });
-} else if (timeRangeView === "month") {
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  fullLabels = Array.from({ length: daysInMonth }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
-    return d.toLocaleDateString();
-  });
-} else if (timeRangeView === "year") {
-  fullLabels = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(i);
-    return d.toLocaleString("default", { month: "short", year: "numeric" });
-  });
-}
+  const alertsOverTimeData = {
+    labels: fullLabels,
+    datasets: [
+      {
+        label: "Detected Threats",
+        data: detected,
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239,68,68,0.15)",
+        tension: 0.3,
+      },
+      {
+        label: "Activity (non-threat)",
+        data: activity,
+        borderColor: "#0b97f5",
+        backgroundColor: "rgba(11,151,245,0.12)",
+        tension: 0.3,
+      },
+    ],
+  };
 
-// --- Map groupedData onto fullLabels, fill 0 if missing ---
-const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
-const activity = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
-
-// --- Chart data ---
-const alertsOverTimeData = {
-  labels: fullLabels,
-  datasets: [
-    {
-      label: "Detected Threats",
-      data: detected,
-      borderColor: "#ef4444",
-      backgroundColor: "rgba(239,68,68,0.15)",
-      tension: 0.3,
-    },
-    {
-      label: "Activity (non-threat)",
-      data: activity,
-      borderColor: "#0b97f5",
-      backgroundColor: "rgba(11,151,245,0.12)",
-      tension: 0.3,
-    },
-  ],
-};
-
-  // Toggle protocol in Set
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
     if (newSet.has(proto)) newSet.delete(proto);
     else newSet.add(proto);
     setFilters({ ...filters, protocols: newSet });
   };
-  // Inspect alert and fetch threat intel
+
   const handleInspect = async (alert: any) => {
     const srcIP = alert.src_ip;
     const destIP = alert.dest_ip;
-
     setSelectedAlert(alert.original || alert);
     setThreatIntel(null);
     setLoadingIntel(true);
-    setAlertPackets([]); // Reset PCAP packets
+    setAlertPackets([]);
 
-    // Fetch PCAP packets first, show as soon as ready
-    axios.get(`http://localhost:5000/api/alerts/${alert.id}/packets`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiClient.get(`/api/alerts/${alert.id}/packets`)
       .then((pcapRes) => setAlertPackets(pcapRes.data || []))
       .catch(() => setAlertPackets([]));
 
-    // Fetch threat intel in parallel
     try {
       const [srcRes, destRes] = await Promise.all([
-        axios.post("http://localhost:5000/api/threatintel", { ip: srcIP }),
-        axios.post("http://localhost:5000/api/threatintel", { ip: destIP })
+        apiClient.post("/api/threatintel", { ip: srcIP }),
+        apiClient.post("/api/threatintel", { ip: destIP })
       ]);
       setThreatIntel({
-        abuse: srcRes.data.abuse,
-        vt: srcRes.data.vt,
-        destAbuse: destRes.data.abuse,
-        destVT: destRes.data.vt
+        src: srcRes.data,
+        dest: destRes.data,
       });
-    } catch (err) {
-      console.error("Threat intel fetch failed:", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401) console.error("Threat intel fetch failed:", err);
     } finally {
       setLoadingIntel(false);
     }
   };
-  //hidden charts for report generation
-  type TimeRange = "today" | "week" | "month" | "year";
 
-const generateAlertsOverTimeData = (timeRangeView: TimeRange, alerts: any[]) => {
+const generateAlertsOverTimeData = (timeRangeView: "today" | "week" | "month" | "year", alerts: any[]) => {
   const now = new Date();
-  let startTime = new Date();
-
-  // Compute start time based on range
-  if (timeRangeView === "today") startTime.setHours(0, 0, 0, 0);
-  else if (timeRangeView === "week") {
+  let startTime = new Date(now);
+  if (timeRangeView === "today") {
+    startTime.setHours(0, 0, 0, 0);
+  } else if (timeRangeView === "week") {
     startTime.setDate(now.getDate() - now.getDay());
     startTime.setHours(0, 0, 0, 0);
   } else if (timeRangeView === "month") {
@@ -734,26 +644,23 @@ const generateAlertsOverTimeData = (timeRangeView: TimeRange, alerts: any[]) => 
     startTime = new Date(now.getFullYear(), 0, 1);
   }
 
-  // Filter alerts to range
   const filtered = alerts.filter(a => {
     const d = new Date(a.timestamp);
     return d >= startTime && d <= now;
   });
 
-  // Grouping unit
-  const unit = timeRangeView === "today" ? "hour" : timeRangeView === "week" || timeRangeView === "month" ? "day" : "month";
+  const unit = timeRangeView === "today" ? "hour" : 
+               timeRangeView === "week" || timeRangeView === "month" ? "day" : "month";
 
-  // Group alerts
   const grouped = new Map<string, { threats: number; activity: number }>();
   filtered.forEach(a => {
     const d = new Date(a.timestamp);
     if (isNaN(d.getTime())) return;
-
     let key = "";
     if (unit === "hour") key = `${d.getHours()}:00`;
     else if (unit === "day") key = d.toLocaleDateString();
     else if (unit === "month") key = d.toLocaleString("default", { month: "short", year: "numeric" });
-
+    
     const isThreat = [1, 2, 3].includes(a.severity);
     const entry = grouped.get(key) || { threats: 0, activity: 0 };
     if (isThreat) entry.threats++;
@@ -761,31 +668,35 @@ const generateAlertsOverTimeData = (timeRangeView: TimeRange, alerts: any[]) => 
     grouped.set(key, entry);
   });
 
-  // Generate full labels
   let labels: string[] = [];
-  if (timeRangeView === "today") labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-  else if (timeRangeView === "week") {
-    const startOfWeek = new Date();
+  if (timeRangeView === "today") {
+    labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  } else if (timeRangeView === "week") {
+    const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
     labels = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
       return d.toLocaleDateString();
     });
   } else if (timeRangeView === "month") {
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    labels = Array.from({ length: daysInMonth }, (_, i) => new Date(now.getFullYear(), now.getMonth(), i + 1).toLocaleDateString());
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    labels = Array.from({ length: daysInMonth }, (_, i) => {
+      const d = new Date(year, month, i + 1);
+      return d.toLocaleDateString();
+    });
   } else if (timeRangeView === "year") {
     labels = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(i);
+      const d = new Date(now.getFullYear(), i, 1);
       return d.toLocaleString("default", { month: "short", year: "numeric" });
     });
   }
 
-  // Map grouped data to labels, fill missing with 0
-  const detected = labels.map(label => grouped.get(label)?.threats || 0);
-  const activity = labels.map(label => grouped.get(label)?.activity || 0);
+  const detected = labels.map(label => grouped.get(label)?.threats ?? 0);
+  const activity = labels.map(label => grouped.get(label)?.activity ?? 0);
 
   return {
     labels,
@@ -809,85 +720,60 @@ const generateAlertsOverTimeData = (timeRangeView: TimeRange, alerts: any[]) => 
 };
 
   const alertsOverTimeDataToday = generateAlertsOverTimeData("today", filteredAlerts);
-const alertsOverTimeDataWeek = generateAlertsOverTimeData("week", filteredAlerts);
-const alertsOverTimeDataMonth = generateAlertsOverTimeData("month", filteredAlerts);
+  const alertsOverTimeDataWeek = generateAlertsOverTimeData("week", filteredAlerts);
+  const alertsOverTimeDataMonth = generateAlertsOverTimeData("month", filteredAlerts);
 
-
-
-const generateReport = async () => {
-  const doc = new jsPDF("p", "mm", "a4");
-  let yPos = 10;
-
-  // --- Title ---
-  doc.setFontSize(18);
-  doc.text("Alerts Management Report", 105, yPos, { align: "center" });
-  yPos += 10;
-
-  // --- Date / Time ---
-  doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 10, yPos);
-  yPos += 10;
-
-  // --- Summary Section ---
-  doc.setFontSize(12);
-  doc.text("Summary", 10, yPos);
-  yPos += 6;
-
-  doc.setFontSize(10);
-  doc.text(`Total Alerts: ${summary.total}`, 10, yPos);
-  yPos += 5;
-
-  // Function to write top items line by line
-  const top = (label: string, arr: [string, number][]) => {
+  const generateReport = async () => {
+    const doc = new jsPDF("p", "mm", "a4");
+    let yPos = 10;
+    doc.setFontSize(18);
+    doc.text("Alerts Management Report", 105, yPos, { align: "center" });
+    yPos += 10;
     doc.setFontSize(10);
-    doc.text(`${label}:`, 10, yPos);
-    yPos += 5;
-    arr.forEach(([key, val]) => {
-      doc.text(`  ${key}: ${val}`, 15, yPos);
-      yPos += 5;
-    });
-    yPos += 2;
-  };
-
-  top("Top Talkers", summary.topTalkers);
-  top("Top Hosts", summary.topHosts);
-  top("Top Signatures", summary.topSignatures);
-
-  yPos += 4;
-
-  // --- Chart Section ---
-  const addChart = async (canvasId: string, title: string) => {
-    const canvasEl = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!canvasEl) return;
-
-    // Chart title
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 10, yPos);
+    yPos += 10;
     doc.setFontSize(12);
-    doc.text(title, 10, yPos);
+    doc.text("Summary", 10, yPos);
     yPos += 6;
-
-    const imgData = canvasEl.toDataURL("image/png");
-    const imgProps = (doc as any).getImageProperties(imgData);
-    const pdfWidth = 180; // mm
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-    if (yPos + pdfHeight > 280) {
-      doc.addPage();
-      yPos = 10;
-    }
-
-    doc.addImage(imgData, "PNG", 15, yPos, pdfWidth, pdfHeight);
-    yPos += pdfHeight + 10;
+    doc.setFontSize(10);
+    doc.text(`Total Alerts: ${summary.total}`, 10, yPos);
+    yPos += 5;
+    const top = (label: string, arr: [string, number][]) => {
+      doc.setFontSize(10);
+      doc.text(`${label}:`, 10, yPos);
+      yPos += 5;
+      arr.forEach(([key, val]) => {
+        doc.text(`  ${key}: ${val}`, 15, yPos);
+        yPos += 5;
+      });
+      yPos += 2;
+    };
+    top("Top Talkers", summary.topTalkers);
+    top("Top Hosts", summary.topHosts);
+    top("Top Signatures", summary.topSignatures);
+    yPos += 4;
+    const addChart = async (canvasId: string, title: string) => {
+      const canvasEl = document.getElementById(canvasId) as HTMLCanvasElement;
+      if (!canvasEl) return;
+      doc.setFontSize(12);
+      doc.text(title, 10, yPos);
+      yPos += 6;
+      const imgData = canvasEl.toDataURL("image/png");
+      const imgProps = (doc as any).getImageProperties(imgData);
+      const pdfWidth = 180;
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      if (yPos + pdfHeight > 280) {
+        doc.addPage();
+        yPos = 10;
+      }
+      doc.addImage(imgData, "PNG", 15, yPos, pdfWidth, pdfHeight);
+      yPos += pdfHeight + 10;
+    };
+    await addChart("severity-chart", "Severity Levels");
+    await addChart("protocol-chart", "Activity by Protocol");
+    await addChart("alerts-over-time-chart", "Alerts Over Time");
+    doc.save("alerts_management_report.pdf");
   };
-
-  // Single charts
-  await addChart("severity-chart", "Severity Levels");
-  await addChart("protocol-chart", "Activity by Protocol");
-  await addChart("alerts-over-time-chart", "Alerts Over Time");
-
-  // --- Save PDF ---
-  doc.save("alerts_management_report.pdf");
-};
-
 
   return (
     <div className="p-8">
@@ -922,7 +808,6 @@ const generateReport = async () => {
             {showApiKeySettings && (
               <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
                 <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
-                {/* Create new API key */}
                 <div className="mb-4">
                   <input
                     type="text"
@@ -943,17 +828,14 @@ const generateReport = async () => {
                   <button
                     onClick={async () => {
                       if (!newApiKeyName) return alert("Enter a key name");
-                      const expires_days = 30; // or let user choose
+                      const expires_days = 30;
                       try {
-                        await axios.post(
-                          "http://localhost:5000/api/apikeys",
-                          { name: newApiKeyName, type: newApiKeyType, expires_days },
-                          { headers: { Authorization: `Bearer ${token}` } }
-                        );
+                        await apiClient.post("/api/apikeys", { name: newApiKeyName, type: newApiKeyType, expires_days });
                         showToast(`API key created!`);
-                        setNewApiKeyName(""); // clear input
-                        fetchApiKeys(); // refresh list
-                      } catch (err) {
+                        setNewApiKeyName("");
+                        fetchApiKeys();
+                      } catch (err: any) {
+                        if (err.response?.status === 401) return;
                         console.error(err);
                         showRToast("Failed to create API key");
                       }
@@ -963,7 +845,6 @@ const generateReport = async () => {
                     Create API Key
                   </button>
                 </div>
-                {/* List existing API keys */}
                 <div className="max-h-60 overflow-y-auto">
                   {loadingKeys ? (
                     <p>Loading keys...</p>
@@ -1014,16 +895,13 @@ const generateReport = async () => {
                                   <button
                                     onClick={async () => {
                                       try {
-                                        await axios.put(
-                                          `http://localhost:5000/api/apikeys/${key.id}`,
-                                          { type: key.type },
-                                          { headers: { Authorization: `Bearer ${token}` } }
-                                        );
+                                        await apiClient.put(`/api/apikeys/${key.id}`, { type: key.type });
                                         setApiKeys(apiKeys.map(k =>
                                           k.id === key.id ? { ...k, dirty: false } : k
                                         ));
                                         showToast("API key type updated");
-                                      } catch (err) {
+                                      } catch (err: any) {
+                                        if (err.response?.status === 401) return;
                                         console.error(err);
                                         showRToast("Failed to update key type");
                                       }
@@ -1037,11 +915,10 @@ const generateReport = async () => {
                                   onClick={async () => {
                                     if (!confirm("Delete this API key?")) return;
                                     try {
-                                      await axios.delete(`http://localhost:5000/api/apikeys/${key.id}`, {
-                                        headers: { Authorization: `Bearer ${token}` },
-                                      });
+                                      await apiClient.delete(`/api/apikeys/${key.id}`);
                                       setApiKeys(apiKeys.filter((k) => k.id !== key.id));
-                                    } catch (err) {
+                                    } catch (err: any) {
+                                      if (err.response?.status === 401) return;
                                       console.error(err);
                                       showRToast("Failed to delete key");
                                     }
@@ -1130,20 +1007,6 @@ const generateReport = async () => {
                     min={1}
                   />
                 </div>
-                {/* Report Frequency Dropdown
-                <div className="mt-4">
-                  <label className="block mb-1 text-sm font-medium">Report Frequency</label>
-                  <select
-                    value={reportFrequency}
-                    onChange={(e) => setReportFrequency(e.target.value)}
-                    className="w-full border rounded px-2 py-1"
-                  >
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Biweekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="none">None</option>
-                  </select>
-                </div> */}
                 <div className="mt-4 flex justify-end space-x-2">
                   <button
                     onClick={() => setShowAlertSettings(false)}
@@ -1154,19 +1017,14 @@ const generateReport = async () => {
                   <button
                     onClick={async () => {
                       try {
-                        await axios.put(
-                        "http://localhost:5000/api/filters/alert-options",
-                        {
+                        await apiClient.put("/api/filters/alert-options", {
                           alerts_options: alertSettings,
                           report_frequency: reportFrequency,
-                        },
-                        {
-                          headers: { Authorization: `Bearer ${token}` },
-                        }
-                      );
+                        });
                         showToast("Alert options saved!");
                         setShowAlertSettings(false);
-                      } catch (err) {
+                      } catch (err: any) {
+                        if (err.response?.status === 401) return;
                         console.error("Failed to save alert options:", err);
                         showRToast("Failed to save alert options");
                       }
@@ -1181,367 +1039,322 @@ const generateReport = async () => {
           </div>
         </div>
       </div>
-
-      {/* Upload Box */}
-      <div className="mb-6">
-        {/* Charts Section */}
-        {alerts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Severity Levels */}
-            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-              <span className="text-lg font-semibold mb-2">Severity Levels</span>
-              <Bar
-                id="severity-chart"
-                data={severityData}
-                options={{responsive: true, maintainAspectRatio: false, 
-                  plugins: {
-                    legend: {
-                    },
-                  },}}
-                height={200}
-              />
-            </div>
-
-            {/* Alerts by Protocol */}
-            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-              <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
-              <Doughnut
-                id="protocol-chart"
-                key={"protocol-" + filteredAlerts.length}
-                data={protocolData}
-                options={{ responsive: true, maintainAspectRatio: false }}
-                height={200}
-              />
-            </div>
-
-            {/* Activity over time (dynamic range) */}
-            <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
-              <div className="flex items-center justify-between w-full mb-2">
-                <span className="text-lg font-semibold">Activity over time</span>
-                <div className="flex gap-2">
-                  {["today", "week", "month", "year"].map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setTimeRangeView(r as any)}
-                      className={`px-2 py-1 text-sm rounded ${
-                        timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
-                      }`}
-                    >
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Line
-              id="alerts-over-time-chart"
-                key={`${timeRangeView}-${filteredAlerts.length}`}
-                data={alertsOverTimeData}
-                options={alertsPerHourOptions}
-                height={200}
-              />
-            </div>
-
-          </div>
-        )}
-        {/*  summary counters and GeoIP map */}
-        {alerts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
-            {/* Total Alerts */}
-            <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
-              <span className="text-4xl font-bold">{summary.total}</span>
-              <span className="mt-2 font-medium">Total Alerts</span>
-            </div>
-
-            {/* Top Talkers */}
-            <div className="bg-white rounded-lg p-4 shadow">
-              <h3 className="font-semibold mb-2">Top Talkers</h3>
-              <table className="w-full text-sm">
-          <tbody>
-            {summary.topTalkers.map(([ip, count]) => (
-              <tr key={ip}>
-                <td>{ip}</td>
-                <td className="text-right font-semibold">{count}</td>
-              </tr>
-            ))}
-          </tbody>
-              </table>
-            </div>
-
-            {/* Top Attacked Hosts */}
-            <div className="bg-white rounded-lg p-4 shadow">
-              <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
-              <table className="w-full text-sm">
-          <tbody>
-            {summary.topHosts.map(([ip, count]) => (
-              <tr key={ip}>
-                <td>{ip}</td>
-                <td className="text-right font-semibold">{count}</td>
-              </tr>
-            ))}
-          </tbody>
-              </table>
-            </div>
-
-            {/* Top Signatures */}
-            <div className="bg-white rounded-lg p-4 shadow">
-              <h3 className="font-semibold mb-2">Top Signatures</h3>
-              <table className="w-full text-sm">
-          <tbody>
-            {summary.topSignatures.map(([sig, count]) => (
-              <tr key={sig}>
-                <td>{sig}</td>
-                <td className="text-right font-semibold">{count}</td>
-              </tr>
-            ))}
-          </tbody>
-              </table>
-            </div>
-
-            {/* GeoIP Map */}
-            <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center z-0">
-              <div className="h-48 w-full">
-          <MapContainer
-            bounds={[[-90, -180], [90, 180]]}
-            style={{ height: '100%', width: '100%' }}
-            maxBoundsViscosity={1.0}
-            center={[50, 0]}
-            dragging={true}
-            maxBounds={[[-90, -180], [90, 180]]}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              noWrap={true}
+      {alerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+            <span className="text-lg font-semibold mb-2">Severity Levels</span>
+            <Bar
+              id="severity-chart"
+              data={severityData}
+              options={{responsive: true, maintainAspectRatio: false, 
+                plugins: {
+                  legend: {},
+                },}}
+              height={200}
             />
-            {alertsWithGeo.map((a, i) => (
-            <React.Fragment key={i}>
-              {a.src_geo?.lat != null && a.src_geo?.lon != null && (
-                <CircleMarker
-                  key={`src-${i}`}
-                  center={[a.src_geo.lat, a.src_geo.lon]}
-                  radius={3}
-                  pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.7 }}
-                >
-                  <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
-                    <span>
-                      Source: {a.src_ip}
-                      {a.signature ? <><br />Sig: {a.signature}</> : null}
-                    </span>
-                  </Tooltip>
-                </CircleMarker>
-              )}
-              {a.dest_geo?.lat != null && a.dest_geo?.lon != null && (
-                <CircleMarker
-                  key={`dest-${i}`}
-                  center={[a.dest_geo.lat, a.dest_geo.lon]}
-                  radius={4}
-                  pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
-                >
-                  <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
-                    <span>
-                      Dest: {a.dest_ip}
-                      {a.signature ? <><br />Sig: {a.signature}</> : null}
-                    </span>
-                  </Tooltip>
-                </CircleMarker>
-              )}
-            </React.Fragment>
-          ))}
-          </MapContainer>
+          </div>
+          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+            <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
+            <Doughnut
+              id="protocol-chart"
+              key={"protocol-" + filteredAlerts.length}
+              data={protocolData}
+              options={{ responsive: true, maintainAspectRatio: false }}
+              height={200}
+            />
+          </div>
+          <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-lg font-semibold">Activity over time</span>
+              <div className="flex gap-2">
+                {["today", "week", "month", "year"].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setTimeRangeView(r as any)}
+                    className={`px-2 py-1 text-sm rounded ${
+                      timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+                    }`}
+                  >
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </button>
+                ))}
               </div>
             </div>
+            <Line
+              id="alerts-over-time-chart"
+              key={`${timeRangeView}-${filteredAlerts.length}`}
+              data={alertsOverTimeData}
+              options={alertsPerHourOptions}
+              height={200}
+            />
           </div>
-        )}
-      </div>
-      
-      
-      {/* Filters */}
+        </div>
+      )}
+      {alerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
+          <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
+            <span className="text-4xl font-bold">{summary.total}</span>
+            <span className="mt-2 font-medium">Total Alerts</span>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Talkers</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topTalkers.map(([ip, count]) => (
+                  <tr key={ip}>
+                    <td>{ip}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topHosts.map(([ip, count]) => (
+                  <tr key={ip}>
+                    <td>{ip}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-semibold mb-2">Top Signatures</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {summary.topSignatures.map(([sig, count]) => (
+                  <tr key={sig}>
+                    <td>{sig}</td>
+                    <td className="text-right font-semibold">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center z-0">
+            <div className="h-48 w-full">
+              <MapContainer
+                bounds={[[-90, -180], [90, 180]]}
+                style={{ height: '100%', width: '100%' }}
+                maxBoundsViscosity={1.0}
+                center={[50, 0]}
+                dragging={true}
+                maxBounds={[[-90, -180], [90, 180]]}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  noWrap={true}
+                />
+                {alertsWithGeo.map((a, i) => (
+                  <React.Fragment key={i}>
+                    {a.src_geo?.lat != null && a.src_geo?.lon != null && (
+                      <CircleMarker
+                        key={`src-${i}`}
+                        center={[a.src_geo.lat, a.src_geo.lon]}
+                        radius={3}
+                        pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.7 }}
+                      >
+                        <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                          <span>
+                            Source: {a.src_ip}
+                            {a.signature ? <><br />Sig: {a.signature}</> : null}
+                          </span>
+                        </Tooltip>
+                      </CircleMarker>
+                    )}
+                    {a.dest_geo?.lat != null && a.dest_geo?.lon != null && (
+                      <CircleMarker
+                        key={`dest-${i}`}
+                        center={[a.dest_geo.lat, a.dest_geo.lon]}
+                        radius={4}
+                        pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
+                      >
+                        <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                          <span>
+                            Dest: {a.dest_ip}
+                            {a.signature ? <><br />Sig: {a.signature}</> : null}
+                          </span>
+                        </Tooltip>
+                      </CircleMarker>
+                    )}
+                  </React.Fragment>
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+        </div>
+      )}
       {alerts.length > 0 && (
         <>
-          {/* Filter row */}
           <div className="mb-4 flex gap-4 flex-wrap">
-          {/* Agent filter dropdown */}
-          {apiKeys.filter(k => !k.revoked).length > 0 && (
-            <label className="ml-4">
-              Agent:
+            {apiKeys.filter(k => !k.revoked).length > 0 && (
+              <label className="ml-4">
+                Agent:
+                <select
+                  value={filters.agent}
+                  onChange={e => setFilters({ ...filters, agent: e.target.value })}
+                  className="ml-2 border rounded px-2 py-1"
+                >
+                  <option value="">All</option>
+                  <option value="0">Uploaded manually</option>
+                  {apiKeys.map(k => (
+                    <option key={k.key} value={k.key}>{k.name} ({k.type})</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Min Severity:
               <select
-                value={filters.agent}
-                onChange={e => setFilters({ ...filters, agent: e.target.value })}
+                value={filters.minSeverity}
+                onChange={(e) => setFilters({ ...filters, minSeverity: Number(e.target.value) })}
                 className="ml-2 border rounded px-2 py-1"
               >
-                <option value="">All</option>
-                <option value="0">Uploaded manually</option>
-                {apiKeys.map(k => (
-                  <option key={k.key} value={k.key}>{k.name} ({k.type})</option>
-                ))}
+                <option value={0}>All</option>
+                <option value={1}>1 - High</option>
+                <option value={2}>2 - Medium</option>
+                <option value={3}>3 - Low</option>
               </select>
             </label>
-          )}
-          <label>
-            Min Severity:
-            <select
-              value={filters.minSeverity}
-              onChange={(e) => setFilters({ ...filters, minSeverity: Number(e.target.value) })}
-              className="ml-2 border rounded px-2 py-1"
-            >
-              <option value={0}>All</option>
-              <option value={1}>1 - High</option>
-              <option value={2}>2 - Medium</option>
-              <option value={3}>3 - Low</option>
-            </select>
-          </label>
-
-          <label className="ml-4">
-            <input
-              type="checkbox"
-              checked={filters.alertsOnly}
-              onChange={() => setFilters({ ...filters, alertsOnly: !filters.alertsOnly })}
-              className="mr-1"
-            />
-            Alerts Only
-          </label>
-
-          {/* Protocol checkboxes */}
-          {["TCP", "UDP", "ICMP"].map((proto) => (
-            <label key={proto} className="ml-2">
+            <label className="ml-4">
               <input
                 type="checkbox"
-                checked={filters.protocols.has(proto)}
-                onChange={() => toggleProtocol(proto)}
+                checked={filters.alertsOnly}
+                onChange={() => setFilters({ ...filters, alertsOnly: !filters.alertsOnly })}
                 className="mr-1"
               />
-              {proto}
+              Alerts Only
             </label>
-          ))}
-          <label className="ml-4">
-            Port:
-            <input
-              type="number"
-              min={0}
-              max={65535}
-              value={filters.port ?? ""}
-              onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
-              className="ml-2 border rounded px-2 py-1 w-20"
-              placeholder="Any"
-            />
-          </label>
-          {/* ip and time */}
-          <label className="ml-4">
-            IP:
-            <input
-              type="text"
-              value={filters.ip}
-              onChange={(e) => setFilters({ ...filters, ip: e.target.value })}
-              className="ml-2 border rounded px-2 py-1 w-40"
-              placeholder="Match src/dest IP"
-            />
-          </label>
-
-          <label className="ml-4">
-            Start Time:
-            <input
-              type="datetime-local"
-              value={filters.timeRange.start ?? ""}
-              onChange={(e) => setFilters({
-                ...filters,
-                timeRange: { ...filters.timeRange, start: e.target.value || null }
-              })}
-              className="ml-2 border rounded px-2 py-1"
-            />
-          </label>
-
-          <label className="ml-4">
-            End Time:
-            <input
-              type="datetime-local"
-              value={filters.timeRange.end ?? ""}
-              onChange={(e) => setFilters({
-                ...filters,
-                timeRange: { ...filters.timeRange, end: e.target.value || null }
-              })}
-              className="ml-2 border rounded px-2 py-1"
-            />
-          </label>
-
-
-          <button
-            onClick={() => {
-              setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
-              setSelectedSavedFilterId(""); // reset saved filter dropdown
-            }}
-            className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
-          >
-            Show All
-          </button>
-          </div>
-
-          {/* save load filters */}
-          <div className="mb-6 flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newFilterName}
-              onChange={(e) => setNewFilterName(e.target.value)}
-              placeholder="Filter name"
-              className="border rounded px-2 py-1"
-            />
+            {["TCP", "UDP", "ICMP"].map((proto) => (
+              <label key={proto} className="ml-2">
+                <input
+                  type="checkbox"
+                  checked={filters.protocols.has(proto)}
+                  onChange={() => toggleProtocol(proto)}
+                  className="mr-1"
+                />
+                {proto}
+              </label>
+            ))}
+            <label className="ml-4">
+              Port:
+              <input
+                type="number"
+                min={0}
+                max={65535}
+                value={filters.port ?? ""}
+                onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
+                className="ml-2 border rounded px-2 py-1 w-20"
+                placeholder="Any"
+              />
+            </label>
+            <label className="ml-4">
+              IP:
+              <input
+                type="text"
+                value={filters.ip}
+                onChange={(e) => setFilters({ ...filters, ip: e.target.value })}
+                className="ml-2 border rounded px-2 py-1 w-40"
+                placeholder="Match src/dest IP"
+              />
+            </label>
+            <label className="ml-4">
+              Start Time:
+              <input
+                type="datetime-local"
+                value={filters.timeRange.start ?? ""}
+                onChange={(e) => setFilters({
+                  ...filters,
+                  timeRange: { ...filters.timeRange, start: e.target.value || null }
+                })}
+                className="ml-2 border rounded px-2 py-1"
+              />
+            </label>
+            <label className="ml-4">
+              End Time:
+              <input
+                type="datetime-local"
+                value={filters.timeRange.end ?? ""}
+                onChange={(e) => setFilters({
+                  ...filters,
+                  timeRange: { ...filters.timeRange, end: e.target.value || null }
+                })}
+                className="ml-2 border rounded px-2 py-1"
+              />
+            </label>
             <button
-              onClick={saveCurrentFilter}
-              className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+              onClick={() => {
+                setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
+                setSelectedSavedFilterId("");
+              }}
+              className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
             >
-              Save Filter
+              Show All
             </button>
           </div>
-
-          {/* Saved filters dropdown */}
-          {savedFilters.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2">
-              <label className="mr-2">Load Saved:</label>
-              <select
-                value={selectedSavedFilterId}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSelectedSavedFilterId(value);
-                  const f = savedFilters.find(sf => sf.id === Number(value));
-                  if (f) applySavedFilter(f);
-                }}
+              <input
+                type="text"
+                value={newFilterName}
+                onChange={(e) => setNewFilterName(e.target.value)}
+                placeholder="Filter name"
                 className="border rounded px-2 py-1"
+              />
+              <button
+                onClick={saveCurrentFilter}
+                className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
               >
-                <option value="">-- Select --</option>
-                {savedFilters.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-               <button
-                 className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-                 disabled={!selectedSavedFilterId}
-                 onClick={async () => {
-                   try {
-                     await axios.delete(
-                       `http://localhost:5000/api/filters/${selectedSavedFilterId}`,
-                       { headers: { Authorization: `Bearer ${token}` } }
-                     );
-                     setSavedFilters(prev => prev.filter(f => f.id !== Number(selectedSavedFilterId)));
-                     setSelectedSavedFilterId("");
-                     showToast("Filter deleted");
-                   } catch (err) {
-                     console.error(err);
-                     showRToast("Failed to delete filter");
-                   }
-                 }}
-               >
-                 Delete Filter
-               </button>
+                Save Filter
+              </button>
             </div>
-          )}
+            {savedFilters.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="mr-2">Load Saved:</label>
+                <select
+                  value={selectedSavedFilterId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedSavedFilterId(value);
+                    const f = savedFilters.find(sf => sf.id === Number(value));
+                    if (f) applySavedFilter(f);
+                  }}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">-- Select --</option>
+                  {savedFilters.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+                <button
+                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  disabled={!selectedSavedFilterId}
+                  onClick={async () => {
+                    try {
+                      await apiClient.delete(`/api/filters/${selectedSavedFilterId}`);
+                      setSavedFilters(prev => prev.filter(f => f.id !== Number(selectedSavedFilterId)));
+                      setSelectedSavedFilterId("");
+                      showToast("Filter deleted");
+                    } catch (err: any) {
+                      if (err.response?.status === 401) return;
+                      console.error(err);
+                      showRToast("Failed to delete filter");
+                    }
+                  }}
+                >
+                  Delete Filter
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
-
       {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
-
-      {/* Alerts Table */}
       {filteredAlerts.length > 0 && (
         <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
           <table className="min-w-full bg-white rounded-lg overflow-hidden">
@@ -1578,7 +1391,6 @@ const generateReport = async () => {
             </thead>
             <tbody>
               {filteredAlerts.map((a, i) => {
-                // Find the matching key by api_key
                 const key = apiKeys.find((k) => k.key === a.api_key);
                 return (
                   <tr
@@ -1623,34 +1435,29 @@ const generateReport = async () => {
               })}
             </tbody>
           </table>
-                <div className="mt-4 flex items-center space-x-4">
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-          disabled={loadingAlerts || alerts.length >= totalAlerts}
-          onClick={() => fetchAlertsPage(page + 1)}
-        >
-          Load More
-        </button>
-        <span className="text-gray-700">
-          Showing {alerts.length} unique alerts
-        </span>
-      </div>
-
+          <div className="mt-4 flex items-center space-x-4">
+            <button
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+              disabled={loadingAlerts || alerts.length >= totalAlerts}
+              onClick={() => fetchAlertsPage(page + 1)}
+            >
+              Load More
+            </button>
+            <span className="text-gray-700">
+              Showing {alerts.length} unique alerts
+            </span>
+          </div>
         </div>
       )}
-
-      {/* No Alerts */}
       {!loading && alerts.length === 0 && (
         <div className="text-gray-600 mt-4">
-          <p>The dashboard isnt getting info, is:</p>
+          <p>The dashboard isn't getting info, is:</p>
           <ul className="list-disc list-inside">
             <li>Suricata or Snort running and generating alerts?</li>
             <li>The agent connected?</li>
           </ul>
         </div>
       )}
-
-      {/* Inspect Modal */}
       {selectedAlert && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-3/4 max-w-6xl p-6 relative overflow-y-auto max-h-[90vh]">
@@ -1669,8 +1476,6 @@ const generateReport = async () => {
                 ))}
               </tbody>
             </table>
-
-            {/* PCAP Packet Matches */}
             <div className="mt-6">
               <h3 className="text-lg font-semibold mb-2 text-gray-800">
                 📦 Matched PCAP Packets {alertPackets.length > 0 ? `(${alertPackets.length})` : ''}
@@ -1717,11 +1522,7 @@ const generateReport = async () => {
                 )}
               </div>
             </div>
-
-            {/* Add a line of margin between tables */}
             <div className="my-6" />
-
-            {/* Threat Intelligence Table */}
             <div className="overflow-x-auto">
               {loadingIntel ? (
                 <div className="text-gray-500 p-4">Loading threat intelligence...</div>
@@ -1760,7 +1561,6 @@ const generateReport = async () => {
                             return "-";
                         }
                       };
-
                       const getVTValue = (vtData: any) => {
                         if (!vtData?.data?.attributes) return "-";
                         switch (field) {
@@ -1774,10 +1574,8 @@ const generateReport = async () => {
                             return "-";
                         }
                       };
-
                       return (
                         <tr key={field} className="border-b border-gray-200">
-                          {/* Data Source */}
                           <td className="p-2 font-medium bg-gray-50">
                             {["Confidence", "Total Reports", "Country", "Domain"].includes(field)
                               ? "AbuseIPDB"
@@ -1795,7 +1593,6 @@ const generateReport = async () => {
                 </table>
               )}
             </div>
-
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => setSelectedAlert(null)}
