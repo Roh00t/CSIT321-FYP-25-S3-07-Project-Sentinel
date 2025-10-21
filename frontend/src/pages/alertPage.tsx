@@ -104,10 +104,15 @@ export default function AlertsPage() {
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
 
   const filteredAlertsByApiKey = useMemo(() => {
-    if (!apiKeys.length) return [];
+    if (!apiKeys.length) return alerts;
     const activeKeys = apiKeys.filter(k => !k.revoked);
     const userKeysSet = new Set(activeKeys.map(k => k.key));
-    return alerts.filter(a => a.api_key && userKeysSet.has(a.api_key) || a.api_key === "0");
+    return alerts.filter(a => 
+      (a.api_key && userKeysSet.has(a.api_key)) || 
+      a.api_key === "0" || 
+      a.api_key === null || 
+      a.api_key === undefined
+    );
   }, [alerts, apiKeys]);
 
   const fetchApiKeys = async () => {
@@ -179,6 +184,11 @@ export default function AlertsPage() {
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append("file", file);
+    // Add plan_type from localStorage
+    const planType = localStorage.getItem("plan_type");
+    if (planType) {
+      formData.append("plan_type", planType);
+    }
     setLoading(true);
     try {
       const res = await apiClient.post("/api/alerts/upload-alerts", formData, {

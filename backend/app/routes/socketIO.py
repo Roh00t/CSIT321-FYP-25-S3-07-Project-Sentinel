@@ -160,8 +160,29 @@ def normalize_alert(alert: dict) -> dict:
         or alert.get("Event", {}).get("ip_proto")
     )
 
+    # Robust timestamp normalization
+    ts = alert.get("timestamp")
+    from datetime import datetime, timezone
+    iso_ts = None
+    if ts is not None:
+        if isinstance(ts, int):
+            iso_ts = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        elif isinstance(ts, str):
+            try:
+                iso_ts = datetime.fromisoformat(ts).isoformat()
+            except Exception:
+                try:
+                    iso_ts = datetime.strptime(ts, "%m/%d-%H:%M:%S.%f").replace(year=datetime.now().year).isoformat()
+                except Exception:
+                    print(f"[WARN] Could not parse timestamp '{ts}', using utcnow.")
+                    iso_ts = datetime.utcnow().isoformat()
+        else:
+            iso_ts = datetime.utcnow().isoformat()
+    else:
+        iso_ts = datetime.utcnow().isoformat()
+
     return {
-        "timestamp": alert.get("timestamp"),
+        "timestamp": iso_ts,
         "src_ip": src_ip,
         "src_port": src_port,
         "dest_ip": dest_ip,

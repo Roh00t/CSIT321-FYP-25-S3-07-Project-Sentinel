@@ -15,8 +15,9 @@ class Alert(db.Model):
     signature = db.Column(db.String(512))
     severity = db.Column(db.Integer)
 
-    api_key = db.Column(db.String(128), db.ForeignKey("api_keys.key"), nullable=False)
+    api_key = db.Column(db.String(128), db.ForeignKey("api_keys.key"), nullable=True)
     source_forwarder_name = db.Column(db.String(128), nullable=True)  # friendly name from APIKey
+    user_id = db.Column(db.Integer, db.ForeignKey("app_users.id"), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -33,5 +34,6 @@ class Alert(db.Model):
             "severity": self.severity,
             "api_key": self.api_key,
             "source_forwarder_name": self.source_forwarder_name,
-            "created_at": self.created_at.isoformat(),
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
