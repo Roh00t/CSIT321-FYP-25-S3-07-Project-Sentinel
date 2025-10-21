@@ -320,7 +320,8 @@ export default function AlertsPage() {
 
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(`${import.meta.env.VITE_API_BASE_URL}/api/alerts/stream`, {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    const socket: Socket = io(`${baseUrl}/api/alerts/stream`, {
       transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: Infinity,
