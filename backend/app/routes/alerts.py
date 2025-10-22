@@ -174,6 +174,7 @@ def upload_alerts():
     filename = secure_filename(file.filename)
     save_path = os.path.join(current_app.root_path, UPLOAD_FOLDER, filename)
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    file.save(save_path)
     alerts = []
     try:
         from app.models.app_user import AppUser
@@ -272,6 +273,5 @@ def upload_alerts():
     except Exception as e:
         print(f"[ERROR] Upload error: {e}")
         return jsonify({"error": f"Failed to parse or save alerts: {str(e)}"}), 400
-        return jsonify({"alerts": alerts}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to parse or save alerts: {str(e)}"}), 400
