@@ -1,0 +1,16 @@
+snort:
+/home/a/snort3/lua/icmp.rules
+/home/a/snort3/lua/snort_json.lua
+
+sudo snort -c /home/a/snort3/lua/snort_json.lua -i ens33 -l /home/a/snort_logs -A alert_json -L log_pcap
+
+logs in : /var/log/snort/alert_json.txt
+
+zeek:
+/home/a/zeek/scripts/here/icmp_detector_json.zeek
+
+
+##! sudo cp icmp_detector_json.zeek /opt/zeek/share/zeek/site/
+##! echo '@load icmp_detector_json.zeek' | sudo tee -a /opt/zeek/share/zeek/site/local.zeek
+##! Edit /opt/zeek/etc/node.cfg  to set interface=ens33
+##! sudo ./bin/zeekctl deploy
