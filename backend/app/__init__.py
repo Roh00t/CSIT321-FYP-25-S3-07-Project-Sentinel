@@ -46,6 +46,7 @@ def create_app():
     from app.routes.api_key import api_keys_bp
     from app.routes.alerts_api import adbp
     from app.routes.pcap import pcap_bp
+    from app.routes.dashboard import dashboard_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(main_bp, url_prefix='/api')
@@ -56,6 +57,7 @@ def create_app():
     app.register_blueprint(api_keys_bp)
     app.register_blueprint(adbp, url_prefix="/api/alerts_api")
     app.register_blueprint(pcap_bp)
+    app.register_blueprint(dashboard_bp, url_prefix='/api')
 
     # Initialize CORS after blueprints are registered
     CORS(app,

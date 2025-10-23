@@ -1,11 +1,9 @@
 // src/pages/AlertsPage.tsx
-
 import { useState, useEffect, useMemo } from "react";
 import apiClient from "../components/apiClient";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import React from "react";
-
 // Chart.js
 import {
   Chart as ChartJS,
@@ -22,14 +20,15 @@ import {
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, ChartTitle, ChartTooltip, Legend, ChartDataLabels);
-
 // Socket.IO
 import { io, Socket } from "socket.io-client";
 import { useSocketLogger } from "../hooks/useSocketLogger";
-
 // PDF
 import jsPDF from "jspdf";
-
+// React Grid Layout (non-editable)
+import { Responsive, WidthProvider } from "react-grid-layout";
+import type { Layout } from "react-grid-layout"; // ✅ Type-only import
+const ResponsiveGridLayout = WidthProvider(Responsive);
 // Toast helpers
 function showToast(message: string, duration = 3000) {
   let toast = document.getElementById("toast");
@@ -52,7 +51,6 @@ function showToast(message: string, duration = 3000) {
     toast!.style.display = "none";
   }, duration);
 }
-
 function showRToast(message: string, duration = 3000) {
   let toast = document.getElementById("toast");
   if (!toast) {
@@ -100,7 +98,6 @@ export default function AlertsPage() {
   const [newApiKeyType, setNewApiKeyType] = useState("suricata");
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
-
   const filteredAlertsByApiKey = useMemo(() => {
     if (!apiKeys.length) return alerts;
     const activeKeys = apiKeys.filter(k => !k.revoked);
@@ -112,7 +109,6 @@ export default function AlertsPage() {
       a.api_key === undefined
     );
   }, [alerts, apiKeys]);
-
   const fetchApiKeys = async () => {
     try {
       const res = await apiClient.get("/api/apikeys");
@@ -122,13 +118,11 @@ export default function AlertsPage() {
       console.error(err);
     }
   };
-
   const [page, setPage] = useState(1);
   const [perPage] = useState(100);
   const [totalAlerts, setTotalAlerts] = useState(0);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [serverSummary, setServerSummary] = useState<any>(null);
-
   const [filters, setFilters] = useState({
     minSeverity: 0,
     alertsOnly: false,
@@ -138,21 +132,16 @@ export default function AlertsPage() {
     timeRange: { start: null as string | null, end: null as string | null },
     agent: ""
   });
-
   const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
     if (!token) return;
     setLoadingAlerts(true);
     try {
       const timeRangeParam = timeRange || "today";
-      
-      // Build query params with filters
       const params = new URLSearchParams({
         page: pageNumber.toString(),
         per_page: perPage.toString(),
         time_range: timeRangeParam,
       });
-      
-      // Add filters
       if (filters.minSeverity > 0) {
         params.append("min_severity", filters.minSeverity.toString());
       }
@@ -177,10 +166,7 @@ export default function AlertsPage() {
       if (filters.timeRange.end) {
         params.append("end_time", filters.timeRange.end);
       }
-      
       const res = await apiClient.get(`/api/alerts_api?${params.toString()}`);
-      
-      // If this is page 1, replace alerts; otherwise append
       if (pageNumber === 1) {
         setAlerts(res.data.alerts);
       } else {
@@ -207,44 +193,33 @@ export default function AlertsPage() {
       setLoadingAlerts(false);
     }
   };
-
   useEffect(() => {
     fetchAlertsPage(1);
   }, [token]);
-
-  // Refetch when filters change
   useEffect(() => {
     if (token) {
       setPage(1);
       fetchAlertsPage(1);
     }
   }, [filters, token]);
-
   useEffect(() => {
     if (showApiKeySettings) fetchApiKeys();
   }, [showApiKeySettings]);
-
   const [sortField, setSortField] = useState<string>("timestamp");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [selectedSavedFilterId, setSelectedSavedFilterId] = useState<string>("");
-
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append("file", file);
-    // Add plan_type from localStorage
     const planType = localStorage.getItem("plan_type");
     if (planType) {
       formData.append("plan_type", planType);
     }
     setLoading(true);
     try {
-      const res = await apiClient.post("/api/alerts/upload-alerts", formData, {
-        headers: {
-          // Do NOT set Content-Type — axios handles boundary
-        },
-      });
+      const res = await apiClient.post("/api/alerts/upload-alerts", formData);
       const newAlerts = res.data.alerts || [];
       const newAlertsWithKey = newAlerts.map((a: any) => ({ ...a, api_key: "0" }));
       setAlerts((prev) => {
@@ -264,7 +239,6 @@ export default function AlertsPage() {
       e.target.value = '';
     }
   };
-
   const handlePcapUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const file = e.target.files[0];
@@ -273,11 +247,7 @@ export default function AlertsPage() {
     formData.append("time_window", "5");
     setLoading(true);
     try {
-      const res = await apiClient.post("/api/pcaps/upload", formData, {
-        headers: {
-          // Content-Type handled automatically
-        },
-      });
+      const res = await apiClient.post("/api/pcaps/upload", formData);
       showToast(`PCAP uploaded! ${res.data.matches_found} matches found`);
     } catch (err: any) {
       if (err.response?.status === 401) return;
@@ -289,7 +259,6 @@ export default function AlertsPage() {
       e.target.value = "";
     }
   };
-
   useEffect(() => {
     apiClient.get("/api/filters/")
       .then(res => setSavedFilters(res.data))
@@ -297,7 +266,6 @@ export default function AlertsPage() {
         if (err.response?.status !== 401) console.error("Failed to load filters", err);
       });
   }, []);
-
   const saveCurrentFilter = async () => {
     try {
       const res = await apiClient.post("/api/filters/", {
@@ -316,14 +284,12 @@ export default function AlertsPage() {
       showRToast("Failed to save filter");
     }
   };
-
   const applySavedFilter = (f: any) => {
     setFilters({
       ...f.filters_json,
       protocols: new Set(f.filters_json.protocols || []),
     });
   };
-
   useEffect(() => {
     const alertsToProcess = filteredAlertsByApiKey;
     if (!alertsToProcess.length) {
@@ -356,7 +322,6 @@ export default function AlertsPage() {
     };
     fetchGeo();
   }, [filteredAlertsByApiKey]);
-
   useEffect(() => {
     if (!token) return;
     const fetchAlertOptions = async () => {
@@ -375,7 +340,6 @@ export default function AlertsPage() {
     };
     fetchAlertOptions();
   }, [token]);
-
   useEffect(() => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -386,11 +350,9 @@ export default function AlertsPage() {
       reconnectionDelay: 2000,
       query: { token },
     });
-
     socket.on("disconnect", () => {
       console.log("❌ Disconnected from Socket.IO stream");
     });
-
     socket.on("bulk_alerts", (payload) => {
       if (!payload || !Array.isArray(payload.alerts)) {
         console.warn("⚠️ Malformed payload received:", payload);
@@ -408,7 +370,6 @@ export default function AlertsPage() {
         signature: a.signature || "Unlabeled Alert",
         severity: a.severity ?? 0,
       }));
-
       setAlerts((prev: any[]) => {
         const existingKeys = new Set(
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
@@ -422,13 +383,11 @@ export default function AlertsPage() {
         return [...newFiltered, ...prev];
       });
     });
-
     return () => {
       console.log("🧹 Cleaning up socket connection");
       socket.disconnect();
     };
   }, [token]);
-
   useEffect(() => {
     if (!token) return;
     const fetchApiKeys = async () => {
@@ -444,9 +403,6 @@ export default function AlertsPage() {
     };
     fetchApiKeys();
   }, [token]);
-
-  // No client-side filtering - all filtering is done server-side
-  // Just apply sorting to the alerts from the API
   let filteredAlerts = [...filteredAlertsByApiKey].sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
@@ -461,7 +417,6 @@ export default function AlertsPage() {
     }
     return sortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
   });
-
   const summary = useMemo(() => {
     if (serverSummary) {
       return {
@@ -471,7 +426,6 @@ export default function AlertsPage() {
         topSignatures: serverSummary.top_signatures || [],
       };
     }
-    // Fallback to client-side calculation if server summary not available
     const alertEvents = filteredAlerts.filter(a => a.severity);
     const total = alertEvents.length;
     const topTalkers: Record<string, number> = {};
@@ -493,7 +447,6 @@ export default function AlertsPage() {
       topSignatures: sortDesc(topSignatures),
     };
   }, [filteredAlerts, serverSummary, totalAlerts]);
-
   const severityData = {
     labels: [' '],
     datasets: [
@@ -514,7 +467,6 @@ export default function AlertsPage() {
       }
     ]
   };
-
   const protocolData = {
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
@@ -531,7 +483,6 @@ export default function AlertsPage() {
       backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
     }]
   };
-
   const alertsPerHourOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -547,14 +498,10 @@ export default function AlertsPage() {
       legend: { position: 'top' as const },
     },
   };
-
   const [timeRangeView, setTimeRangeView] = useState<"today" | "week" | "month" | "year">("today");
-
-  // Generate labels based on time range
   const generateLabels = (timeRange: string) => {
     const now = new Date();
     let fullLabels: string[] = [];
-    
     if (timeRange === "today") {
       fullLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
     } else if (timeRange === "week") {
@@ -579,14 +526,10 @@ export default function AlertsPage() {
     }
     return fullLabels;
   };
-
-  // Use server data if available, otherwise fallback to client-side
   const alertsOverTimeData = useMemo(() => {
     if (serverSummary?.activity_over_time) {
       const { threats, activity } = serverSummary.activity_over_time;
       const fullLabels = generateLabels(timeRangeView);
-      
-      // Convert time buckets to match label format
       const formatServerKey = (key: string) => {
         const d = new Date(key);
         if (timeRangeView === "today") {
@@ -598,18 +541,14 @@ export default function AlertsPage() {
         }
         return key;
       };
-      
       const detected = fullLabels.map((label) => {
-        // Find matching server key
         const matchingKey = Object.keys(threats).find(k => formatServerKey(k) === label);
         return matchingKey ? threats[matchingKey] : 0;
       });
-      
       const activityData = fullLabels.map((label) => {
         const matchingKey = Object.keys(activity).find(k => formatServerKey(k) === label);
         return matchingKey ? activity[matchingKey] : 0;
       });
-      
       return {
         labels: fullLabels,
         datasets: [
@@ -630,8 +569,6 @@ export default function AlertsPage() {
         ],
       };
     }
-    
-    // Fallback to client-side calculation
     const now = new Date();
     let startTime = new Date();
     if (timeRangeView === "today") {
@@ -646,12 +583,10 @@ export default function AlertsPage() {
     } else if (timeRangeView === "year") {
       startTime = new Date(now.getFullYear(), 0, 1);
     }
-
     const filteredByTime = filteredAlerts.filter((a) => {
       const d = new Date(a.timestamp);
       return d >= startTime && d <= now;
     });
-
     const groupAlerts = (unit: string, source: any[]) => {
       const map = new Map<string, { threats: number; activity: number }>();
       source.forEach((a) => {
@@ -675,7 +610,6 @@ export default function AlertsPage() {
       });
       return map;
     };
-
     const unit =
       timeRangeView === "today"
         ? "hour"
@@ -685,11 +619,9 @@ export default function AlertsPage() {
         ? "day"
         : "month";
     const groupedData = groupAlerts(unit, filteredByTime);
-
     const fullLabels = generateLabels(timeRangeView);
     const detected = fullLabels.map((label) => groupedData.get(label)?.threats || 0);
     const activityData = fullLabels.map((label) => groupedData.get(label)?.activity || 0);
-
     return {
       labels: fullLabels,
       datasets: [
@@ -710,14 +642,12 @@ export default function AlertsPage() {
       ],
     };
   }, [serverSummary, timeRangeView, filteredAlerts]);
-
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
     if (newSet.has(proto)) newSet.delete(proto);
     else newSet.add(proto);
     setFilters({ ...filters, protocols: newSet });
   };
-
   const handleInspect = async (alert: any) => {
     const srcIP = alert.src_ip;
     const destIP = alert.dest_ip;
@@ -725,11 +655,9 @@ export default function AlertsPage() {
     setThreatIntel(null);
     setLoadingIntel(true);
     setAlertPackets([]);
-
     apiClient.get(`/api/alerts/${alert.id}/packets`)
       .then((pcapRes) => setAlertPackets(pcapRes.data || []))
       .catch(() => setAlertPackets([]));
-
     try {
       const [srcRes, destRes] = await Promise.all([
         apiClient.post("/api/threatintel", { ip: srcIP }),
@@ -745,7 +673,6 @@ export default function AlertsPage() {
       setLoadingIntel(false);
     }
   };
-
   const generateReport = async () => {
     const doc = new jsPDF("p", "mm", "a4");
     let yPos = 10;
@@ -797,719 +724,808 @@ export default function AlertsPage() {
     await addChart("alerts-over-time-chart", "Alerts Over Time");
     doc.save("alerts_management_report.pdf");
   };
+  // ✅ Layout loading
+  const [layout, setLayout] = useState<Layout[]>([]);
+  const [layoutLoaded, setLayoutLoaded] = useState(false);
+  useEffect(() => {
+    const fetchLayout = async () => {
+      try {
+        const res = await apiClient.get("/api/user-layout");
+        setLayout(res.data.layout);
+      } catch (err) {
+        // Fallback to default
+        setLayout([
+          { i: "upload-controls", x: 0, y: 0, w: 12, h: 2 },
+          { i: "charts", x: 0, y: 2, w: 12, h: 6 },
+          { i: "summary-metrics", x: 0, y: 8, w: 12, h: 4 },
+          { i: "filters", x: 0, y: 12, w: 12, h: 3 },
+          { i: "alerts-table", x: 0, y: 15, w: 12, h: 10 },
+        ]);
+      } finally {
+        setLayoutLoaded(true);
+      }
+    };
+    fetchLayout();
+  }, []);
+
+  // ✅ Helper: check if widget is in layout (i.e., visible)
+  const isWidgetVisible = (id: string) => {
+    return layout.some(item => item.i === id);
+  };
+
+  if (!layoutLoaded) {
+    return <div className="p-8">Loading dashboard...</div>;
+  }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Alerts</h1>
-        <div className="flex flex-wrap gap-4 items-center relative">
-          <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-blue-700 transition">
-            <span>Upload Alert File</span>
-            <input
-              type="file"
-              accept=".json,.csv"
-              onChange={handleUpload}
-              className="hidden"
-            />
-          </label>
-          <label className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-purple-700 transition">
-            <span>📦 Upload PCAP</span>
-            <input
-              type="file"
-              accept=".pcap,.pcapng,.cap"
-              onChange={handlePcapUpload}
-              className="hidden"
-            />
-          </label>
-          <div className="relative">
-            <button
-              onClick={() => setShowApiKeySettings(!showApiKeySettings)}
-              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
-            >
-              🔑 API Key Management
-            </button>
-            {showApiKeySettings && (
-              <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
-                <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
-                <div className="mb-4">
+    <div className="p-4">
+      <div className="mb-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800">Alerts Dashboard</h1>
+        <button
+          onClick={() => window.location.href = '/app/dashboard-layout'}
+          className="text-sm text-blue-600 hover:text-blue-800 underline"
+        >
+          Customize Layout
+        </button>
+      </div>
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={{ lg: layout }}
+        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+        rowHeight={80}
+        isDraggable={false}
+        isResizable={false}
+      >
+        {/* Upload Controls */}
+        {isWidgetVisible("upload-controls") && (
+          <div key="upload-controls">
+            <div className="p-4 bg-gray-50 rounded-lg shadow">
+              <div className="flex flex-wrap gap-4 items-center relative">
+                <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-blue-700 transition">
+                  <span>Upload Alert File</span>
                   <input
-                    type="text"
-                    value={newApiKeyName}
-                    onChange={(e) => setNewApiKeyName(e.target.value)}
-                    placeholder="API key name"
-                    className="border rounded px-2 py-1 w-full mb-2"
+                    type="file"
+                    accept=".json,.csv"
+                    onChange={handleUpload}
+                    className="hidden"
                   />
-                  <select
-                    value={newApiKeyType}
-                    onChange={(e) => setNewApiKeyType(e.target.value)}
-                    className="border rounded px-2 py-1 w-full mb-2"
-                  >
-                    <option value="suricata">Suricata</option>
-                    <option value="zeek">Zeek</option>
-                    <option value="snort">Snort</option>
-                  </select>
+                </label>
+                <label className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-purple-700 transition">
+                  <span>📦 Upload PCAP</span>
+                  <input
+                    type="file"
+                    accept=".pcap,.pcapng,.cap"
+                    onChange={handlePcapUpload}
+                    className="hidden"
+                  />
+                </label>
+                <div className="relative">
                   <button
-                    onClick={async () => {
-                      if (!newApiKeyName) return alert("Enter a key name");
-                      const expires_days = 30;
-                      try {
-                        await apiClient.post("/api/apikeys", { name: newApiKeyName, type: newApiKeyType, expires_days });
-                        showToast(`API key created!`);
-                        setNewApiKeyName("");
-                        fetchApiKeys();
-                      } catch (err: any) {
-                        if (err.response?.status === 401) return;
-                        console.error(err);
-                        showRToast("Failed to create API key");
-                      }
-                    }}
-                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full"
+                    onClick={() => setShowApiKeySettings(!showApiKeySettings)}
+                    className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
                   >
-                    Create API Key
+                    🔑 API Key Management
                   </button>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {loadingKeys ? (
-                    <p>Loading keys...</p>
-                  ) : apiKeys.length === 0 ? (
-                    <p>No API keys yet</p>
-                  ) : (
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr>
-                          <th className="p-2 text-left">Name</th>
-                          <th className="p-2 text-left">Key</th>
-                          <th className="p-2 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {apiKeys
-                          .filter((key) => !key.revoked)
-                          .map((key) => (
-                            <tr key={key.id} className="border-b">
-                              <td className="p-2">{key.name}</td>
-                              <td className="p-2">
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(key.key ?? "");
-                                    showToast("API key copied to clipboard");
-                                  }}
-                                  className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                >
-                                  Copy key to clipboard
-                                </button>
-                              </td>
-                              <td className="p-2 flex gap-2 items-center">
-                                <select
-                                  value={key.type}
-                                  onChange={(e) => {
-                                    const newType = e.target.value;
-                                    setApiKeys(apiKeys.map(k =>
-                                      k.id === key.id ? { ...k, type: newType, dirty: true } : k
-                                    ));
-                                  }}
-                                  className="border rounded px-2 py-1"
-                                >
-                                  <option value="suricata">Suricata</option>
-                                  <option value="zeek">Zeek</option>
-                                  <option value="snort">Snort</option>
-                                </select>
-                                {key.dirty && (
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        await apiClient.put(`/api/apikeys/${key.id}`, { type: key.type });
-                                        setApiKeys(apiKeys.map(k =>
-                                          k.id === key.id ? { ...k, dirty: false } : k
-                                        ));
-                                        showToast("API key type updated");
-                                      } catch (err: any) {
-                                        if (err.response?.status === 401) return;
-                                        console.error(err);
-                                        showRToast("Failed to update key type");
-                                      }
-                                    }}
-                                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                                  >
-                                    Save
-                                  </button>
-                                )}
-                                <button
-                                  onClick={async () => {
-                                    if (!confirm("Delete this API key?")) return;
-                                    try {
-                                      await apiClient.delete(`/api/apikeys/${key.id}`);
-                                      setApiKeys(apiKeys.filter((k) => k.id !== key.id));
-                                    } catch (err: any) {
-                                      if (err.response?.status === 401) return;
-                                      console.error(err);
-                                      showRToast("Failed to delete key");
-                                    }
-                                  }}
-                                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                                >
-                                  Delete
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+                  {showApiKeySettings && (
+                    <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-96 z-20">
+                      <h3 className="text-lg font-semibold mb-2">API Key Management</h3>
+                      <div className="mb-4">
+                        <input
+                          type="text"
+                          value={newApiKeyName}
+                          onChange={(e) => setNewApiKeyName(e.target.value)}
+                          placeholder="API key name"
+                          className="border rounded px-2 py-1 w-full mb-2"
+                        />
+                        <select
+                          value={newApiKeyType}
+                          onChange={(e) => setNewApiKeyType(e.target.value)}
+                          className="border rounded px-2 py-1 w-full mb-2"
+                        >
+                          <option value="suricata">Suricata</option>
+                          <option value="zeek">Zeek</option>
+                          <option value="snort">Snort</option>
+                        </select>
+                        <button
+                          onClick={async () => {
+                            if (!newApiKeyName) return alert("Enter a key name");
+                            const expires_days = 30;
+                            try {
+                              await apiClient.post("/api/apikeys", { name: newApiKeyName, type: newApiKeyType, expires_days });
+                              showToast(`API key created!`);
+                              setNewApiKeyName("");
+                              fetchApiKeys();
+                            } catch (err: any) {
+                              if (err.response?.status === 401) return;
+                              console.error(err);
+                              showRToast("Failed to create API key");
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full"
+                        >
+                          Create API Key
+                        </button>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {loadingKeys ? (
+                          <p>Loading keys...</p>
+                        ) : apiKeys.length === 0 ? (
+                          <p>No API keys yet</p>
+                        ) : (
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr>
+                                <th className="p-2 text-left">Name</th>
+                                <th className="p-2 text-left">Key</th>
+                                <th className="p-2 text-left">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {apiKeys
+                                .filter((key) => !key.revoked)
+                                .map((key) => (
+                                  <tr key={key.id} className="border-b">
+                                    <td className="p-2">{key.name}</td>
+                                    <td className="p-2">
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(key.key ?? "");
+                                          showToast("API key copied to clipboard");
+                                        }}
+                                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                      >
+                                        Copy key to clipboard
+                                      </button>
+                                    </td>
+                                    <td className="p-2 flex gap-2 items-center">
+                                      <select
+                                        value={key.type}
+                                        onChange={(e) => {
+                                          const newType = e.target.value;
+                                          setApiKeys(apiKeys.map(k =>
+                                            k.id === key.id ? { ...k, type: newType, dirty: true } : k
+                                          ));
+                                        }}
+                                        className="border rounded px-2 py-1"
+                                      >
+                                        <option value="suricata">Suricata</option>
+                                        <option value="zeek">Zeek</option>
+                                        <option value="snort">Snort</option>
+                                      </select>
+                                      {key.dirty && (
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              await apiClient.put(`/api/apikeys/${key.id}`, { type: key.type });
+                                              setApiKeys(apiKeys.map(k =>
+                                                k.id === key.id ? { ...k, dirty: false } : k
+                                              ));
+                                              showToast("API key type updated");
+                                            } catch (err: any) {
+                                              if (err.response?.status === 401) return;
+                                              console.error(err);
+                                              showRToast("Failed to update key type");
+                                            }
+                                          }}
+                                          className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                        >
+                                          Save
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={async () => {
+                                          if (!confirm("Delete this API key?")) return;
+                                          try {
+                                            await apiClient.delete(`/api/apikeys/${key.id}`);
+                                            setApiKeys(apiKeys.filter((k) => k.id !== key.id));
+                                          } catch (err: any) {
+                                            if (err.response?.status === 401) return;
+                                            console.error(err);
+                                            showRToast("Failed to delete key");
+                                          }
+                                        }}
+                                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          onClick={() => setShowApiKeySettings(false)}
+                          className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="relative">
                   <button
-                    onClick={() => setShowApiKeySettings(false)}
-                    className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+                    onClick={() => setShowAlertSettings(!showAlertSettings)}
+                    className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
                   >
-                    Close
+                    ⚙️ Alert Preferences
                   </button>
+                  <button
+                    onClick={generateReport}
+                    className="ml-4 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Generate Management Report
+                  </button>
+                  {showAlertSettings && (
+                    <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
+                      <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={alertSettings.high}
+                            onChange={(e) =>
+                              setAlertSettings({ ...alertSettings, high: e.target.checked })
+                            }
+                          />
+                          <span>Send email for <b>High alerts</b></span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={alertSettings.medium}
+                            onChange={(e) =>
+                              setAlertSettings({ ...alertSettings, medium: e.target.checked })
+                            }
+                          />
+                          <span>Send email for <b>Medium alerts</b></span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={alertSettings.low}
+                            onChange={(e) =>
+                              setAlertSettings({ ...alertSettings, low: e.target.checked })
+                            }
+                          />
+                          <span>Send email for <b>Low alerts</b></span>
+                        </label>
+                      </div>
+                      <div className="mt-4">
+                        <label className="block mb-1 text-sm font-medium">
+                          Above <b>X</b> logs per hour:
+                        </label>
+                        <input
+                          type="number"
+                          value={alertSettings.threshold}
+                          onChange={(e) =>
+                            setAlertSettings({ ...alertSettings, threshold: Number(e.target.value) })
+                          }
+                          className="w-full border rounded px-2 py-1"
+                          min={1}
+                        />
+                      </div>
+                      <div className="mt-4 flex justify-end space-x-2">
+                        <button
+                          onClick={() => setShowAlertSettings(false)}
+                          className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await apiClient.put("/api/filters/alert-options", {
+                                alerts_options: alertSettings,
+                                report_frequency: reportFrequency,
+                              });
+                              showToast("Alert options saved!");
+                              setShowAlertSettings(false);
+                            } catch (err: any) {
+                              if (err.response?.status === 401) return;
+                              console.error("Failed to save alert options:", err);
+                              showRToast("Failed to save alert options");
+                            }
+                          }}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowAlertSettings(!showAlertSettings)}
-              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
-            >
-              ⚙️ Alert Preferences
-            </button>
-            <button
-              onClick={generateReport}
-              className="ml-4 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Generate Management Report
-            </button>
-            {showAlertSettings && (
-              <div className="absolute left-0 mt-2 bg-white shadow-lg rounded-lg border p-4 w-80 z-10">
-                <h3 className="text-lg font-semibold mb-2">Alert Notifications</h3>
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={alertSettings.high}
-                      onChange={(e) =>
-                        setAlertSettings({ ...alertSettings, high: e.target.checked })
-                      }
-                    />
-                    <span>Send email for <b>High alerts</b></span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={alertSettings.medium}
-                      onChange={(e) =>
-                        setAlertSettings({ ...alertSettings, medium: e.target.checked })
-                      }
-                    />
-                    <span>Send email for <b>Medium alerts</b></span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={alertSettings.low}
-                      onChange={(e) =>
-                        setAlertSettings({ ...alertSettings, low: e.target.checked })
-                      }
-                    />
-                    <span>Send email for <b>Low alerts</b></span>
-                  </label>
-                </div>
-                <div className="mt-4">
-                  <label className="block mb-1 text-sm font-medium">
-                    Above <b>X</b> logs per hour:
-                  </label>
-                  <input
-                    type="number"
-                    value={alertSettings.threshold}
-                    onChange={(e) =>
-                      setAlertSettings({ ...alertSettings, threshold: Number(e.target.value) })
-                    }
-                    className="w-full border rounded px-2 py-1"
-                    min={1}
+        )}
+
+        {/* Charts */}
+        {isWidgetVisible("charts") && (
+          <div key="charts">
+            <div className="p-4 bg-white rounded-lg shadow">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+                  <span className="text-lg font-semibold mb-2">Severity Levels</span>
+                  <Bar
+                    id="severity-chart"
+                    data={severityData}
+                    options={{
+                      responsive: true, 
+                      maintainAspectRatio: false, 
+                      plugins: {
+                        legend: {},
+                        datalabels: {
+                          display: true,
+                          color: '#fff',
+                          font: {
+                            weight: 'bold' as const,
+                            size: 14
+                          },
+                          formatter: (value: number) => value > 0 ? value : ''
+                        }
+                      },
+                    }}
+                    height={200}
                   />
                 </div>
-                <div className="mt-4 flex justify-end space-x-2">
-                  <button
-                    onClick={() => setShowAlertSettings(false)}
-                    className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await apiClient.put("/api/filters/alert-options", {
-                          alerts_options: alertSettings,
-                          report_frequency: reportFrequency,
-                        });
-                        showToast("Alert options saved!");
-                        setShowAlertSettings(false);
-                      } catch (err: any) {
-                        if (err.response?.status === 401) return;
-                        console.error("Failed to save alert options:", err);
-                        showRToast("Failed to save alert options");
+                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
+                  <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
+                  <Doughnut
+                    id="protocol-chart"
+                    key={"protocol-" + filteredAlerts.length}
+                    data={protocolData}
+                    options={{ 
+                      responsive: true, 
+                      maintainAspectRatio: false,
+                      plugins: {
+                        datalabels: {
+                          display: true,
+                          color: '#fff',
+                          font: {
+                            weight: 'bold' as const,
+                            size: 14
+                          },
+                          formatter: (value: number) => value > 0 ? value : ''
+                        }
                       }
                     }}
-                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Save
-                  </button>
+                    height={200}
+                  />
+                </div>
+                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <span className="text-lg font-semibold">Activity over time</span>
+                    <div className="flex gap-2">
+                      {["today", "week", "month", "year"].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => {
+                            setTimeRangeView(r as any);
+                            fetchAlertsPage(1, r);
+                          }}
+                          className={`px-2 py-1 text-sm rounded ${
+                            timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+                          }`}
+                        >
+                          {r.charAt(0).toUpperCase() + r.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Line
+                    id="alerts-over-time-chart"
+                    key={`${timeRangeView}-${filteredAlerts.length}`}
+                    data={alertsOverTimeData}
+                    options={alertsPerHourOptions}
+                    height={200}
+                  />
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-          <span className="text-lg font-semibold mb-2">Severity Levels</span>
-          <Bar
-            id="severity-chart"
-            data={severityData}
-            options={{
-              responsive: true, 
-              maintainAspectRatio: false, 
-              plugins: {
-                legend: {},
-                datalabels: {
-                  display: true,
-                  color: '#fff',
-                  font: {
-                    weight: 'bold' as const,
-                    size: 14
-                  },
-                  formatter: (value: number) => value > 0 ? value : ''
-                }
-              },
-            }}
-            height={200}
-          />
-        </div>
-        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-          <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
-          <Doughnut
-            id="protocol-chart"
-            key={"protocol-" + filteredAlerts.length}
-            data={protocolData}
-            options={{ 
-              responsive: true, 
-              maintainAspectRatio: false,
-              plugins: {
-                datalabels: {
-                  display: true,
-                  color: '#fff',
-                  font: {
-                    weight: 'bold' as const,
-                    size: 14
-                  },
-                  formatter: (value: number) => value > 0 ? value : ''
-                }
-              }
-            }}
-            height={200}
-          />
-        </div>
-        <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
-          <div className="flex items-center justify-between w-full mb-2">
-            <span className="text-lg font-semibold">Activity over time</span>
-            <div className="flex gap-2">
-              {["today", "week", "month", "year"].map((r) => (
+        )}
+
+        {/* Summary Metrics + Map */}
+        {isWidgetVisible("summary-metrics") && (
+          <div key="summary-metrics">
+            <div className="p-4 bg-white rounded-lg shadow">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-stretch">
+                <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
+                  <span className="text-4xl font-bold">{summary.total}</span>
+                  <span className="mt-2 font-medium">Total Alerts</span>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <h3 className="font-semibold mb-2">Top Talkers</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {summary.topTalkers.map(([ip, count]: [string, number]) => (
+                        <tr key={ip}>
+                          <td>{ip}</td>
+                          <td className="text-right font-semibold">{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {summary.topHosts.map(([ip, count]: [string, number]) => (
+                        <tr key={ip}>
+                          <td>{ip}</td>
+                          <td className="text-right font-semibold">{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <h3 className="font-semibold mb-2">Top Signatures</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {summary.topSignatures.map(([sig, count]: [string, number]) => (
+                        <tr key={sig}>
+                          <td title={sig}>{sig.length > 30 ? sig.substring(0, 30) + '...' : sig}</td>
+                          <td className="text-right font-semibold">{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center z-0">
+                  <div className="h-48 w-full">
+                    <MapContainer
+                      bounds={[[-90, -180], [90, 180]]}
+                      style={{ height: '100%', width: '100%' }}
+                      maxBoundsViscosity={1.0}
+                      center={[50, 0]}
+                      dragging={true}
+                      maxBounds={[[-90, -180], [90, 180]]}
+                    >
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        noWrap={true}
+                      />
+                      {alertsWithGeo.map((a, i) => (
+                        <React.Fragment key={i}>
+                          {a.src_geo?.lat != null && a.src_geo?.lon != null && (
+                            <CircleMarker
+                              key={`src-${i}`}
+                              center={[a.src_geo.lat, a.src_geo.lon]}
+                              radius={3}
+                              pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.7 }}
+                            >
+                              <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                                <span>
+                                  Source: {a.src_ip}
+                                  {a.signature ? <><br />Sig: {a.signature}</> : null}
+                                </span>
+                              </Tooltip>
+                            </CircleMarker>
+                          )}
+                          {a.dest_geo?.lat != null && a.dest_geo?.lon != null && (
+                            <CircleMarker
+                              key={`dest-${i}`}
+                              center={[a.dest_geo.lat, a.dest_geo.lon]}
+                              radius={4}
+                              pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
+                            >
+                              <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
+                                <span>
+                                  Dest: {a.dest_ip}
+                                  {a.signature ? <><br />Sig: {a.signature}</> : null}
+                                </span>
+                              </Tooltip>
+                            </CircleMarker>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </MapContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        {isWidgetVisible("filters") && (
+          <div key="filters">
+            <div className="p-4 bg-white rounded-lg shadow">
+              <div className="mb-4 flex gap-4 flex-wrap">
+                {apiKeys.filter(k => !k.revoked).length > 0 && (
+                  <label className="ml-4">
+                    Agent:
+                    <select
+                      value={filters.agent}
+                      onChange={e => setFilters({ ...filters, agent: e.target.value })}
+                      className="ml-2 border rounded px-2 py-1"
+                    >
+                      <option value="">All</option>
+                      <option value="0">Uploaded manually</option>
+                      {apiKeys.map(k => (
+                        <option key={k.key} value={k.key}>{k.name} ({k.type})</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label>
+                  Min Severity:
+                  <select
+                    value={filters.minSeverity}
+                    onChange={(e) => setFilters({ ...filters, minSeverity: Number(e.target.value) })}
+                    className="ml-2 border rounded px-2 py-1"
+                  >
+                    <option value={0}>All</option>
+                    <option value={1}>1 - High</option>
+                    <option value={2}>2 - Medium</option>
+                    <option value={3}>3 - Low</option>
+                  </select>
+                </label>
+                <label className="ml-4">
+                  <input
+                    type="checkbox"
+                    checked={filters.alertsOnly}
+                    onChange={() => setFilters({ ...filters, alertsOnly: !filters.alertsOnly })}
+                    className="mr-1"
+                  />
+                  Alerts Only
+                </label>
+                {["TCP", "UDP", "ICMP"].map((proto) => (
+                  <label key={proto} className="ml-2">
+                    <input
+                      type="checkbox"
+                      checked={filters.protocols.has(proto)}
+                      onChange={() => toggleProtocol(proto)}
+                      className="mr-1"
+                    />
+                    {proto}
+                  </label>
+                ))}
+                <label className="ml-4">
+                  Port:
+                  <input
+                    type="number"
+                    min={0}
+                    max={65535}
+                    value={filters.port ?? ""}
+                    onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
+                    className="ml-2 border rounded px-2 py-1 w-20"
+                    placeholder="Any"
+                  />
+                </label>
+                <label className="ml-4">
+                  IP:
+                  <input
+                    type="text"
+                    value={filters.ip}
+                    onChange={(e) => setFilters({ ...filters, ip: e.target.value })}
+                    className="ml-2 border rounded px-2 py-1 w-40"
+                    placeholder="Match src/dest IP"
+                  />
+                </label>
+                <label className="ml-4">
+                  Start Time:
+                  <input
+                    type="datetime-local"
+                    value={filters.timeRange.start ?? ""}
+                    onChange={(e) => setFilters({
+                      ...filters,
+                      timeRange: { ...filters.timeRange, start: e.target.value || null }
+                    })}
+                    className="ml-2 border rounded px-2 py-1"
+                  />
+                </label>
+                <label className="ml-4">
+                  End Time:
+                  <input
+                    type="datetime-local"
+                    value={filters.timeRange.end ?? ""}
+                    onChange={(e) => setFilters({
+                      ...filters,
+                      timeRange: { ...filters.timeRange, end: e.target.value || null }
+                    })}
+                    className="ml-2 border rounded px-2 py-1"
+                  />
+                </label>
                 <button
-                  key={r}
                   onClick={() => {
-                    setTimeRangeView(r as any);
-                    fetchAlertsPage(1, r);
+                    setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
+                    setSelectedSavedFilterId("");
                   }}
-                  className={`px-2 py-1 text-sm rounded ${
-                    timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
-                  }`}
+                  className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
                 >
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Line
-            id="alerts-over-time-chart"
-            key={`${timeRangeView}-${filteredAlerts.length}`}
-            data={alertsOverTimeData}
-            options={alertsPerHourOptions}
-            height={200}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-6 items-stretch">
-          <div className="bg-blue-600 text-white rounded-lg p-4 flex flex-col items-center justify-center shadow">
-            <span className="text-4xl font-bold">{summary.total}</span>
-            <span className="mt-2 font-medium">Total Alerts</span>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Talkers</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topTalkers.map(([ip, count]: [string, number]) => (
-                  <tr key={ip}>
-                    <td>{ip}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topHosts.map(([ip, count]: [string, number]) => (
-                  <tr key={ip}>
-                    <td>{ip}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Top Signatures</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {summary.topSignatures.map(([sig, count]: [string, number]) => (
-                  <tr key={sig}>
-                    <td title={sig}>{sig.length > 30 ? sig.substring(0, 30) + '...' : sig}</td>
-                    <td className="text-right font-semibold">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="bg-white rounded-lg p-2 shadow flex items-center justify-center z-0">
-            <div className="h-48 w-full">
-              <MapContainer
-                bounds={[[-90, -180], [90, 180]]}
-                style={{ height: '100%', width: '100%' }}
-                maxBoundsViscosity={1.0}
-                center={[50, 0]}
-                dragging={true}
-                maxBounds={[[-90, -180], [90, 180]]}
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  noWrap={true}
-                />
-                {alertsWithGeo.map((a, i) => (
-                  <React.Fragment key={i}>
-                    {a.src_geo?.lat != null && a.src_geo?.lon != null && (
-                      <CircleMarker
-                        key={`src-${i}`}
-                        center={[a.src_geo.lat, a.src_geo.lon]}
-                        radius={3}
-                        pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.7 }}
-                      >
-                        <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
-                          <span>
-                            Source: {a.src_ip}
-                            {a.signature ? <><br />Sig: {a.signature}</> : null}
-                          </span>
-                        </Tooltip>
-                      </CircleMarker>
-                    )}
-                    {a.dest_geo?.lat != null && a.dest_geo?.lon != null && (
-                      <CircleMarker
-                        key={`dest-${i}`}
-                        center={[a.dest_geo.lat, a.dest_geo.lon]}
-                        radius={4}
-                        pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
-                      >
-                        <Tooltip direction="top" offset={[0, -2]} opacity={1} permanent={false}>
-                          <span>
-                            Dest: {a.dest_ip}
-                            {a.signature ? <><br />Sig: {a.signature}</> : null}
-                          </span>
-                        </Tooltip>
-                      </CircleMarker>
-                    )}
-                  </React.Fragment>
-                ))}
-              </MapContainer>
-            </div>
-          </div>
-        </div>
-      <div className="mb-4 flex gap-4 flex-wrap">
-            {apiKeys.filter(k => !k.revoked).length > 0 && (
-              <label className="ml-4">
-                Agent:
-                <select
-                  value={filters.agent}
-                  onChange={e => setFilters({ ...filters, agent: e.target.value })}
-                  className="ml-2 border rounded px-2 py-1"
-                >
-                  <option value="">All</option>
-                  <option value="0">Uploaded manually</option>
-                  {apiKeys.map(k => (
-                    <option key={k.key} value={k.key}>{k.name} ({k.type})</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label>
-              Min Severity:
-              <select
-                value={filters.minSeverity}
-                onChange={(e) => setFilters({ ...filters, minSeverity: Number(e.target.value) })}
-                className="ml-2 border rounded px-2 py-1"
-              >
-                <option value={0}>All</option>
-                <option value={1}>1 - High</option>
-                <option value={2}>2 - Medium</option>
-                <option value={3}>3 - Low</option>
-              </select>
-            </label>
-            <label className="ml-4">
-              <input
-                type="checkbox"
-                checked={filters.alertsOnly}
-                onChange={() => setFilters({ ...filters, alertsOnly: !filters.alertsOnly })}
-                className="mr-1"
-              />
-              Alerts Only
-            </label>
-            {["TCP", "UDP", "ICMP"].map((proto) => (
-              <label key={proto} className="ml-2">
-                <input
-                  type="checkbox"
-                  checked={filters.protocols.has(proto)}
-                  onChange={() => toggleProtocol(proto)}
-                  className="mr-1"
-                />
-                {proto}
-              </label>
-            ))}
-            <label className="ml-4">
-              Port:
-              <input
-                type="number"
-                min={0}
-                max={65535}
-                value={filters.port ?? ""}
-                onChange={(e) => setFilters({ ...filters, port: e.target.value ? Number(e.target.value) : undefined })}
-                className="ml-2 border rounded px-2 py-1 w-20"
-                placeholder="Any"
-              />
-            </label>
-            <label className="ml-4">
-              IP:
-              <input
-                type="text"
-                value={filters.ip}
-                onChange={(e) => setFilters({ ...filters, ip: e.target.value })}
-                className="ml-2 border rounded px-2 py-1 w-40"
-                placeholder="Match src/dest IP"
-              />
-            </label>
-            <label className="ml-4">
-              Start Time:
-              <input
-                type="datetime-local"
-                value={filters.timeRange.start ?? ""}
-                onChange={(e) => setFilters({
-                  ...filters,
-                  timeRange: { ...filters.timeRange, start: e.target.value || null }
-                })}
-                className="ml-2 border rounded px-2 py-1"
-              />
-            </label>
-            <label className="ml-4">
-              End Time:
-              <input
-                type="datetime-local"
-                value={filters.timeRange.end ?? ""}
-                onChange={(e) => setFilters({
-                  ...filters,
-                  timeRange: { ...filters.timeRange, end: e.target.value || null }
-                })}
-                className="ml-2 border rounded px-2 py-1"
-              />
-            </label>
-            <button
-              onClick={() => {
-                setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
-                setSelectedSavedFilterId("");
-              }}
-              className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
-            >
-              Show All
-            </button>
-          </div>
-          <div className="mb-6 flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newFilterName}
-                onChange={(e) => setNewFilterName(e.target.value)}
-                placeholder="Filter name"
-                className="border rounded px-2 py-1"
-              />
-              <button
-                onClick={saveCurrentFilter}
-                className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Save Filter
-              </button>
-            </div>
-            {savedFilters.length > 0 && (
-              <div className="flex items-center gap-2">
-                <label className="mr-2">Load Saved:</label>
-                <select
-                  value={selectedSavedFilterId}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedSavedFilterId(value);
-                    const f = savedFilters.find(sf => sf.id === Number(value));
-                    if (f) applySavedFilter(f);
-                  }}
-                  className="border rounded px-2 py-1"
-                >
-                  <option value="">-- Select --</option>
-                  {savedFilters.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-                <button
-                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  disabled={!selectedSavedFilterId}
-                  onClick={async () => {
-                    try {
-                      await apiClient.delete(`/api/filters/${selectedSavedFilterId}`);
-                      setSavedFilters(prev => prev.filter(f => f.id !== Number(selectedSavedFilterId)));
-                      setSelectedSavedFilterId("");
-                      showToast("Filter deleted");
-                    } catch (err: any) {
-                      if (err.response?.status === 401) return;
-                      console.error(err);
-                      showRToast("Failed to delete filter");
-                    }
-                  }}
-                >
-                  Delete Filter
+                  Show All
                 </button>
               </div>
-            )}
-          </div>
-      {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
-      {filteredAlerts.length > 0 && (
-        <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
-          <table className="min-w-full bg-white rounded-lg overflow-hidden">
-            <thead className="bg-gray-100 border-b border-gray-200">
-              <tr>
-                {[
-                  { label: "Timestamp", field: "timestamp" },
-                  { label: "Source IP", field: "src_ip" },
-                  { label: "Source Port", field: "src_port" },
-                  { label: "Destination IP", field: "dest_ip" },
-                  { label: "Destination Port", field: "dest_port" },
-                  { label: "Signature", field: "signature" },
-                  { label: "Severity", field: "severity" },
-                  { label: "Agent", field: "agent" },
-                ].map(col => (
-                  <th
-                    key={col.field}
-                    className="p-3 text-left font-medium text-gray-700 cursor-pointer select-none"
-                    onClick={() => {
-                      if (sortField === col.field) setSortAsc(!sortAsc);
-                      else {
-                        setSortField(col.field);
-                        setSortAsc(true);
-                      }
-                    }}
+              <div className="mb-6 flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newFilterName}
+                    onChange={(e) => setNewFilterName(e.target.value)}
+                    placeholder="Filter name"
+                    className="border rounded px-2 py-1"
+                  />
+                  <button
+                    onClick={saveCurrentFilter}
+                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                   >
-                    {col.label}
-                    {sortField === col.field && (
-                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAlerts.map((a, i) => {
-                const key = apiKeys.find((k) => k.key === a.api_key);
-                return (
-                  <tr
-                    key={i}
-                    className={`transition border-b border-gray-200 cursor-pointer hover:opacity-90 ${
-                      a.severity === 1
-                        ? "bg-red-100"
-                        : a.severity === 2
-                        ? "bg-yellow-100"
-                        : a.severity === 3
-                        ? "bg-green-100"
-                        : ""
-                    }`}
-                    onDoubleClick={() => handleInspect(a)}
-                  >
-                    <td className="p-3">{a.timestamp || "-"}</td>
-                    <td className="p-3">{a.src_ip || "-"}</td>
-                    <td className="p-3">{a.src_port ?? "-"}</td>
-                    <td className="p-3">{a.dest_ip || "-"}</td>
-                    <td className="p-3">{a.dest_port ?? "-"}</td>
-                    <td className="p-3 flex items-center gap-2">
-                      {a.signature || "-"}
-                      {a.pcap_match_count > 0 && (
-                        <span 
-                          className="inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white rounded-full text-xs font-bold" 
-                          title={`${a.pcap_match_count} PCAP packet${a.pcap_match_count > 1 ? 's' : ''} matched`}
-                        >
-                          📦
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 font-semibold">{a.severity || "-"}</td>
-                    <td className="p-3">
-                      {a.api_key === "0"
-                        ? "Uploaded manually"
-                        : key
-                          ? `${key.name} (${key.type})`
-                          : "-"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="mt-4 flex items-center space-x-4">
-            <button
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              disabled={loadingAlerts || alerts.length >= totalAlerts}
-              onClick={() => fetchAlertsPage(page + 1)}
-            >
-              Load More
-            </button>
-            <span className="text-gray-700">
-              Showing {alerts.length} unique alerts
-            </span>
+                    Save Filter
+                  </button>
+                </div>
+                {savedFilters.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="mr-2">Load Saved:</label>
+                    <select
+                      value={selectedSavedFilterId}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSelectedSavedFilterId(value);
+                        const f = savedFilters.find(sf => sf.id === Number(value));
+                        if (f) applySavedFilter(f);
+                      }}
+                      className="border rounded px-2 py-1"
+                    >
+                      <option value="">-- Select --</option>
+                      {savedFilters.map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      disabled={!selectedSavedFilterId}
+                      onClick={async () => {
+                        try {
+                          await apiClient.delete(`/api/filters/${selectedSavedFilterId}`);
+                          setSavedFilters(prev => prev.filter(f => f.id !== Number(selectedSavedFilterId)));
+                          setSelectedSavedFilterId("");
+                          showToast("Filter deleted");
+                        } catch (err: any) {
+                          if (err.response?.status === 401) return;
+                          console.error(err);
+                          showRToast("Failed to delete filter");
+                        }
+                      }}
+                    >
+                      Delete Filter
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-      {!loading && alerts.length === 0 && (
-        <div className="text-gray-600 mt-4 bg-gray-100 p-6 rounded-lg">
-          <p className="font-semibold mb-2">No alerts found</p>
-          {(filters.minSeverity > 0 || filters.alertsOnly || filters.protocols.size > 0 || filters.port || filters.ip || filters.agent || filters.timeRange.start || filters.timeRange.end) ? (
-            <p>No alerts match your current filters. Try adjusting or clearing the filters above.</p>
-          ) : (
-            <>
-              <p>The dashboard isn't receiving data. Check if:</p>
-              <ul className="list-disc list-inside mt-2">
-                <li>Suricata or Snort is running and generating alerts</li>
-                <li>The agent is connected</li>
-                <li>You have uploaded any alert files</li>
-              </ul>
-            </>
-          )}
-        </div>
-      )}
+        )}
+
+        {/* Alerts Table */}
+        {isWidgetVisible("alerts-table") && (
+          <div key="alerts-table">
+            <div className="p-4 bg-white rounded-lg shadow">
+              {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
+              {filteredAlerts.length > 0 && (
+                <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
+                  <table className="min-w-full bg-white rounded-lg overflow-hidden">
+                    <thead className="bg-gray-100 border-b border-gray-200">
+                      <tr>
+                        {[
+                          { label: "Timestamp", field: "timestamp" },
+                          { label: "Source IP", field: "src_ip" },
+                          { label: "Source Port", field: "src_port" },
+                          { label: "Destination IP", field: "dest_ip" },
+                          { label: "Destination Port", field: "dest_port" },
+                          { label: "Signature", field: "signature" },
+                          { label: "Severity", field: "severity" },
+                          { label: "Agent", field: "agent" },
+                        ].map(col => (
+                          <th
+                            key={col.field}
+                            className="p-3 text-left font-medium text-gray-700 cursor-pointer select-none"
+                            onClick={() => {
+                              if (sortField === col.field) setSortAsc(!sortAsc);
+                              else {
+                                setSortField(col.field);
+                                setSortAsc(true);
+                              }
+                            }}
+                          >
+                            {col.label}
+                            {sortField === col.field && (
+                              <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAlerts.map((a, i) => {
+                        const key = apiKeys.find((k) => k.key === a.api_key);
+                        return (
+                          <tr
+                            key={i}
+                            className={`transition border-b border-gray-200 cursor-pointer hover:opacity-90 ${
+                              a.severity === 1
+                                ? "bg-red-100"
+                                : a.severity === 2
+                                ? "bg-yellow-100"
+                                : a.severity === 3
+                                ? "bg-green-100"
+                                : ""
+                            }`}
+                            onDoubleClick={() => handleInspect(a)}
+                          >
+                            <td className="p-3">{a.timestamp || "-"}</td>
+                            <td className="p-3">{a.src_ip || "-"}</td>
+                            <td className="p-3">{a.src_port ?? "-"}</td>
+                            <td className="p-3">{a.dest_ip || "-"}</td>
+                            <td className="p-3">{a.dest_port ?? "-"}</td>
+                            <td className="p-3 flex items-center gap-2">
+                              {a.signature || "-"}
+                              {a.pcap_match_count > 0 && (
+                                <span 
+                                  className="inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white rounded-full text-xs font-bold" 
+                                  title={`${a.pcap_match_count} PCAP packet${a.pcap_match_count > 1 ? 's' : ''} matched`}
+                                >
+                                  📦
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 font-semibold">{a.severity || "-"}</td>
+                            <td className="p-3">
+                              {a.api_key === "0"
+                                ? "Uploaded manually"
+                                : key
+                                  ? `${key.name} (${key.type})`
+                                  : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="mt-4 flex items-center space-x-4">
+                    <button
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      disabled={loadingAlerts || alerts.length >= totalAlerts}
+                      onClick={() => fetchAlertsPage(page + 1)}
+                    >
+                      Load More
+                    </button>
+                    <span className="text-gray-700">
+                      Showing {alerts.length} unique alerts
+                    </span>
+                  </div>
+                </div>
+              )}
+              {!loading && alerts.length === 0 && (
+                <div className="text-gray-600 mt-4 bg-gray-100 p-6 rounded-lg">
+                  <p className="font-semibold mb-2">No alerts found</p>
+                  {(filters.minSeverity > 0 || filters.alertsOnly || filters.protocols.size > 0 || filters.port || filters.ip || filters.agent || filters.timeRange.start || filters.timeRange.end) ? (
+                    <p>No alerts match your current filters. Try adjusting or clearing the filters above.</p>
+                  ) : (
+                    <>
+                      <p>The dashboard isn't receiving data. Check if:</p>
+                      <ul className="list-disc list-inside mt-2">
+                        <li>Suricata or Snort is running and generating alerts</li>
+                        <li>The agent is connected</li>
+                        <li>You have uploaded any alert files</li>
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </ResponsiveGridLayout>
+
+      {/* Alert Inspect Modal */}
       {selectedAlert && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-3/4 max-w-6xl p-6 relative overflow-y-auto max-h-[90vh]">

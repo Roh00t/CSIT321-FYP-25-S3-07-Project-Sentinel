@@ -21,6 +21,7 @@ import ManagePlanPage from './pages/ManagePlanPage';
 import CheckEmailPage from './pages/CheckEmailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
+import DashboardLayoutSettingsPage from './pages/DashboardLayoutSettingsPage';
 
 function App() {
   return (
@@ -67,13 +68,16 @@ function App() {
 
             {/* Pro/Team plan: full alerts */}
             <Route
-              path="alerts"
+              path="/app/*"
               element={
                 <PlanProtectedRoute allowedPlans={['Pro', 'Team']} />
               }
             >
-              <Route index element={<AlertsPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="dashboard-layout" element={<DashboardLayoutSettingsPage />} />
             </Route>
+
+            
 
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />

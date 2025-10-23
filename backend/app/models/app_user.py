@@ -28,6 +28,8 @@ class AppUser(User):
     verification_token = db.Column(db.String(100), unique=True, nullable=True)
     verification_token_expires = db.Column(db.DateTime, nullable=True)
 
+    layout = db.relationship("UserLayout", uselist=False, back_populates="user", cascade="all, delete-orphan")
+
     __mapper_args__ = {
         'polymorphic_identity': 'app_user',
     }
