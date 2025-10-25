@@ -779,7 +779,7 @@ export default function AlertsPage() {
       >
         {/* Upload Controls */}
         {isWidgetVisible("upload-controls") && (
-          <div key="upload-controls">
+          <div key="upload-controls" className="relative z-10">
             <div className="p-4 bg-gray-50 rounded-lg shadow">
               <div className="flex flex-wrap gap-4 items-center relative">
                 <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md cursor-pointer hover:bg-blue-700 transition">
