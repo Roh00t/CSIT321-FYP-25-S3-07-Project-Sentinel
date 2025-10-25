@@ -2,7 +2,7 @@
 
 *Unleashing Real-Time Security, Empowering Instant Response*
 
-![last commit](https://img.shields.io/badge/last_commit-last_thursday-blue)
+![last commit](https://img.shields.io/badge/last_commit-today-blue)
 ![typescript](https://img.shields.io/badge/typescript-56.9%25-blue)
 ![languages](https://img.shields.io/badge/languages-7-blue)
 
