@@ -66,19 +66,40 @@
             backdrop-filter: blur(10px);
         }
 
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 25px;
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        /* Video Section - Single Column */
+        .video-section {
             margin-bottom: 30px;
         }
 
-        .card {
+        .video-card {
             background: white;
             border-radius: 15px;
             padding: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 25px;
             animation: slideUp 0.6s ease-out forwards;
             opacity: 0;
         }
@@ -90,19 +111,18 @@
             }
         }
 
-        .card {
+        .video-card {
             transform: translateY(20px);
         }
 
-        .card:nth-child(1) { animation-delay: 0.1s; }
-        .card:nth-child(2) { animation-delay: 0.2s; }
-        .card:nth-child(3) { animation-delay: 0.3s; }
-        .card:nth-child(4) { animation-delay: 0.4s; }
-        .card:nth-child(5) { animation-delay: 0.5s; }
+        .video-card:nth-child(1) { animation-delay: 0.1s; }
+        .video-card:nth-child(2) { animation-delay: 0.2s; }
+        .video-card:nth-child(3) { animation-delay: 0.3s; }
 
-        .card:hover {
+        .video-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
         }
 
         .card-header {
@@ -130,6 +150,52 @@
             font-size: 1.5em;
             color: #333;
             font-weight: 600;
+        }
+
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 10px;
+            background: #f0f0f0;
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Grid for other sections */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideUp 0.6s ease-out forwards;
+            opacity: 0;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.4s; }
+        .card:nth-child(2) { animation-delay: 0.5s; }
+        .card:nth-child(3) { animation-delay: 0.6s; }
+        .card:nth-child(4) { animation-delay: 0.7s; }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
 
         .resource-list {
@@ -200,42 +266,29 @@
             50% { opacity: 0.7; }
         }
 
-        .featured {
-            grid-column: 1 / -1;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .featured .card-header {
-            border-bottom-color: rgba(255,255,255,0.2);
-        }
-
-        .featured .card-icon {
-            background: white;
-            color: #667eea;
-        }
-
-        .featured .card-title {
-            color: white;
-        }
-
-        .video-container {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-            border-radius: 10px;
-            margin-top: 20px;
-            background: rgba(0,0,0,0.3);
-        }
-
-        .video-container iframe {
-            position: absolute;
+        .github-corner {
+            position: fixed;
             top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
+            right: 0;
+            border: 0;
+            z-index: 1000;
+        }
+
+        .github-corner svg {
+            fill: white;
+            color: #667eea;
+            width: 80px;
+            height: 80px;
+        }
+
+        .github-corner:hover .octo-arm {
+            animation: octocat-wave 560ms ease-in-out;
+        }
+
+        @keyframes octocat-wave {
+            0%, 100% { transform: rotate(0); }
+            20%, 60% { transform: rotate(-25deg); }
+            40%, 80% { transform: rotate(10deg); }
         }
 
         /* Modal Styles */
@@ -349,76 +402,6 @@
             opacity: 0.8;
         }
 
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 2em;
-            font-weight: bold;
-            display: block;
-        }
-
-        .stat-label {
-            font-size: 0.9em;
-            opacity: 0.8;
-        }
-
-        .github-corner {
-            position: fixed;
-            top: 0;
-            right: 0;
-            border: 0;
-            z-index: 1000;
-        }
-
-        .github-corner svg {
-            fill: white;
-            color: #667eea;
-            width: 80px;
-            height: 80px;
-        }
-
-        .github-corner:hover .octo-arm {
-            animation: octocat-wave 560ms ease-in-out;
-        }
-
-        @keyframes octocat-wave {
-            0%, 100% { transform: rotate(0); }
-            20%, 60% { transform: rotate(-25deg); }
-            40%, 80% { transform: rotate(10deg); }
-        }
-
-        .quick-start {
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-            backdrop-filter: blur(10px);
-        }
-
-        .quick-start h3 {
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }
-
-        .command-box {
-            background: rgba(0,0,0,0.3);
-            padding: 15px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            margin-top: 10px;
-            overflow-x: auto;
-        }
-
         @media (max-width: 768px) {
             h1 {
                 font-size: 2em;
@@ -426,10 +409,6 @@
             
             .grid {
                 grid-template-columns: 1fr;
-            }
-            
-            .featured {
-                grid-column: 1;
             }
 
             .github-corner svg {
@@ -480,53 +459,91 @@
             <div class="stats">
                 <div class="stat">
                     <span class="stat-number">3</span>
-                    <span class="stat-label">Components</span>
+                    <span class="stat-label">Demo Videos</span>
                 </div>
                 <div class="stat">
                     <span class="stat-number">7+</span>
                     <span class="stat-label">Technologies</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-number">15min</span>
-                    <span class="stat-label">Demo Video</span>
+                    <span class="stat-number">3</span>
+                    <span class="stat-label">Components</span>
                 </div>
             </div>
         </header>
 
-        <div class="grid">
-            <!-- Featured: Video Demo -->
-            <div class="card featured">
+        <!-- Video Section - 3 Rows -->
+        <div class="video-section">
+            <div class="video-card">
                 <div class="card-header">
                     <div class="card-icon">📹</div>
-                    <div>
-                        <h2 class="card-title">Video Demonstration</h2>
-                        <span class="badge">FEATURED</span>
-                    </div>
+                    <h2 class="card-title">Video Demo 1</h2>
                 </div>
                 <div class="video-container">
                     <iframe 
-                        src="https://www.youtube.com/embed/YOUR_VIDEO_ID" 
+                        src="https://www.youtube.com/embed/YOUR_VIDEO_ID_1" 
                         allowfullscreen
-                        title="Sentinel Project Demo">
+                        title="Sentinel Demo Video 1">
                     </iframe>
                 </div>
-                <div class="stats" style="margin-top: 20px; color: white;">
-                    <div class="stat">
-                        <span class="stat-label">⏱️ Duration: 14:53</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">🎯 Full System Demo</span>
-                    </div>
-                </div>
+            </div>
 
-                <div class="quick-start">
-                    <h3>🚀 Quick Start</h3>
-                    <div class="command-box">
-                        git clone https://github.com/Roh00t/CSIT321-FYP-25-S3-07-Project-Sentinel<br>
-                        cd CSIT321-FYP-25-S3-07-Project-Sentinel<br>
-                        # Follow README.md for setup instructions
-                    </div>
+            <div class="video-card">
+                <div class="card-header">
+                    <div class="card-icon">📹</div>
+                    <h2 class="card-title">Video Demo 2</h2>
                 </div>
+                <div class="video-container">
+                    <iframe 
+                        src="https://www.youtube.com/embed/YOUR_VIDEO_ID_2" 
+                        allowfullscreen
+                        title="Sentinel Demo Video 2">
+                    </iframe>
+                </div>
+            </div>
+
+            <div class="video-card">
+                <div class="card-header">
+                    <div class="card-icon">📹</div>
+                    <h2 class="card-title">Video Demo 3</h2>
+                </div>
+                <div class="video-container">
+                    <iframe 
+                        src="https://www.youtube.com/embed/YOUR_VIDEO_ID_3" 
+                        allowfullscreen
+                        title="Sentinel Demo Video 3">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Project Links -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔗</div>
+                    <h2 class="card-title">Project Links</h2>
+                </div>
+                <ul class="resource-list">
+                    <li class="resource-item">
+                        <a href="#" class="resource-link" target="_blank">
+                            <span class="resource-icon">🌐</span>
+                            <div class="resource-text">
+                                <div class="resource-name">Marketing Website</div>
+                                <div class="resource-desc">Project Landing Page</div>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="resource-item">
+                        <a href="#" class="resource-link" target="_blank">
+                            <span class="resource-icon">🚀</span>
+                            <div class="resource-text">
+                                <div class="resource-name">Actual Product</div>
+                                <div class="resource-desc">Live Application</div>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
             </div>
 
             <!-- Documentation -->
@@ -537,10 +554,10 @@
                 </div>
                 <ul class="resource-list">
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('spec', 'Project Specification')">
+                        <div class="resource-link" onclick="openDocument('spec', 'Project Requirement Specification')">
                             <span class="resource-icon">📄</span>
                             <div class="resource-text">
-                                <div class="resource-name">Project Specification 
+                                <div class="resource-name">Project Requirement Specification 
                                     <span class="badge live-badge">LIVE</span>
                                 </div>
                                 <div class="resource-desc">Word Online • Auto-updates</div>
@@ -548,10 +565,10 @@
                         </div>
                     </li>
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('report', 'Final Report')">
-                            <span class="resource-icon">📋</span>
+                        <div class="resource-link" onclick="openDocument('technical', 'Technical Documentation')">
+                            <span class="resource-icon">🔧</span>
                             <div class="resource-text">
-                                <div class="resource-name">Final Report 
+                                <div class="resource-name">Technical Documentation 
                                     <span class="badge live-badge">LIVE</span>
                                 </div>
                                 <div class="resource-desc">Word Online • Auto-updates</div>
@@ -559,13 +576,26 @@
                         </div>
                     </li>
                     <li class="resource-item">
-                        <a href="https://github.com/Roh00t/CSIT321-FYP-25-S3-07-Project-Sentinel/blob/main/README.md" class="resource-link" target="_blank">
+                        <div class="resource-link" onclick="openDocument('manual', 'User Manual')">
                             <span class="resource-icon">📖</span>
                             <div class="resource-text">
-                                <div class="resource-name">Setup Guide</div>
-                                <div class="resource-desc">GitHub README • Installation</div>
+                                <div class="resource-name">User Manual 
+                                    <span class="badge live-badge">LIVE</span>
+                                </div>
+                                <div class="resource-desc">Word Online • Auto-updates</div>
                             </div>
-                        </a>
+                        </div>
+                    </li>
+                    <li class="resource-item">
+                        <div class="resource-link" onclick="openDocument('minutes', 'Project Meeting Minutes')">
+                            <span class="resource-icon">📋</span>
+                            <div class="resource-text">
+                                <div class="resource-name">Project Meeting Minutes 
+                                    <span class="badge live-badge">LIVE</span>
+                                </div>
+                                <div class="resource-desc">Excel Online • Auto-updates</div>
+                            </div>
+                        </div>
                     </li>
                 </ul>
             </div>
@@ -578,10 +608,19 @@
                 </div>
                 <ul class="resource-list">
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('gantt', 'Gantt Chart')">
+                        <a href="https://tree.taiga.io/project/roh00t-csit321-fyp-25-s3-07-project-sentinel/timeline" class="resource-link" target="_blank">
+                            <span class="resource-icon">📋</span>
+                            <div class="resource-text">
+                                <div class="resource-name">Taiga Timeline</div>
+                                <div class="resource-desc">Sprint Board • Tasks & Backlog</div>
+                            </div>
+                        </a>
+                    </li>
+                    <li class="resource-item">
+                        <div class="resource-link" onclick="openDocument('gantt', 'Project Gantt Chart')">
                             <span class="resource-icon">📅</span>
                             <div class="resource-text">
-                                <div class="resource-name">Gantt Chart 
+                                <div class="resource-name">Project Gantt Chart 
                                     <span class="badge live-badge">LIVE</span>
                                 </div>
                                 <div class="resource-desc">Excel Online • Timeline</div>
@@ -589,22 +628,13 @@
                         </div>
                     </li>
                     <li class="resource-item">
-                        <a href="#" class="resource-link" target="_blank">
-                            <span class="resource-icon">📋</span>
-                            <div class="resource-text">
-                                <div class="resource-name">Sprint Board</div>
-                                <div class="resource-desc">Taiga • Backlog & Tasks</div>
-                            </div>
-                        </a>
-                    </li>
-                    <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('progress', 'Progress Tracker')">
+                        <div class="resource-link" onclick="openDocument('sprint', 'Sprint Gantt Chart')">
                             <span class="resource-icon">📈</span>
                             <div class="resource-text">
-                                <div class="resource-name">Progress Tracker 
+                                <div class="resource-name">Sprint Gantt Chart 
                                     <span class="badge live-badge">LIVE</span>
                                 </div>
-                                <div class="resource-desc">Excel Online • Milestones</div>
+                                <div class="resource-desc">Excel Online • Sprint Planning</div>
                             </div>
                         </div>
                     </li>
@@ -628,20 +658,11 @@
                         </a>
                     </li>
                     <li class="resource-item">
-                        <a href="https://github.com/Roh00t/CSIT321-FYP-25-S3-07-Project-Sentinel/releases" class="resource-link" target="_blank">
-                            <span class="resource-icon">📦</span>
-                            <div class="resource-text">
-                                <div class="resource-name">Releases</div>
-                                <div class="resource-desc">Download Latest Version</div>
-                            </div>
-                        </a>
-                    </li>
-                    <li class="resource-item">
                         <a href="https://github.com/Roh00t/CSIT321-FYP-25-S3-07-Project-Sentinel/issues" class="resource-link" target="_blank">
                             <span class="resource-icon">🐛</span>
                             <div class="resource-text">
-                                <div class="resource-name">Issues & Bug Reports</div>
-                                <div class="resource-desc">GitHub Issues</div>
+                                <div class="resource-name">Issues</div>
+                                <div class="resource-desc">Bug Reports & Feature Requests</div>
                             </div>
                         </a>
                     </li>
@@ -718,16 +739,20 @@
         // Document URLs - Replace these with your actual OneDrive/SharePoint embed URLs
         const documentUrls = {
             spec: 'YOUR_WORD_EMBED_URL_FOR_SPECIFICATION',
-            report: 'YOUR_WORD_EMBED_URL_FOR_REPORT',
-            gantt: 'YOUR_EXCEL_EMBED_URL_FOR_GANTT',
-            progress: 'YOUR_EXCEL_EMBED_URL_FOR_PROGRESS'
+            technical: 'YOUR_WORD_EMBED_URL_FOR_TECHNICAL_DOC',
+            manual: 'YOUR_WORD_EMBED_URL_FOR_USER_MANUAL',
+            minutes: 'YOUR_EXCEL_EMBED_URL_FOR_MEETING_MINUTES',
+            gantt: 'YOUR_EXCEL_EMBED_URL_FOR_PROJECT_GANTT',
+            sprint: 'YOUR_EXCEL_EMBED_URL_FOR_SPRINT_GANTT'
         };
 
         const documentTitles = {
             spec: '📄',
-            report: '📋',
+            technical: '🔧',
+            manual: '📖',
+            minutes: '📋',
             gantt: '📅',
-            progress: '📈'
+            sprint: '📈'
         };
 
         function openDocument(docType, title) {
@@ -771,26 +796,6 @@
             if (event.key === 'Escape') {
                 closeModal();
             }
-        });
-
-        // Add smooth scroll for internal links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth' });
-                }
-            });
-        });
-
-        // Add loading animation for cards
-        window.addEventListener('load', () => {
-            document.querySelectorAll('.card').forEach((card, index) => {
-                setTimeout(() => {
-                    card.style.opacity = '1';
-                }, index * 100);
-            });
         });
     </script>
 </body>
