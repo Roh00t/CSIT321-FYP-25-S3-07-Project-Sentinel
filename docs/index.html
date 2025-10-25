@@ -291,109 +291,6 @@
             40%, 80% { transform: rotate(10deg); }
         }
 
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.85);
-            animation: fadeIn 0.3s ease;
-        }
-
-        .modal.active {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 15px;
-            width: 95%;
-            height: 90%;
-            max-width: 1400px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-        }
-
-        .modal-header {
-            padding: 20px 30px;
-            border-bottom: 2px solid #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8f9fa;
-            border-radius: 15px 15px 0 0;
-        }
-
-        .modal-title {
-            font-size: 1.5em;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .close-modal {
-            font-size: 2em;
-            color: #999;
-            cursor: pointer;
-            border: none;
-            background: none;
-            padding: 0;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s ease;
-        }
-
-        .close-modal:hover {
-            background: #e9ecef;
-            color: #333;
-        }
-
-        .modal-body {
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .modal-body iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: #667eea;
-            font-size: 1.2em;
-        }
-
-        .loading::after {
-            content: '...';
-            animation: dots 1.5s infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-
         footer {
             text-align: center;
             color: white;
@@ -414,19 +311,6 @@
             .github-corner svg {
                 width: 60px;
                 height: 60px;
-            }
-
-            .modal-content {
-                width: 98%;
-                height: 95%;
-            }
-
-            .modal-header {
-                padding: 15px 20px;
-            }
-
-            .modal-title {
-                font-size: 1.2em;
             }
         }
     </style>
@@ -535,7 +419,7 @@
                         </a>
                     </li>
                     <li class="resource-item">
-                        <a href="#" class="resource-link" target="_blank">
+                        <a href="https://roh00t.github.io/CSIT321-FYP-25-S3-07-Project-Sentinel/" class="resource-link" target="_blank">
                             <span class="resource-icon">🚀</span>
                             <div class="resource-text">
                                 <div class="resource-name">Actual Product</div>
@@ -554,7 +438,7 @@
                 </div>
                 <ul class="resource-list">
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('spec', 'Project Requirement Specification')">
+                        <a href="https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/Ef9VCE71JpRMmFgr2EUsADcBl9DuIe0eyZWHWdYeGkuQ6Q?e=TfDj6z" class="resource-link" target="_blank">
                             <span class="resource-icon">📄</span>
                             <div class="resource-text">
                                 <div class="resource-name">Project Requirement Specification 
@@ -562,10 +446,10 @@
                                 </div>
                                 <div class="resource-desc">Word Online • Auto-updates</div>
                             </div>
-                        </div>
+                        </a>
                     </li>
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('technical', 'Technical Documentation')">
+                        <a href="https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/EdhLzpXfL6dIlG_WP4vUPskBse7wlaR4jX57ocOs9t1AdA?e=TxNRoV" class="resource-link" target="_blank">
                             <span class="resource-icon">🔧</span>
                             <div class="resource-text">
                                 <div class="resource-name">Technical Documentation 
@@ -573,10 +457,10 @@
                                 </div>
                                 <div class="resource-desc">Word Online • Auto-updates</div>
                             </div>
-                        </div>
+                        </a>
                     </li>
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('manual', 'User Manual')">
+                        <a href="https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/EUPFSLScr2dIvQdekgTymhIBycfcd7iDvbt7FtU6TfIQgQ?e=nvHAjJ" class="resource-link" target="_blank">
                             <span class="resource-icon">📖</span>
                             <div class="resource-text">
                                 <div class="resource-name">User Manual 
@@ -584,18 +468,18 @@
                                 </div>
                                 <div class="resource-desc">Word Online • Auto-updates</div>
                             </div>
-                        </div>
+                        </a>
                     </li>
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('minutes', 'Project Meeting Minutes')">
+                        <a href="https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/Ebdmu3lJvKJNrIgbuAAviWUBpTwlVHyYY9fhwVWfrym5ww?e=ePB4hY" class="resource-link" target="_blank">
                             <span class="resource-icon">📋</span>
                             <div class="resource-text">
                                 <div class="resource-name">Project Meeting Minutes 
                                     <span class="badge live-badge">LIVE</span>
                                 </div>
-                                <div class="resource-desc">Excel Online • Auto-updates</div>
+                                <div class="resource-desc">Word Online • Auto-updates</div>
                             </div>
-                        </div>
+                        </a>
                     </li>
                 </ul>
             </div>
@@ -617,7 +501,7 @@
                         </a>
                     </li>
                     <li class="resource-item">
-                        <div class="resource-link" onclick="openDocument('gantt', 'Project Gantt Chart')">
+                        <a href="https://uowmailedu-my.sharepoint.com/:x:/g/personal/rp863_uowmail_edu_au/ETsyw3dw3lZNvqhTKMzOb9MB5sRaTesAccjgGMiH4gwywQ?e=Kfz0UC" class="resource-link" target="_blank">
                             <span class="resource-icon">📅</span>
                             <div class="resource-text">
                                 <div class="resource-name">Project Gantt Chart 
@@ -625,7 +509,18 @@
                                 </div>
                                 <div class="resource-desc">Excel Online • Timeline</div>
                             </div>
-                        </div>
+                        </a>
+                    </li>
+                    <li class="resource-item">
+                        <a href="https://uowmailedu-my.sharepoint.com/:x:/g/personal/rp863_uowmail_edu_au/ETsyw3dw3lZNvqhTKMzOb9MB5sRaTesAccjgGMiH4gwywQ?e=Kfz0UC" class="resource-link" target="_blank">
+                            <span class="resource-icon">📈</span>
+                            <div class="resource-text">
+                                <div class="resource-name">Sprint Gantt Chart 
+                                    <span class="badge live-badge">LIVE</span>
+                                </div>
+                                <div class="resource-desc">Excel Online • Sprint Planning</div>
+                            </div>
+                        </a>
                     </li>
                 </ul>
             </div>
@@ -706,84 +601,5 @@
             </p>
         </footer>
     </div>
-
-    <!-- Modal for Documents -->
-    <div id="documentModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <span id="modalIcon">📄</span>
-                    <span id="modalTitle">Document</span>
-                </div>
-                <button class="close-modal" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="loading">Loading document</div>
-                <iframe id="documentFrame"></iframe>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Document URLs - Replace these with your actual OneDrive/SharePoint embed URLs
-        const documentUrls = {
-            spec: 'https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/Ef9VCE71JpRMmFgr2EUsADcBl9DuIe0eyZWHWdYeGkuQ6Q?e=TfDj6z',
-            technical: 'https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/EdhLzpXfL6dIlG_WP4vUPskBse7wlaR4jX57ocOs9t1AdA?e=TxNRoV',
-            manual: 'https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/EUPFSLScr2dIvQdekgTymhIBycfcd7iDvbt7FtU6TfIQgQ?e=nvHAjJ',
-            minutes: 'https://uowmailedu-my.sharepoint.com/:w:/g/personal/rp863_uowmail_edu_au/Ebdmu3lJvKJNrIgbuAAviWUBpTwlVHyYY9fhwVWfrym5ww?e=ePB4hY',
-            gantt: 'https://uowmailedu-my.sharepoint.com/:x:/g/personal/rp863_uowmail_edu_au/ETsyw3dw3lZNvqhTKMzOb9MB5sRaTesAccjgGMiH4gwywQ?e=Kfz0UC'
-        };
-
-        const documentTitles = {
-            spec: '📄',
-            technical: '🔧',
-            manual: '📖',
-            minutes: '📋',
-            gantt: '📅'
-        };
-
-        function openDocument(docType, title) {
-            const modal = document.getElementById('documentModal');
-            const iframe = document.getElementById('documentFrame');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalIcon = document.getElementById('modalIcon');
-            
-            modalTitle.textContent = title;
-            modalIcon.textContent = documentTitles[docType];
-            
-            iframe.src = documentUrls[docType];
-            modal.classList.add('active');
-            
-            // Hide loading when iframe loads
-            iframe.onload = function() {
-                document.querySelector('.loading').style.display = 'none';
-            };
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('documentModal');
-            const iframe = document.getElementById('documentFrame');
-            const loading = document.querySelector('.loading');
-            
-            modal.classList.remove('active');
-            iframe.src = '';
-            loading.style.display = 'block';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('documentModal');
-            if (event.target === modal) {
-                closeModal();
-            }
-        };
-
-        // Close modal with ESC key
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeModal();
-            }
-        });
-    </script>
 </body>
 </html>
