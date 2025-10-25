@@ -28,6 +28,7 @@
 
 - [Overview](#overview)
 - [Features](#features)
+- [Complete Documentation](#complete-documentations)
 - [Complete Setup Guide](#complete-setup-guide)
   - [Prerequisites](#prerequisites)
   - [Step 1: Install Required Software](#step-1-install-required-software)
@@ -77,6 +78,9 @@ Sentinel is a comprehensive security monitoring platform designed for seamless d
 - 🎯 **Live Agent Monitoring:** Real-time agent status tracking and alert generation.
 
 - 📋 **Dashboard Customization:** Personalize your security dashboard with customizable widgets and layouts.
+
+---
+## Complete Documentations
 
 ---
 
