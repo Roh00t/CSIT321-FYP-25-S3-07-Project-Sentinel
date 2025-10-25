@@ -30,8 +30,8 @@
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [System Architecture](#system-architecture)
-- [Deployment vs Local Installation](#deployment-vs-local-installation)
-- [Complete Setup Guide](#complete-setup-guide)
+- [Deployment vs Local Installation](#-deployment-vs-local-installation)
+- [Complete Setup Guide](#-complete-setup-guide)
   - [Prerequisites](#prerequisites)
   - [Step 1: Install Required Software](#step-1-install-required-software)
   - [Step 2: Install ngrok (Local Development Only)](#step-2-install-ngrok-local-development-only)
@@ -42,17 +42,17 @@
   - [Step 7: Frontend Setup](#step-7-frontend-setup)
   - [Step 8: Running the Application](#step-8-running-the-application)
   - [Step 9: Access the Application](#step-9-access-the-application)
-- [Using the Application](#using-the-application)
-- [IDS Integration Guide](#ids-integration-guide)
+- [Using the Application](#-using-the-application)
+- [IDS Integration Guide](#-ids-integration-guide)
 - [PCAP Upload and Alert Matching](#-pcap-upload-and-alert-matching)
 - [Database Seeding](#database-seeding)
-- [Subsequent Runs](#subsequent-runs)
-- [Testing](#testing)
-- [Troubleshooting](#troubleshooting)
-- [Project Structure](#project-structure)
-- [Security Considerations](#security-considerations)
-- [Production Deployment](#production-deployment)
-- [FAQ](#faq)
+- [Subsequent Runs](#-subsequent-runs)
+- [Testing](#-testing)
+- [Troubleshooting](#-troubleshooting)
+- [Project Structure](#-project-structure)
+- [Security Considerations](#-security-considerations)
+- [Production Deployment](#-production-deployment)
+- [FAQ](#-faq)
 - [Contributing](#-contributing)
 - [Support](#-support)
 - [License](#license)
@@ -61,7 +61,7 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 **Sentinel** is a comprehensive, enterprise-grade security monitoring platform designed for seamless deployment and real-time threat analysis. Built as a Final Year Project for CSIT321 at Singapore Institute of Management (SIM), Sentinel provides security analysts with powerful tools to monitor, analyze, and respond to network security events in real-time.
 
@@ -96,7 +96,7 @@ The platform consists of three integrated components:
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### Core Capabilities
 
@@ -146,7 +146,7 @@ The platform consists of three integrated components:
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
 ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
@@ -181,7 +181,7 @@ The platform consists of three integrated components:
 
 ---
 
-## 🔄 Deployment vs Local Installation
+## Deployment vs Local Installation
 
 ### Production Deployment (Cloud/Server)
 
@@ -3080,9 +3080,10 @@ Form Data:
     "processing_time": 32,
   },
 }
+json```
+```
 
-
-## 🌱 Database Seeding
+## Database Seeding
 
 ### Overview
 
