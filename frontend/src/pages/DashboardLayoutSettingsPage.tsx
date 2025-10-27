@@ -11,7 +11,9 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const DEFAULT_LAYOUT: Layout[] = [
   { i: "upload-controls", x: 0, y: 0, w: 12, h: 1 },
-  { i: "charts", x: 0, y: 2, w: 12, h: 4 },
+  { i: "chart-severity", x: 0, y: 2, w: 4, h: 4 },
+  { i: "chart-protocol", x: 4, y: 2, w: 4, h: 4 },
+  { i: "chart-time", x: 8, y: 2, w: 4, h: 4 },
   { i: "summary-metrics", x: 0, y: 8, w: 12, h: 3 },
   { i: "filters", x: 0, y: 12, w: 12, h: 2 },
   { i: "alerts-table", x: 0, y: 15, w: 12, h: 10 },
@@ -19,7 +21,9 @@ const DEFAULT_LAYOUT: Layout[] = [
 
 const WIDGET_TITLES: Record<string, string> = {
   "upload-controls": "Upload & Settings",
-  "charts": "Charts",
+  "chart-severity": "Severity Chart",
+  "chart-protocol": "Protocol Chart",
+  "chart-time": "Time Chart",
   "summary-metrics": "Summary Metrics",
   "filters": "Filters",
   "alerts-table": "Alerts Table",
@@ -174,7 +178,7 @@ export default function DashboardLayoutSettingsPage() {
       </div>
 
       <div className="text-sm text-gray-600 mb-4">
-        Drag and resize visible widgets below to customize your dashboard.
+        Drag visible widgets below to customize your dashboard.
       </div>
 
       {visibleLayout.length === 0 ? (
@@ -189,18 +193,25 @@ export default function DashboardLayoutSettingsPage() {
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
           rowHeight={80}
           onLayoutChange={(newLayout) => {
-            // Merge changes back into fullLayout
+            // Merge changes back into fullLayout (preserve w/h from default)
             const updatedFull = [...fullLayout];
             newLayout.forEach(updatedItem => {
               const index = updatedFull.findIndex(item => item.i === updatedItem.i);
               if (index !== -1) {
-                updatedFull[index] = updatedItem;
+                const original = DEFAULT_LAYOUT.find(d => d.i === updatedItem.i) || getDefaultItem(updatedItem.i);
+                updatedFull[index] = {
+                  ...updatedFull[index],
+                  x: updatedItem.x,
+                  y: updatedItem.y,
+                  w: original.w,
+                  h: original.h,
+                };
               }
             });
             setFullLayout(updatedFull);
           }}
           isDraggable={true}
-          isResizable={true}
+          isResizable={false}
         >
           {visibleLayout.map((item) => (
             <div key={item.i} className="bg-white border rounded shadow">
@@ -208,7 +219,7 @@ export default function DashboardLayoutSettingsPage() {
                 {WIDGET_TITLES[item.i] || item.i}
               </div>
               <div className="p-4 min-h-[100px] flex items-center justify-center text-gray-500">
-                Preview area
+                {/* Preview area */}
               </div>
             </div>
           ))}

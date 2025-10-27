@@ -72,7 +72,6 @@ function showRToast(message: string, duration = 3000) {
     toast!.style.display = "none";
   }, duration);
 }
-
 export default function AlertsPage() {
   useSocketLogger();
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -736,7 +735,9 @@ export default function AlertsPage() {
         // Fallback to default
         setLayout([
           { i: "upload-controls", x: 0, y: 0, w: 12, h: 2 },
-          { i: "charts", x: 0, y: 2, w: 12, h: 6 },
+          { i: "chart-severity", x: 0, y: 2, w: 4, h: 6 },
+          { i: "chart-protocol", x: 4, y: 2, w: 4, h: 6 },
+          { i: "chart-time", x: 8, y: 2, w: 4, h: 6 },
           { i: "summary-metrics", x: 0, y: 8, w: 12, h: 4 },
           { i: "filters", x: 0, y: 12, w: 12, h: 3 },
           { i: "alerts-table", x: 0, y: 15, w: 12, h: 10 },
@@ -747,16 +748,13 @@ export default function AlertsPage() {
     };
     fetchLayout();
   }, []);
-
   // ✅ Helper: check if widget is in layout (i.e., visible)
   const isWidgetVisible = (id: string) => {
     return layout.some(item => item.i === id);
   };
-
   if (!layoutLoaded) {
     return <div className="p-8">Loading dashboard...</div>;
   }
-
   return (
     <div className="p-4">
       <div className="mb-4 flex justify-between items-center">
@@ -1044,87 +1042,101 @@ export default function AlertsPage() {
           </div>
         )}
 
-        {/* Charts */}
-        {isWidgetVisible("charts") && (
-          <div key="charts">
-            <div className="p-4 bg-white rounded-lg shadow">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-                  <span className="text-lg font-semibold mb-2">Severity Levels</span>
-                  <Bar
-                    id="severity-chart"
-                    data={severityData}
-                    options={{
-                      responsive: true, 
-                      maintainAspectRatio: false, 
-                      plugins: {
-                        legend: {},
-                        datalabels: {
-                          display: true,
-                          color: '#fff',
-                          font: {
-                            weight: 'bold' as const,
-                            size: 14
-                          },
-                          formatter: (value: number) => value > 0 ? value : ''
-                        }
-                      },
-                    }}
-                    height={200}
-                  />
-                </div>
-                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64">
-                  <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
-                  <Doughnut
-                    id="protocol-chart"
-                    key={"protocol-" + filteredAlerts.length}
-                    data={protocolData}
-                    options={{ 
-                      responsive: true, 
-                      maintainAspectRatio: false,
-                      plugins: {
-                        datalabels: {
-                          display: true,
-                          color: '#fff',
-                          font: {
-                            weight: 'bold' as const,
-                            size: 14
-                          },
-                          formatter: (value: number) => value > 0 ? value : ''
-                        }
+        {/* Severity Chart */}
+        {isWidgetVisible("chart-severity") && (
+          <div key="chart-severity">
+            <div className="p-4 bg-white rounded-lg shadow h-full">
+              <div className="flex flex-col items-center justify-center h-full">
+                <span className="text-lg font-semibold mb-2">Severity Levels</span>
+                <Bar
+                  id="severity-chart"
+                  data={severityData}
+                  options={{
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: {
+                      legend: {},
+                      datalabels: {
+                        display: true,
+                        color: '#fff',
+                        font: {
+                          weight: 'bold' as const,
+                          size: 14
+                        },
+                        formatter: (value: number) => value > 0 ? value : ''
                       }
-                    }}
-                    height={200}
-                  />
-                </div>
-                <div className="bg-white rounded-lg p-4 flex flex-col items-center justify-center shadow h-64 w-full">
-                  <div className="flex items-center justify-between w-full mb-2">
-                    <span className="text-lg font-semibold">Activity over time</span>
-                    <div className="flex gap-2">
-                      {["today", "week", "month", "year"].map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => {
-                            setTimeRangeView(r as any);
-                            fetchAlertsPage(1, r);
-                          }}
-                          className={`px-2 py-1 text-sm rounded ${
-                            timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
-                          }`}
-                        >
-                          {r.charAt(0).toUpperCase() + r.slice(1)}
-                        </button>
-                      ))}
-                    </div>
+                    },
+                  }}
+                  height={200}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Protocol Chart */}
+        {isWidgetVisible("chart-protocol") && (
+          <div key="chart-protocol">
+            <div className="p-4 bg-white rounded-lg shadow h-full">
+              <div className="flex flex-col items-center justify-center h-full">
+                <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
+                <Doughnut
+                  id="protocol-chart"
+                  key={"protocol-" + filteredAlerts.length}
+                  data={protocolData}
+                  options={{ 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                      datalabels: {
+                        display: true,
+                        color: '#fff',
+                        font: {
+                          weight: 'bold' as const,
+                          size: 14
+                        },
+                        formatter: (value: number) => value > 0 ? value : ''
+                      }
+                    }
+                  }}
+                  height={200}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Time Chart */}
+        {isWidgetVisible("chart-time") && (
+          <div key="chart-time">
+            <div className="p-4 bg-white rounded-lg shadow h-full">
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="flex items-center justify-between w-full mb-2">
+                  <span className="text-lg font-semibold">Activity over time</span>
+                  <div className="flex gap-2">
+                    {["today", "week", "month", "year"].map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => {
+                          setTimeRangeView(r as any);
+                          fetchAlertsPage(1, r);
+                        }}
+                        className={`px-2 py-1 text-sm rounded ${
+                          timeRangeView === r ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+                        }`}
+                      >
+                        {r.charAt(0).toUpperCase() + r.slice(1)}
+                      </button>
+                    ))}
                   </div>
-                  <Line
-                    id="alerts-over-time-chart"
-                    key={`${timeRangeView}-${filteredAlerts.length}`}
-                    data={alertsOverTimeData}
-                    options={alertsPerHourOptions}
-                    height={200}
-                  />
                 </div>
+                <Line
+                  id="alerts-over-time-chart"
+                  key={`${timeRangeView}-${filteredAlerts.length}`}
+                  data={alertsOverTimeData}
+                  options={alertsPerHourOptions}
+                  height={200}
+                />
               </div>
             </div>
           </div>

@@ -2,14 +2,17 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
-from app.models import UserLayout  # We'll define this next
+from app.models import UserLayout
 import json
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+# ✅ Updated DEFAULT_LAYOUT to reflect three separate chart widgets
 DEFAULT_LAYOUT = [
     {"i": "upload-controls", "x": 0, "y": 0, "w": 12, "h": 1},
-    {"i": "charts", "x": 0, "y": 2, "w": 12, "h": 4},
+    {"i": "chart-severity", "x": 0, "y": 2, "w": 4, "h": 4},
+    {"i": "chart-protocol", "x": 4, "y": 2, "w": 4, "h": 4},
+    {"i": "chart-time", "x": 8, "y": 2, "w": 4, "h": 4},
     {"i": "summary-metrics", "x": 0, "y": 8, "w": 12, "h": 3},
     {"i": "filters", "x": 0, "y": 12, "w": 12, "h": 2},
     {"i": "alerts-table", "x": 0, "y": 15, "w": 12, "h": 10},
@@ -24,11 +27,9 @@ def user_layout():
         if layout_entry:
             try:
                 layout = json.loads(layout_entry.layout)
-                # Ensure it's a list of dicts with required keys
                 if not isinstance(layout, list):
                     layout = DEFAULT_LAYOUT
                 else:
-                    # Optional: validate each item
                     clean_layout = []
                     for item in layout:
                         if isinstance(item, dict) and all(k in item for k in ['i', 'x', 'y', 'w', 'h']):
