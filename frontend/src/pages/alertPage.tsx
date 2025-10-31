@@ -88,7 +88,7 @@ export default function AlertsPage() {
     high: true,
     medium: false,
     low: false,
-    threshold: 100,
+    threshold: 10000,
   });
   const [reportFrequency] = useState("weekly");
   const [showApiKeySettings, setShowApiKeySettings] = useState(false);
@@ -331,7 +331,7 @@ export default function AlertsPage() {
           high: opts.high ?? true,
           medium: opts.medium ?? false,
           low: opts.low ?? false,
-          threshold: opts.threshold ? Number(opts.threshold) : 100,
+          threshold: opts.threshold ? Number(opts.threshold) : 10000,
         });
       } catch (err: any) {
         if (err.response?.status !== 401) console.error("Failed to fetch alert options:", err);
@@ -1420,6 +1420,15 @@ export default function AlertsPage() {
         {isWidgetVisible("alerts-table") && (
           <div key="alerts-table">
             <div className="p-4 bg-white rounded-lg shadow">
+              {(loadingAlerts || loading) && (
+                <div className="w-full flex items-center justify-center mb-4">
+                  <svg className="animate-spin h-6 w-6 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  <span className="text-blue-600 font-bold text-lg">Loading...</span>
+                </div>
+              )}
               {loading && <p className="text-blue-500 font-semibold">Processing file...</p>}
               {filteredAlerts.length > 0 && (
                 <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">

@@ -93,7 +93,7 @@ with app.app_context():
                 "High": True,
                 "Medium": False,
                 "Low": False,
-                "Threshold": 100
+                "Threshold": 10000
             },
             report_frequency= "None"  # can be "monthly", "bi-weekly", "weekly", or None
         )
