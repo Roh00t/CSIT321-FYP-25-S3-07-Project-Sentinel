@@ -142,29 +142,31 @@ export default function AlertsPage() {
         per_page: perPage.toString(),
         time_range: timeRangeParam,
       });
-      if (filters.minSeverity > 0) {
-        params.append("min_severity", filters.minSeverity.toString());
+      // Capture current filter values
+      const currentFilters = filters;
+      if (currentFilters.minSeverity > 0) {
+        params.append("min_severity", currentFilters.minSeverity.toString());
       }
-      if (filters.alertsOnly) {
+      if (currentFilters.alertsOnly) {
         params.append("alerts_only", "true");
       }
-      if (filters.protocols.size > 0) {
-        params.append("protocols", Array.from(filters.protocols).join(","));
+      if (currentFilters.protocols.size > 0) {
+        params.append("protocols", Array.from(currentFilters.protocols).join(","));
       }
-      if (filters.port !== undefined) {
-        params.append("port", filters.port.toString());
+      if (currentFilters.port !== undefined) {
+        params.append("port", currentFilters.port.toString());
       }
-      if (filters.ip) {
-        params.append("ip", filters.ip);
+      if (currentFilters.ip) {
+        params.append("ip", currentFilters.ip);
       }
-      if (filters.agent) {
-        params.append("agent", filters.agent);
+      if (currentFilters.agent) {
+        params.append("agent", currentFilters.agent);
       }
-      if (filters.timeRange.start) {
-        params.append("start_time", filters.timeRange.start);
+      if (currentFilters.timeRange.start) {
+        params.append("start_time", currentFilters.timeRange.start);
       }
-      if (filters.timeRange.end) {
-        params.append("end_time", filters.timeRange.end);
+      if (currentFilters.timeRange.end) {
+        params.append("end_time", currentFilters.timeRange.end);
       }
       const res = await apiClient.get(`/api/alerts_api?${params.toString()}`);
       if (pageNumber === 1) {
@@ -194,14 +196,26 @@ export default function AlertsPage() {
     }
   };
   useEffect(() => {
-    fetchAlertsPage(1);
-  }, [token]);
-  useEffect(() => {
     if (token) {
       setPage(1);
-      fetchAlertsPage(1);
+      // Use setTimeout to ensure state updates have completed
+      const timer = setTimeout(() => {
+        fetchAlertsPage(1);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [filters, token]);
+  }, [
+    filters.minSeverity,
+    filters.alertsOnly,
+    filters.protocols,
+    filters.port,
+    filters.ip,
+    filters.agent,
+    filters.timeRange.start,
+    filters.timeRange.end,
+    filters.matchedPcapsOnly,
+    token
+  ]);
   useEffect(() => {
     if (showApiKeySettings) fetchApiKeys();
   }, [showApiKeySettings]);
@@ -661,7 +675,23 @@ export default function AlertsPage() {
     setLoadingIntel(true);
     setAlertPackets([]);
     apiClient.get(`/api/alerts/${alert.id}/packets`)
-      .then((pcapRes) => setAlertPackets(pcapRes.data || []))
+      .then((pcapRes) => {
+        const packets = pcapRes.data || [];
+        // Deduplicate packets based on pcap_filename + packet_number
+        const seen = new Set();
+        const dedupedPackets = packets.filter((pkt: any) => {
+          const key = `${pkt.pcap_filename}-${pkt.packet_number}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setAlertPackets(dedupedPackets);
+        
+        // Update the alert's pcap_match_count with deduplicated count
+        setAlerts(prev => prev.map(a => 
+          a.id === alert.id ? { ...a, pcap_match_count: dedupedPackets.length } : a
+        ));
+      })
       .catch(() => setAlertPackets([]));
     try {
       const [srcRes, destRes] = await Promise.all([
