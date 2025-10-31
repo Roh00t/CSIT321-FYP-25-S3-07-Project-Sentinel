@@ -129,7 +129,8 @@ export default function AlertsPage() {
     port: undefined as number | undefined,
     ip: "",
     timeRange: { start: null as string | null, end: null as string | null },
-    agent: ""
+    agent: "",
+    matchedPcapsOnly: false,
   });
   const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
     if (!token) return;
@@ -374,7 +375,7 @@ export default function AlertsPage() {
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
         );
         const newFiltered = alerts.filter((a: any) => {
-          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`;
+          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest.port}-${a.api_key}`;
           if (existingKeys.has(key)) return false;
           existingKeys.add(key);
           return true;
@@ -402,7 +403,12 @@ export default function AlertsPage() {
     };
     fetchApiKeys();
   }, [token]);
-  let filteredAlerts = [...filteredAlertsByApiKey].sort((a, b) => {
+  let filteredAlerts = [...filteredAlertsByApiKey].filter(a => {
+    if (filters.matchedPcapsOnly) {
+      return a.pcap_match_count > 0;
+    }
+    return true;
+  }).sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
     if (sortField === "agent") {
@@ -1347,9 +1353,18 @@ export default function AlertsPage() {
                     className="ml-2 border rounded px-2 py-1"
                   />
                 </label>
+                <label className="ml-4">
+                  <input
+                    type="checkbox"
+                    checked={filters.matchedPcapsOnly || false}
+                    onChange={() => setFilters({ ...filters, matchedPcapsOnly: !filters.matchedPcapsOnly })}
+                    className="mr-1"
+                  />
+                  Has Matched PCAPs
+                </label>
                 <button
                   onClick={() => {
-                    setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null } });
+                    setFilters({agent: "", minSeverity: 0, alertsOnly: false, protocols: new Set(), port: undefined, ip: "", timeRange: { start: null, end: null }, matchedPcapsOnly: false });
                     setSelectedSavedFilterId("");
                   }}
                   className="ml-4 px-2 py-1 bg-gray-300 rounded hover:bg-gray-400"
@@ -1510,20 +1525,25 @@ export default function AlertsPage() {
                       })}
                     </tbody>
                   </table>
-                  <div className="mt-4 flex items-center space-x-4">
-                    <button
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      disabled={loadingAlerts || alerts.length >= totalAlerts}
-                      onClick={() => fetchAlertsPage(page + 1)}
-                    >
-                      Load More
-                    </button>
-                    <span className="text-gray-700">
-                      Showing {alerts.length} unique alerts
-                    </span>
-                  </div>
                 </div>
               )}
+              {filteredAlerts.length === 0 && alerts.length > 0 && (
+                <div className="text-gray-600 mt-4 bg-gray-100 p-4 rounded-lg">
+                  <p className="font-semibold">No alerts match your current filters.</p>
+                  <p className="text-sm">Try adjusting or clearing the filters above, or load more alerts.</p>
+                </div>
+              )}
+              <div className="mt-4 flex items-center space-x-4">
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  onClick={() => fetchAlertsPage(page + 1)}
+                >
+                  Load More
+                </button>
+                <span className="text-gray-700">
+                  Showing {alerts.length} unique alerts
+                </span>
+              </div>
               {!loading && alerts.length === 0 && (
                 <div className="text-gray-600 mt-4 bg-gray-100 p-6 rounded-lg">
                   <p className="font-semibold mb-2">No alerts found</p>
