@@ -29,6 +29,7 @@ def get_alerts_for_user():
     # Filter params
     min_severity = request.args.get("min_severity", type=int)
     alerts_only = request.args.get("alerts_only", "false").lower() == "true"
+    matched_pcaps_only = request.args.get("matched_pcaps_only", "false").lower() == "true"
     protocols_str = request.args.get("protocols", "")
     protocols = [p.strip() for p in protocols_str.split(",") if p.strip()]
     port = request.args.get("port", type=int)
@@ -55,6 +56,15 @@ def get_alerts_for_user():
     # Apply filters
     if alerts_only:
         query = query.filter(Alert.severity.isnot(None), Alert.severity > 0)
+    
+    if matched_pcaps_only:
+        # Filter to only alerts that have PCAP matches for this user
+        from app.models.pcap import PcapFile, PcapPacket
+        query = query.join(AlertPcapMatch, Alert.id == AlertPcapMatch.alert_id)\
+                     .join(PcapPacket, AlertPcapMatch.pcap_packet_id == PcapPacket.id)\
+                     .join(PcapFile, PcapPacket.pcap_file_id == PcapFile.id)\
+                     .filter(PcapFile.user_id == user.id)\
+                     .distinct()
     
     if min_severity:
         query = query.filter(Alert.severity.isnot(None), Alert.severity <= min_severity)

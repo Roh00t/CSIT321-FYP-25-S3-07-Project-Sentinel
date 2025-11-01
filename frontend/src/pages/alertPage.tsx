@@ -150,6 +150,9 @@ export default function AlertsPage() {
       if (currentFilters.alertsOnly) {
         params.append("alerts_only", "true");
       }
+      if (currentFilters.matchedPcapsOnly) {
+        params.append("matched_pcaps_only", "true");
+      }
       if (currentFilters.protocols.size > 0) {
         params.append("protocols", Array.from(currentFilters.protocols).join(","));
       }
@@ -417,12 +420,7 @@ export default function AlertsPage() {
     };
     fetchApiKeys();
   }, [token]);
-  let filteredAlerts = [...filteredAlertsByApiKey].filter(a => {
-    if (filters.matchedPcapsOnly) {
-      return a.pcap_match_count > 0;
-    }
-    return true;
-  }).sort((a, b) => {
+  let filteredAlerts = [...filteredAlertsByApiKey].sort((a, b) => {
     let aVal = a[sortField];
     let bVal = b[sortField];
     if (sortField === "agent") {
