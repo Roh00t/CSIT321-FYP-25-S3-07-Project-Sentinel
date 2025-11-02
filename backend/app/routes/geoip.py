@@ -1,6 +1,6 @@
 # filepath: backend/app/routes/geoip.py
 from flask import Blueprint, request, jsonify
-from app.geo import get_geo  # You must have a lookup_ip(ip) function
+from app.utils.geo import get_geo  # You must have a lookup_ip(ip) function
 
 geo_bp = Blueprint('geoip', __name__)
 

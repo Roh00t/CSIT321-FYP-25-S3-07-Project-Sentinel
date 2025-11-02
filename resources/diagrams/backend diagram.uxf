@@ -1,0 +1,44 @@
+<diagram program="umletino" version="15.1"><zoom_level>10</zoom_level><element><id>UMLClass</id><coordinates><x>120</x><y>78</y><w>270</w><h>30</h></coordinates><panel_attributes>Flask Backend</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>120</x><y>128</y><w>100</w><h>30</h></coordinates><panel_attributes>run.py (entry)</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>160</x><y>148</y><w>80</w><h>80</h></coordinates><panel_attributes>lt=&lt;&lt;-
+Initialises</panel_attributes><additional_attributes>10;60;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>120</x><y>208</y><w>270</w><h>90</h></coordinates><panel_attributes>app/__init__.py
+--
+- Creates flask instance
+- Configures CORS
+- Initialises SQLAlchemy
+- Registers blueprints
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>160</x><y>288</y><w>80</w><h>110</h></coordinates><panel_attributes>lt=&lt;&lt;-
+Registers</panel_attributes><additional_attributes>10;90;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>100</x><y>378</y><w>140</w><h>180</h></coordinates><panel_attributes>routes/ (Blueprints)
+--
+auth.py
+alerts.py
+pcap.py
+threatint.py
+filters.py
+geoip.py
+main.py
+api_key.py
+socketIO.py
+dashboard.py
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>350</x><y>288</y><w>80</w><h>110</h></coordinates><panel_attributes>lt=&lt;&lt;-
+Registers</panel_attributes><additional_attributes>10;90;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>310</x><y>378</y><w>180</w><h>200</h></coordinates><panel_attributes>models/ (ORM classes)
+--
+user.py
+app_user.py
+admin.py
+alert.py
+api_keys.py
+filter.py
+pcap.py
+user_layout.py
+admin_email_verification.py
+app_user_team.py
+app_user_team_member.py
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>230</x><y>398</y><w>100</w><h>40</h></coordinates><panel_attributes>lt=&lt;&lt;-
+uses</panel_attributes><additional_attributes>10;20;80;20</additional_attributes></element><element><id>UMLClass</id><coordinates><x>310</x><y>628</y><w>130</w><h>40</h></coordinates><panel_attributes>MYSQL Database
+(sentinel_db)</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>350</x><y>568</y><w>70</w><h>80</h></coordinates><panel_attributes>lt=&lt;&lt;-
+Queries</panel_attributes><additional_attributes>10;60;10;10</additional_attributes></element><element><id>Relation</id><coordinates><x>160</x><y>548</y><w>50</w><h>80</h></coordinates><panel_attributes>lt=&lt;&lt;-
+Calls</panel_attributes><additional_attributes>10;60;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>100</x><y>608</y><w>140</w><h>110</h></coordinates><panel_attributes>utils/ (Helpers)
+--
+auth.py
+email_utils.py
+geo.py
+</panel_attributes><additional_attributes></additional_attributes></element></diagram>
