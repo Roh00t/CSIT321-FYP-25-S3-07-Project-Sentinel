@@ -1679,30 +1679,32 @@ export default function AlertsPage() {
                       "ASN",
                       "Reputation",
                     ].map((field) => {
-                      const getAbuseValue = (abuseData: any) => {
-                        if (!abuseData?.data) return "-";
+                      const isAbuseIPDB = ["Confidence", "Total Reports", "Country", "Domain"].includes(field);
+                      
+                      const getAbuseValue = (ipData: any) => {
+                        if (!ipData?.abuse?.data) return "-";
                         switch (field) {
                           case "Confidence":
-                            return abuseData.data.abuseConfidenceScore ?? "-";
+                            return ipData.abuse.data.abuseConfidenceScore ?? "-";
                           case "Total Reports":
-                            return abuseData.data.totalReports ?? "-";
+                            return ipData.abuse.data.totalReports ?? "-";
                           case "Country":
-                            return abuseData.data.countryCode ?? "-";
+                            return ipData.abuse.data.countryCode ?? "-";
                           case "Domain":
-                            return abuseData.data.domain ?? "-";
+                            return ipData.abuse.data.domain ?? "-";
                           default:
                             return "-";
                         }
                       };
-                      const getVTValue = (vtData: any) => {
-                        if (!vtData?.data?.attributes) return "-";
+                      const getVTValue = (ipData: any) => {
+                        if (!ipData?.vt?.data?.attributes) return "-";
                         switch (field) {
                           case "ASN Owner":
-                            return vtData.data.attributes.as_owner ?? "-";
+                            return ipData.vt.data.attributes.as_owner ?? "-";
                           case "ASN":
-                            return vtData.data.attributes.asn ?? "-";
+                            return ipData.vt.data.attributes.asn ?? "-";
                           case "Reputation":
-                            return vtData.data.attributes.reputation ?? "-";
+                            return ipData.vt.data.attributes.reputation ?? "-";
                           default:
                             return "-";
                         }
@@ -1710,15 +1712,15 @@ export default function AlertsPage() {
                       return (
                         <tr key={field} className="border-b border-gray-200">
                           <td className="p-2 font-medium bg-gray-50">
-                            {["Confidence", "Total Reports", "Country", "Domain"].includes(field)
-                              ? "AbuseIPDB"
-                              : "VirusTotal"}
+                            {isAbuseIPDB ? "AbuseIPDB" : "VirusTotal"}
                           </td>
                           <td className="p-2">{field}</td>
-                          <td className="p-2">{getAbuseValue(threatIntel?.src)}</td>
-                          <td className="p-2">{getAbuseValue(threatIntel?.dest)}</td>
-                          <td className="p-2">{getVTValue(threatIntel?.src)}</td>
-                          <td className="p-2">{getVTValue(threatIntel?.dest)}</td>
+                          <td className="p-2">
+                            {isAbuseIPDB ? getAbuseValue(threatIntel?.src) : getVTValue(threatIntel?.src)}
+                          </td>
+                          <td className="p-2">
+                            {isAbuseIPDB ? getAbuseValue(threatIntel?.dest) : getVTValue(threatIntel?.dest)}
+                          </td>
                         </tr>
                       );
                     })}
