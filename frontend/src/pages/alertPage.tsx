@@ -27,7 +27,7 @@ import { useSocketLogger } from "../hooks/useSocketLogger";
 import jsPDF from "jspdf";
 // React Grid Layout (non-editable)
 import { Responsive, WidthProvider } from "react-grid-layout";
-import type { Layout } from "react-grid-layout"; // ✅ Type-only import
+import type { Layout } from "react-grid-layout";
 const ResponsiveGridLayout = WidthProvider(Responsive);
 // Toast helpers
 function showToast(message: string, duration = 3000) {
@@ -367,12 +367,9 @@ export default function AlertsPage() {
       reconnectionDelay: 2000,
       query: { token },
     });
-    socket.on("disconnect", () => {
-      console.log("❌ Disconnected from Socket.IO stream");
-    });
+    socket.on("disconnect", () => {});
     socket.on("bulk_alerts", (payload) => {
       if (!payload || !Array.isArray(payload.alerts)) {
-        console.warn("⚠️ Malformed payload received:", payload);
         return;
       }
       const alerts = payload.alerts.map((a: any) => ({
@@ -401,7 +398,6 @@ export default function AlertsPage() {
       });
     });
     return () => {
-      console.log("🧹 Cleaning up socket connection");
       socket.disconnect();
     };
   }, [token]);
@@ -757,7 +753,7 @@ export default function AlertsPage() {
     await addChart("alerts-over-time-chart", "Alerts Over Time");
     doc.save("alerts_management_report.pdf");
   };
-  // ✅ Layout loading
+  // Layout loading
   const [layout, setLayout] = useState<Layout[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   useEffect(() => {
@@ -782,7 +778,7 @@ export default function AlertsPage() {
     };
     fetchLayout();
   }, []);
-  // ✅ Helper: check if widget is in layout (i.e., visible)
+  // Check if widget is in layout
   const isWidgetVisible = (id: string) => {
     return layout.some(item => item.i === id);
   };

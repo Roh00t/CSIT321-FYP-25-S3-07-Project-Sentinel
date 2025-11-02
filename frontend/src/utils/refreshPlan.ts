@@ -12,7 +12,7 @@ export const refreshPlanFromBackend = async (): Promise<void> => {
       const data = await res.json();
       localStorage.setItem('plan_type', data.subscription_plan);
 
-      // ✅ Dispatch the custom event you're already listening for
+      // Dispatch the custom event
       window.dispatchEvent(new Event('sessionchange'));
     }
   } catch (err) {

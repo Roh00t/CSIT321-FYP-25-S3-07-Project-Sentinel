@@ -13,12 +13,9 @@ LAST_N = 100
 DEFAULT_ADMIN_EMAIL = os.getenv("MAIL_USERNAME", "projectsentinelfyp@gmail.com")
 EVE_PATH = os.path.join(os.path.dirname(__file__), "..", "uploads", "eve.json")
 
-# 🔹 Create the app instance once for app_context
-
 class AlertsNamespace(Namespace):
     def handle_connect(self):
-        print("🔌 Client connected")
-        # No automatic preload; client must emit on_get_last_alerts when ready
+        pass
 
     def on_get_last_alerts(self, data=None):
         """Called by the frontend on page load to fetch the last N alerts"""
@@ -44,7 +41,6 @@ class AlertsNamespace(Namespace):
             emit("bulk_alerts", {"alerts": alerts}, namespace="/api/alerts/stream")
 
         except Exception as e:
-            print(f"⚠️ Failed to read eve.json: {e}")
             emit("bulk_alerts", {"alerts": []}, namespace="/api/alerts/stream")
 
     @staticmethod
@@ -56,11 +52,10 @@ class AlertsNamespace(Namespace):
         return list(last_lines)
     
     def on_disconnect(self):
-        print("❌ Pro user disconnected")
+        pass
 
     def on_alert_event(self, data):
         if not data:
-            print("⚠️ Received empty alert event")
             return
 
         api_key = data.get("api_key") 
@@ -70,7 +65,7 @@ class AlertsNamespace(Namespace):
         if event_type in ["flow", "stats"]:
             return
 
-        # ✅ Handle DNS events nicely
+        # Handle DNS events
         if event_type == "dns":
             normalized = dns_to_display(data)
         else:
@@ -82,7 +77,7 @@ class AlertsNamespace(Namespace):
         send_alert_email_if_needed(normalized)
 
 
-# 🔹 DNS events: lightweight normalization for display
+# DNS events normalization for display
 def dns_to_display(dns_event):
     rrname = (
         dns_event.get("dns", {}).get("queries", [{}])[0].get("rrname")
@@ -101,7 +96,7 @@ def dns_to_display(dns_event):
     }
 
 
-# 🔹 Normalize regular alerts
+# Normalize regular alerts
 def normalize_alert(alert: dict) -> dict:
     alert_obj = alert.get("alert") or alert.get("Event", {}).get("alert") or alert.get("Event") or {}
 
@@ -174,7 +169,6 @@ def normalize_alert(alert: dict) -> dict:
                 try:
                     iso_ts = datetime.strptime(ts, "%m/%d-%H:%M:%S.%f").replace(year=datetime.now().year).isoformat()
                 except Exception:
-                    print(f"[WARN] Could not parse timestamp '{ts}', using utcnow.")
                     iso_ts = datetime.utcnow().isoformat()
         else:
             iso_ts = datetime.utcnow().isoformat()
@@ -234,10 +228,9 @@ def send_alert_email_if_needed(alert):
 
         if len(user_alerts) >= threshold:
             admin_email = get_admin_email_for_api_key(api_key)
-            print(f"🚨 User {user_id} exceeded {threshold} events/hour — emailing {admin_email}")
             send_alert_email(
                 admin_email,
-                "⚠️ High Activity Volume Detected",
+                "High Activity Volume Detected",
                 f"You have received {len(user_alerts)} total events in the past hour (threshold: {threshold})."
             )
             recent_alerts_per_user[user_id] = []
@@ -252,7 +245,6 @@ def send_alert_email_if_needed(alert):
     )
     if should_send:
         admin_email = get_admin_email_for_api_key(api_key)
-        print(f"✉️ Sending alert email from {DEFAULT_ADMIN_EMAIL} to {admin_email} for alert: {alert['signature']}")
         send_alert_email(
             admin_email,
             "Security Alert Notification",
@@ -288,10 +280,8 @@ def persist_alert_to_db(alert_item):
     try:
         db.session.add(alertobj)
         db.session.commit()
-        #print(f"💾 Persisted alert to DB: {alertobj.signature}")
     except Exception as e:
         db.session.rollback()
-        print("⚠️ Error persisting alert to DB:", e)
 
 _app = None  # module-level global
 
@@ -299,10 +289,9 @@ def set_app(flask_app):
     global _app
     _app = flask_app
 
-# 🔹 Background task that flushes buffer every second
+# Background task that flushes buffer every second
 def bulk_alert_sender():
     from app import socketio
-    print("🚀 Bulk alert sender started (running every 1s)")
     
     while True:
         eventlet.sleep(BUFFER_INTERVAL)
@@ -314,16 +303,16 @@ def bulk_alert_sender():
             try:
                 socketio.emit("bulk_alerts", {"alerts": batch}, namespace="/api/alerts/stream")
             except Exception as e:
-                print(f"⚠️ Error emitting alerts: {e}")
+                pass
 
-            # Persist alerts **inside app context**
+            # Persist alerts inside app context
             with _app.app_context():
                 for item in batch:
                     persist_alert_to_db(item)
 
 
 
-# 🔹 Start background sender only once
+# Start background sender only once
 def start_bulk_sender():
     from app import socketio  # Lazy import
     if not getattr(start_bulk_sender, "started", False):

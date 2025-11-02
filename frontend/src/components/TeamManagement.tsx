@@ -80,7 +80,6 @@ export default function TeamManagement({ token, onTeamUpdate }: Props) {
     if (!token || !window.confirm('Are you sure you want to remove this team member?')) return;
 
     try {
-      // ✅ Use apiClient
       await apiClient.post('/api/auth/teams/remove-member', { user_id: userId });
       onTeamUpdate();
     } catch (err: any) {

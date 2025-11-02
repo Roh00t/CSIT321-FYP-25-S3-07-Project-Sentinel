@@ -41,8 +41,6 @@ def get_alerts_for_user():
     keys = APIKey.query.filter_by(user_id=user.id).all()
     key_values = [k.key for k in keys]
 
-    print(f"[DEBUG] User ID: {user.id}, API Keys: {key_values}")
-
     # Return alerts if api_key OR user_id matches
     if key_values:
         query = Alert.query.filter(
@@ -115,7 +113,6 @@ def get_alerts_for_user():
     query = query.order_by(Alert.created_at.desc())
     
     total = query.count()
-    print(f"[DEBUG] Total alerts found (after filters): {total}")
     
     # Calculate summary statistics from DB
     from sqlalchemy import func
@@ -221,7 +218,6 @@ def get_alerts_for_user():
     activity_dict = {str(bucket): count for bucket, count in activity_over_time}
     
     alerts = query.offset((page - 1) * per_page).limit(per_page).all()
-    print(f"[DEBUG] Alerts returned: {len(alerts)}")
 
     # Add pcap match count to each alert
     alerts_data = []

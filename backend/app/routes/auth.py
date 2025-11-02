@@ -495,7 +495,7 @@ def cancel_user_subscription(user):
                 stripe.Subscription.delete(sub.id)
                 current_app.logger.info(f"Cancelled Stripe subscription {sub.id} for deleted user {user.id}")
 
-        # 🔑 CRITICAL: If user is a Team owner, downgrade all team members to Basic
+        # If user is a Team owner, downgrade all team members to Basic
         if user.subscription_plan == "Team":
             owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
             if owned_team:
@@ -1004,7 +1004,7 @@ def stripe_webhook():
                 else:
                     team_to_update = existing_team
 
-                # 🔑 Extract subscription end date from Stripe
+                # Extract subscription end date from Stripe
                 item = subscription.get('items', {}).get('data', [])
                 if item:
                     current_period_end = item[0].get('current_period_end')
@@ -1013,10 +1013,10 @@ def stripe_webhook():
 
                 end_date = datetime.datetime.utcfromtimestamp(current_period_end).isoformat() + "Z" if current_period_end else None
 
-                # 🔑 Update team with subscription metadata
+                # Update team with subscription metadata
                 team_to_update.stripe_subscription_id = subscription_id
                 team_to_update.subscription_end_date = end_date
-                team_to_update.is_cancelling = False  # New subscription = not cancelling
+                team_to_update.is_cancelling = False
 
             db.session.commit()
             current_app.logger.info(f"Successfully updated user {user_id} to {plan} plan")
@@ -1044,14 +1044,14 @@ def stripe_webhook():
                 current_app.logger.info(f"No user found for customer {customer_id}")
                 return jsonify({'status': 'success'})
 
-            # ✅ Check if user has ACCEPTED a team invitation
+            # Check if user has accepted a team invitation
             active_membership = AppUserTeamMember.query.filter(
                 AppUserTeamMember.user_id == user.id,
                 AppUserTeamMember.is_active == True,
                 AppUserTeamMember.joined_at.isnot(None)  # Must have accepted
             ).first()
 
-            # ✅ Check if user owns a team
+            # Check if user owns a team
             owned_team = AppUserTeam.query.filter_by(owner_id=user.id).first()
 
             if active_membership and user.subscription_plan != "Team":
@@ -1294,7 +1294,7 @@ def accept_team_invitation():
     if user.subscription_plan == "Team":
         return jsonify({"msg": "You're already on a Team plan"}), 400
 
-    # ✅ ENSURE STRIPE CUSTOMER EXISTS
+    # Ensure Stripe customer exists
     if not user.stripe_customer_id:
         customer = stripe.Customer.create(
             email=user.email,
@@ -1332,7 +1332,7 @@ def accept_team_invitation():
             current_app.logger.error(f"Failed to cancel subscription for user {user.id}: {str(e)}")
             return jsonify({"msg": "Failed to process invitation. Please try again."}), 500
 
-        # ✅ MUST SET joined_at for Pro users too!
+        # Set joined_at for Pro users
         pending_membership.joined_at = datetime.datetime.now(datetime.timezone.utc)
         db.session.commit()
         

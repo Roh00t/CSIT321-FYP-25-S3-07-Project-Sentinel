@@ -28,8 +28,6 @@ def send_alert_email(to_email, subject, message_body):
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.sendmail(FROM_EMAIL, to_email, msg.as_string())
-        print(f"✅ Alert email sent to {to_email}")
         return True
     except Exception as e:
-        print(f"❌ Failed to send email to {to_email}: {e}")
         return False

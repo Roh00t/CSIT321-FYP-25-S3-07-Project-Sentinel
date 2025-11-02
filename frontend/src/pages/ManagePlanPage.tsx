@@ -140,7 +140,6 @@ export default function ManagePlanPage() {
   const handleTeamUpdate = async () => {
     if (!token) return;
     try {
-      // ✅ Use apiClient
       const res = await apiClient.get('/api/auth/appuser/profile');
       setProfile(res.data);
       setShowTeamManagement(true);

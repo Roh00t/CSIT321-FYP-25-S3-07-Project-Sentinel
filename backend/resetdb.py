@@ -13,11 +13,11 @@ def reset_db():
     with app.app_context():
         # Drop all tables
         db.drop_all()
-        print("🗑️ All tables dropped")
+        print("All tables dropped")
 
         # Create all tables
         db.create_all()
-        print("✅ All tables recreated")
+        print("All tables recreated")
 
         # === SEEDING LOGIC ===
 
@@ -109,7 +109,7 @@ def reset_db():
 
         # Commit all changes
         db.session.commit()
-        print("🌱 Database seeded successfully.")
+        print("Database seeded successfully.")
 
 if __name__ == "__main__":
     reset_db()

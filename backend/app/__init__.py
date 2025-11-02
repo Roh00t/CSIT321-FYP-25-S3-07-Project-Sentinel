@@ -86,11 +86,7 @@ def create_app():
             engine = db.get_engine()
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            print(f"Database '{db_name}' exists.")
         except Exception as e:
-            print(f"Database '{db_name}' not found or connection failed: {str(e)}")
-            print(f"Creating database '{db_name}'...")
-
             # Connect to MySQL server without specifying database
             temp_uri = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}"
             temp_engine = db.create_engine(temp_uri)
@@ -98,9 +94,7 @@ def create_app():
             try:
                 with temp_engine.connect() as conn:
                     conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-                print(f"Database '{db_name}' created successfully.")
             except Exception as create_error:
-                print(f"Failed to create database: {str(create_error)}")
                 raise
 
         # Create tables if they don't exist
@@ -108,11 +102,7 @@ def create_app():
             inspector = inspect(db.get_engine())
             if not inspector.get_table_names():
                 db.create_all()
-                print("Tables created successfully!")
-            else:
-                print("Tables already exist — skipping creation.")
         except Exception as table_error:
-            print(f"Error during table creation: {str(table_error)}")
             raise
 
     return app

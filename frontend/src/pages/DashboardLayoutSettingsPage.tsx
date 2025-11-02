@@ -46,7 +46,7 @@ interface LayoutItem {
 }
 
 export default function DashboardLayoutSettingsPage() {
-  const [fullLayout, setFullLayout] = useState<Layout[]>(DEFAULT_LAYOUT); // ✅ Always full
+  const [fullLayout, setFullLayout] = useState<Layout[]>(DEFAULT_LAYOUT);
   const [hiddenWidgets, setHiddenWidgets] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -89,7 +89,7 @@ export default function DashboardLayoutSettingsPage() {
         setFullLayout(newFullLayout);
         setHiddenWidgets(newHidden);
       } catch (err: any) {
-        console.error("❌ Failed to load layout:", err);
+        console.error("Failed to load layout:", err);
         alert("Failed to load layout settings. Using default layout.");
         setFullLayout(DEFAULT_LAYOUT);
         setHiddenWidgets(new Set());
@@ -132,7 +132,7 @@ export default function DashboardLayoutSettingsPage() {
     });
   };
 
-  // ✅ Visible layout for rendering
+  // Visible layout for rendering
   const visibleLayout = fullLayout.filter(item => !hiddenWidgets.has(item.i));
 
   if (loading) {

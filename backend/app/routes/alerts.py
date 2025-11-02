@@ -108,7 +108,6 @@ def normalize_alert(alert: dict) -> dict:
                     try:
                         iso_ts = datetime.strptime(ts, "%m/%d-%H:%M:%S.%f").replace(year=datetime.now().year).isoformat()
                     except Exception:
-                        print(f"[WARN] Could not parse timestamp '{ts}', using utcnow.")
                         iso_ts = datetime.utcnow().isoformat()
             else:
                 iso_ts = datetime.utcnow().isoformat()
@@ -187,10 +186,7 @@ def upload_alerts():
         app_user = None
         if user_id:
             app_user = AppUser.query.filter_by(id=user_id).first()
-            print(f"[DEBUG] user_id={user_id}, found={bool(app_user)}, plan={getattr(app_user, 'subscription_plan', None)}")
-        else:
-            print(f"[DEBUG] No user_id provided in upload request, plan_type={plan_type}")
-
+        
         with open(save_path, "r") as f:
             first_char = f.read(1)
             f.seek(0)
@@ -207,10 +203,9 @@ def upload_alerts():
                         alert = json.loads(line)
                         alert_objs.append(alert)
                     except json.JSONDecodeError:
-                        print(f"[ERROR] JSON decode error for line: {line}")
                         continue
 
-        # If Pro user, persist alerts (by user_id or plan_type)
+        # If Pro user, persist alerts
         persist_pro = False
         persist_user_id = None
         if app_user and app_user.subscription_plan == "Pro":
@@ -219,7 +214,6 @@ def upload_alerts():
         elif plan_type == "Pro":
             persist_pro = True
         if persist_pro:
-            print(f"[DEBUG] Persisting {len(alert_objs)} alerts for Pro user (user_id={persist_user_id})")
             for alert in alert_objs:
                 if alert.get("event_type") == "stats":
                     continue
@@ -235,7 +229,6 @@ def upload_alerts():
                         try:
                             db_ts = datetime.strptime(ts_val, "%m/%d-%H:%M:%S.%f").replace(year=datetime.now().year)
                         except Exception:
-                            print(f"[WARN] Could not parse DB timestamp '{ts_val}', using utcnow.")
                             db_ts = datetime.utcnow()
                 else:
                     db_ts = datetime.utcnow()
@@ -257,13 +250,10 @@ def upload_alerts():
                     user_id=persist_user_id
                 )
                 db.session.add(alert_model)
-                print(f"[DEBUG] Added alert to DB: {alert_model.to_dict()}")
                 alerts.append(alert_model.to_dict())
             db.session.commit()
-            print(f"[DEBUG] Committed alerts for Pro user")
         else:
             # Basic user: do not persist, just normalize
-            print(f"[DEBUG] Normalizing {len(alert_objs)} alerts for Basic user or no user")
             for alert in alert_objs:
                 if alert.get("event_type") == "stats":
                     continue
@@ -271,7 +261,5 @@ def upload_alerts():
 
         return jsonify({"alerts": alerts}), 200
     except Exception as e:
-        print(f"[ERROR] Upload error: {e}")
         return jsonify({"error": f"Failed to parse or save alerts: {str(e)}"}), 400
-    except Exception as e:
-        return jsonify({"error": f"Failed to parse or save alerts: {str(e)}"}), 400
+

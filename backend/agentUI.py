@@ -59,10 +59,8 @@ class MultiForwarderGUI:
                 transports=["websocket"]
             )
             self.status_var.set("🟢 Connected")
-            self.log("✅ Connected to backend.")
         except Exception as e:
             self.status_var.set("🔴 Disconnected")
-            self.log(f"❌ Connection failed: {e}")
             self.root.after(5000, self.connect_socket)  # retry
 
     # ----------------------------
@@ -105,7 +103,6 @@ class MultiForwarderGUI:
             self.stop_forwarder(iid)
             del forwarders[iid]
             self.tree.delete(iid)
-        self.log("🗑️ Removed selected source(s)")
         self.save_sources()
 
     # ----------------------------
@@ -132,7 +129,6 @@ class MultiForwarderGUI:
         if path in forwarders:
             forwarders[path]["stop_event"].set()
             self.tree.set(path, "status", "Stopped")
-            self.log(f"🛑 Stopped forwarding from {path}")
 
     # ----------------------------
     def tail_eve(self, path, api_key, stop_event):
@@ -149,9 +145,9 @@ class MultiForwarderGUI:
                         event["api_key"] = api_key
                         sio.emit("alert_event", event, namespace="/api/alerts/stream")
                     except Exception as e:
-                        self.log(f"⚠️ JSON error in {path}: {e}")
+                        pass
         except Exception as e:
-            self.log(f"⚠️ File error in {path}: {e}")
+            pass
 
     # ----------------------------
     def log(self, msg):
@@ -166,8 +162,8 @@ class MultiForwarderGUI:
         try:
             with open(self.sources_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
-        except Exception as e:
-            self.log(f"⚠️ Failed to save sources: {e}")
+        except Exception:
+            pass
 
     def load_sources(self):
         if not os.path.exists(self.sources_file):
@@ -179,12 +175,10 @@ class MultiForwarderGUI:
                 path = entry.get('path')
                 api_key = entry.get('api_key')
                 if path and api_key:
-                    # restore entry without popup
                     forwarders[path] = {"api_key": api_key, "stop_event": threading.Event(), "thread": None}
                     self.tree.insert("", "end", iid=path, values=(path, api_key[:6] + "•••", "Stopped"))
-                    self.log(f"🔄 Loaded source: {path}")
-        except Exception as e:
-            self.log(f"⚠️ Failed to load sources: {e}")
+        except Exception:
+            pass
     def start_selected(self):
         selected = self.tree.selection()
         if not selected:
@@ -203,14 +197,14 @@ class MultiForwarderGUI:
 
 
 
-# ----------------------------
+# Socket event handlers
 @sio.event(namespace="/api/alerts/stream")
 def connect():
-    print("✅ Socket connected")
+    pass
 
 @sio.event(namespace="/api/alerts/stream")
 def disconnect():
-    print("❌ Socket disconnected")
+    pass
 
 # ----------------------------
 if __name__ == "__main__":

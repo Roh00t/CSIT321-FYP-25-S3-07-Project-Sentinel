@@ -78,11 +78,11 @@ class SendAlertGUI:
 
 @sio.event(namespace="/api/alerts/stream")
 def connect():
-    print("✅ Socket connected")
+    pass
 
 @sio.event(namespace="/api/alerts/stream")
 def disconnect():
-    print("❌ Socket disconnected")
+    pass
 
 if __name__ == "__main__":
     root = tk.Tk()

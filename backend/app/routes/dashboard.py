@@ -7,7 +7,7 @@ import json
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
-# ✅ Updated DEFAULT_LAYOUT to reflect three separate chart widgets
+# Default layout configuration for dashboard widgets
 DEFAULT_LAYOUT = [
     {"i": "upload-controls", "x": 0, "y": 0, "w": 12, "h": 1},
     {"i": "chart-severity", "x": 0, "y": 2, "w": 4, "h": 4},
@@ -44,7 +44,6 @@ def user_layout():
                             raise ValueError("Invalid layout item")
                     layout = clean_layout
             except Exception as e:
-                print(f"Layout parse error: {e}")
                 layout = DEFAULT_LAYOUT
         else:
             layout = DEFAULT_LAYOUT

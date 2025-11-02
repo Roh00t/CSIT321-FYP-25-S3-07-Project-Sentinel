@@ -32,9 +32,6 @@ def parse_pcap_file(file_path):
     packets = []
     try:
         pcap_packets = rdpcap(file_path)
-        print(f"[DEBUG] Parsed {len(pcap_packets)} packets from {file_path}")
-        if len(pcap_packets) > 0:
-            print(f"[DEBUG] First packet summary: {pcap_packets[0].summary()}")
 
         for idx, pkt in enumerate(pcap_packets):
             # Handle IPv4
@@ -129,22 +126,16 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
         pkt_src_ip = normalize_ip(packet["src_ip"])
         pkt_dst_ip = normalize_ip(packet["dst_ip"])
         
-        print(f"[DEBUG] Matching packet: {pkt_src_ip}:{packet['src_port']} -> {pkt_dst_ip}:{packet['dst_port']} @ {pkt_time}")
-
         # Find all alerts within time window, then filter by normalized IPs
         potential_alerts = Alert.query.filter(
             Alert.timestamp >= time_start,
             Alert.timestamp <= time_end
         ).all()
         
-        print(f"[DEBUG] Found {len(potential_alerts)} alerts in time window")
-
         # Filter alerts by normalized IPs and ports
         for alert in potential_alerts:
             alert_src_ip = normalize_ip(alert.src_ip)
             alert_dst_ip = normalize_ip(alert.dest_ip)
-            
-            print(f"[DEBUG] Checking alert {alert.id}: {alert_src_ip}:{alert.src_port} -> {alert_dst_ip}:{alert.dest_port}")
             
             # Check IP match
             if alert_src_ip != pkt_src_ip or alert_dst_ip != pkt_dst_ip:
@@ -155,7 +146,6 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
                 if alert.src_port != packet["src_port"] or alert.dest_port != packet["dst_port"]:
                     continue
             
-            print(f"[DEBUG] MATCH FOUND with alert {alert.id}")
             confidence = 1.0
 
             # Check protocol match
