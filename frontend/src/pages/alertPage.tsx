@@ -751,7 +751,8 @@ export default function AlertsPage() {
     await addChart("severity-chart", "Severity Levels");
     await addChart("protocol-chart", "Activity by Protocol");
     await addChart("alerts-over-time-chart", "Alerts Over Time");
-    doc.save("alerts_management_report.pdf");
+  const dateStr = new Date().toISOString().slice(0,10);
+  doc.save(`alerts_management_report_${dateStr}.pdf`);
   };
   // Layout loading
   const [layout, setLayout] = useState<Layout[]>([]);
