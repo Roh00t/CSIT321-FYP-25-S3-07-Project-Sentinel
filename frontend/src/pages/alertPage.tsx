@@ -1660,16 +1660,22 @@ export default function AlertsPage() {
               {loadingIntel ? (
                 <div className="text-gray-500 p-4">Loading threat intelligence...</div>
               ) : (
-                <table className="min-w-full border border-gray-200 rounded-lg">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="p-2 border-r">Data source</th>
-                      <th className="p-2 border-r">Field</th>
-                      <th className="p-2 border-r">Source ({selectedAlert.src_ip})</th>
-                      <th className="p-2">Destination ({selectedAlert.dest_ip})</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  {(selectedAlert.src_ip?.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/)) && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                      Note: Private IP addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x) have limited threat intelligence data.
+                    </div>
+                  )}
+                  <table className="min-w-full border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-2 border-r">Data source</th>
+                        <th className="p-2 border-r">Field</th>
+                        <th className="p-2 border-r">Source ({selectedAlert.src_ip})</th>
+                        <th className="p-2">Destination ({selectedAlert.dest_ip})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                     {[
                       "Confidence",
                       "Total Reports",
@@ -1709,23 +1715,38 @@ export default function AlertsPage() {
                             return "-";
                         }
                       };
+                      
+                      const getReputationColor = (value: any) => {
+                        if (value === "-" || value === null || value === undefined) return "";
+                        const rep = typeof value === 'number' ? value : parseInt(value);
+                        if (isNaN(rep)) return "";
+                        if (rep >= 0) return "bg-green-100 text-green-800";
+                        if (rep >= -10) return "bg-yellow-100 text-yellow-800";
+                        if (rep >= -50) return "bg-orange-100 text-orange-800";
+                        return "bg-red-100 text-red-800";
+                      };
+                      
+                      const srcValue = isAbuseIPDB ? getAbuseValue(threatIntel?.src) : getVTValue(threatIntel?.src);
+                      const destValue = isAbuseIPDB ? getAbuseValue(threatIntel?.dest) : getVTValue(threatIntel?.dest);
+                      
                       return (
                         <tr key={field} className="border-b border-gray-200">
                           <td className="p-2 font-medium bg-gray-50">
                             {isAbuseIPDB ? "AbuseIPDB" : "VirusTotal"}
                           </td>
                           <td className="p-2">{field}</td>
-                          <td className="p-2">
-                            {isAbuseIPDB ? getAbuseValue(threatIntel?.src) : getVTValue(threatIntel?.src)}
+                          <td className={`p-2 ${field === "Reputation" ? getReputationColor(srcValue) : ""}`}>
+                            {srcValue}
                           </td>
-                          <td className="p-2">
-                            {isAbuseIPDB ? getAbuseValue(threatIntel?.dest) : getVTValue(threatIntel?.dest)}
+                          <td className={`p-2 ${field === "Reputation" ? getReputationColor(destValue) : ""}`}>
+                            {destValue}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                </>
               )}
             </div>
             <div className="mt-4 flex justify-end">
