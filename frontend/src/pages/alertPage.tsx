@@ -431,14 +431,7 @@ export default function AlertsPage() {
     return sortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
   });
   const summary = useMemo(() => {
-    if (serverSummary) {
-      return {
-        total: totalAlerts,
-        topTalkers: serverSummary.top_talkers || [],
-        topHosts: serverSummary.top_hosts || [],
-        topSignatures: serverSummary.top_signatures || [],
-      };
-    }
+    // Always use filteredAlerts for live numbers
     const alertEvents = filteredAlerts.filter(a => a.severity);
     const total = alertEvents.length;
     const topTalkers: Record<string, number> = {};
@@ -459,7 +452,7 @@ export default function AlertsPage() {
       topHosts: sortDesc(topHosts),
       topSignatures: sortDesc(topSignatures),
     };
-  }, [filteredAlerts, serverSummary, totalAlerts]);
+  }, [filteredAlerts]);
   const severityData = useMemo(() => ({
     labels: [' '],
     datasets: [
