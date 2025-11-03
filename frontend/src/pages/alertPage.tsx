@@ -425,7 +425,6 @@ export default function AlertsPage() {
     socket.on("disconnect", () => {});
     socket.on("bulk_alerts", (payload) => {
       if (!payload || !Array.isArray(payload.alerts)) {
-        console.log("bulk_alerts payload missing or not array", payload);
         return;
       }
       const alerts = payload.alerts.map((a: any) => ({
@@ -440,8 +439,6 @@ export default function AlertsPage() {
         signature: a.signature || "Unlabeled Alert",
         severity: a.severity ?? 0,
       }));
-      console.log("Received bulk_alerts", alerts);
-      
       // Apply current filters to incoming alerts before adding them
       const matchesFilters = (a: any) => {
         if (filters.alertsOnly && !(a.severity === 1 || a.severity === 2 || a.severity === 3)) return false;
@@ -467,9 +464,8 @@ export default function AlertsPage() {
           existingKeys.add(key);
           return true;
         });
-        const updatedAlerts = [...newFiltered, ...prev];
-        console.log("Updated alerts state", updatedAlerts);
-        return updatedAlerts;
+  const updatedAlerts = [...newFiltered, ...prev];
+  return updatedAlerts;
       });
       
       // Debounced summary update - waits 2s after last alert before fetching
