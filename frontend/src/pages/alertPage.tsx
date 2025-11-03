@@ -99,6 +99,10 @@ export default function AlertsPage() {
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
   const [currentTimeRange, setCurrentTimeRange] = useState<string>("today");
+  
+  // Debounce timer for summary updates
+  const summaryUpdateTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  
   const filteredAlertsByApiKey = useMemo(() => {
     if (!apiKeys.length) return alerts;
     const activeKeys = apiKeys.filter(k => !k.revoked);
@@ -149,6 +153,16 @@ export default function AlertsPage() {
       if (err.response?.status === 401) return;
       console.error("Failed to fetch summary:", err);
     }
+  };
+  
+  // Debounced version - only updates summary after 2 seconds of no new alerts
+  const debouncedFetchSummary = () => {
+    if (summaryUpdateTimerRef.current) {
+      clearTimeout(summaryUpdateTimerRef.current);
+    }
+    summaryUpdateTimerRef.current = setTimeout(() => {
+      fetchSummaryOnly();
+    }, 2000);
   };
   
   const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
@@ -445,8 +459,8 @@ export default function AlertsPage() {
         return updatedAlerts;
       });
       
-      // Fetch only summary to update metrics without resetting alerts
-      fetchSummaryOnly();
+      // Debounced summary update - waits 2s after last alert before fetching
+      debouncedFetchSummary();
     });
     return () => {
       socket.disconnect();
