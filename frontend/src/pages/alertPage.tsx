@@ -400,9 +400,29 @@ export default function AlertsPage() {
         const existingKeys = new Set(
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
         );
+        // Apply current filters to incoming alerts
+        const matchesFilters = (a: any) => {
+          // Alerts Only
+          if (filters.alertsOnly && !(a.severity === 1 || a.severity === 2 || a.severity === 3)) return false;
+          // Min Severity
+          if (filters.minSeverity > 0 && a.severity !== filters.minSeverity) return false;
+          // Protocols
+          if (filters.protocols.size > 0 && !filters.protocols.has(a.protocol)) return false;
+          // Port
+          if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
+          // IP
+          if (filters.ip && a.src_ip !== filters.ip && a.dest_ip !== filters.ip) return false;
+          // Agent
+          if (filters.agent && a.api_key !== filters.agent) return false;
+          // Matched PCAPs Only
+          if (filters.matchedPcapsOnly && !a.pcap_match_count) return false;
+          // Time Range (not applied here, handled in fetch)
+          return true;
+        };
         const newFiltered = alerts.filter((a: any) => {
           const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port ?? ""}-${a.api_key}`;
           if (existingKeys.has(key)) return false;
+          if (!matchesFilters(a)) return false;
           existingKeys.add(key);
           return true;
         });
@@ -1081,25 +1101,29 @@ export default function AlertsPage() {
               <div className="flex flex-col items-center justify-center h-full">
                 <span className="text-lg font-semibold mb-2">Severity Levels</span>
                 <Bar
-                  id="severity-chart"
-                  data={severityData}
-                  options={{
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: {
-                      legend: {},
-                      datalabels: {
-                        display: true,
-                        color: '#fff',
-                        font: {
-                          weight: 'bold' as const,
-                          size: 14
-                        },
-                        formatter: (value: number) => value > 0 ? value : ''
-                      }
-                    },
-                  }}
-                  height={200}
+                    id="severity-chart"
+                    data={severityData}
+                    options={{
+                      responsive: true, 
+                      maintainAspectRatio: false, 
+                      animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart',
+                      },
+                      plugins: {
+                        legend: {},
+                        datalabels: {
+                          display: true,
+                          color: '#fff',
+                          font: {
+                            weight: 'bold' as const,
+                            size: 14
+                          },
+                          formatter: (value: number) => value > 0 ? value : ''
+                        }
+                      },
+                    }}
+                    height={200}
                 />
               </div>
             </div>
@@ -1114,11 +1138,14 @@ export default function AlertsPage() {
                 <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
                 <Doughnut
                   id="protocol-chart"
-                  key={"protocol-" + filteredAlerts.length}
                   data={protocolData}
                   options={{ 
                     responsive: true, 
                     maintainAspectRatio: false,
+                    animation: {
+                      duration: 800,
+                      easing: 'easeOutQuart',
+                    },
                     plugins: {
                       datalabels: {
                         display: true,
@@ -1164,9 +1191,14 @@ export default function AlertsPage() {
                 </div>
                 <Line
                   id="alerts-over-time-chart"
-                  key={`${timeRangeView}-${filteredAlerts.length}`}
                   data={alertsOverTimeData}
-                  options={alertsPerHourOptions}
+                  options={{
+                    ...alertsPerHourOptions,
+                    animation: {
+                      duration: 800,
+                      easing: 'easeOutQuart',
+                    },
+                  }}
                   height={200}
                 />
               </div>
