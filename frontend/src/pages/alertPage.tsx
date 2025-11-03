@@ -102,6 +102,7 @@ export default function AlertsPage() {
   
   // Debounce timer for summary updates
   const summaryUpdateTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const lastSummaryUpdateRef = React.useRef<number>(0);
   
   const filteredAlertsByApiKey = useMemo(() => {
     if (!apiKeys.length) return alerts;
@@ -155,12 +156,24 @@ export default function AlertsPage() {
     }
   };
   
-  // Debounced version - only updates summary after 2 seconds of no new alerts
+  // Debounced version - updates immediately if >3s since last update, otherwise debounces
   const debouncedFetchSummary = () => {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastSummaryUpdateRef.current;
+    
+    // If it's been more than 3 seconds since last update, update immediately
+    if (timeSinceLastUpdate > 3000) {
+      lastSummaryUpdateRef.current = now;
+      fetchSummaryOnly();
+      return;
+    }
+    
+    // Otherwise, debounce with 2 second delay
     if (summaryUpdateTimerRef.current) {
       clearTimeout(summaryUpdateTimerRef.current);
     }
     summaryUpdateTimerRef.current = setTimeout(() => {
+      lastSummaryUpdateRef.current = Date.now();
       fetchSummaryOnly();
     }, 2000);
   };
