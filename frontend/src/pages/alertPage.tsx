@@ -460,7 +460,7 @@ export default function AlertsPage() {
       topSignatures: sortDesc(topSignatures),
     };
   }, [filteredAlerts, serverSummary, totalAlerts]);
-  const severityData = {
+  const severityData = useMemo(() => ({
     labels: [' '],
     datasets: [
       {
@@ -479,8 +479,8 @@ export default function AlertsPage() {
         backgroundColor: '#f85e4aff',
       }
     ]
-  };
-  const protocolData = {
+  }), [serverSummary, filteredAlerts]);
+  const protocolData = useMemo(() => ({
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
       data: [
@@ -495,7 +495,7 @@ export default function AlertsPage() {
       ],
       backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
     }]
-  };
+  }), [serverSummary, filteredAlerts]);
   const alertsPerHourOptions = {
     responsive: true,
     maintainAspectRatio: false,
