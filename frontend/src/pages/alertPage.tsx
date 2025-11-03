@@ -445,28 +445,22 @@ export default function AlertsPage() {
     return sortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
   });
   const summary = useMemo(() => {
-    // Always use filteredAlerts for live numbers
-    const alertEvents = filteredAlerts.filter(a => a.severity);
-    const total = alertEvents.length;
-    const topTalkers: Record<string, number> = {};
-    const topHosts: Record<string, number> = {};
-    const topSignatures: Record<string, number> = {};
-    alertEvents.forEach((a) => {
-      if (a.dest_ip) topHosts[a.dest_ip] = (topHosts[a.dest_ip] || 0) + 1;
-      if (a.signature) topSignatures[a.signature] = (topSignatures[a.signature] || 0) + 1;
-    });
-    filteredAlerts.forEach((a) => {
-      if (a.src_ip) topTalkers[a.src_ip] = (topTalkers[a.src_ip] || 0) + 1;
-    });
-    const sortDesc = (obj: Record<string, number>) =>
-      Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    // Use serverSummary from backend for live numbers
+    if (!serverSummary) {
+      return {
+        total: 0,
+        topTalkers: [],
+        topHosts: [],
+        topSignatures: [],
+      };
+    }
     return {
-      total,
-      topTalkers: sortDesc(topTalkers),
-      topHosts: sortDesc(topHosts),
-      topSignatures: sortDesc(topSignatures),
+      total: serverSummary.total ?? 0,
+      topTalkers: (serverSummary.topTalkers ?? []).slice(0, 5),
+      topHosts: (serverSummary.topHosts ?? []).slice(0, 5),
+      topSignatures: (serverSummary.topSignatures ?? []).slice(0, 5),
     };
-  }, [filteredAlerts]);
+  }, [serverSummary]);
   const severityData = useMemo(() => ({
     labels: [' '],
     datasets: [
