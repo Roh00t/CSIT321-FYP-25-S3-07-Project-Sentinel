@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "build": "cd frontend && npm install && npm run build"
+    "build": "cd frontend && npm install && npm run build",
+    "postbuild": "echo Build complete"
   },
   "dependencies": {
     "chartjs-adapter-date-fns": "^3.0.0",
