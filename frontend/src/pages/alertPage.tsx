@@ -77,6 +77,7 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [alertsWithGeo, setAlertsWithGeo] = useState<any[]>([]);
+  const [graphRefreshTick, setGraphRefreshTick] = useState(0);
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
   const [newFilterName, setNewFilterName] = useState("");
@@ -222,6 +223,15 @@ export default function AlertsPage() {
   useEffect(() => {
     if (showApiKeySettings) fetchApiKeys();
   }, [showApiKeySettings]);
+
+  // Auto-refresh graphs every 1 minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGraphRefreshTick(tick => tick + 1);
+    }, 60 * 1000); // 1 minute
+    return () => clearInterval(interval);
+  }, []);
+
   const [sortField, setSortField] = useState<string>("timestamp");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [selectedSavedFilterId, setSelectedSavedFilterId] = useState<string>("");
@@ -476,7 +486,7 @@ export default function AlertsPage() {
         backgroundColor: '#f85e4aff',
       }
     ]
-  }), [serverSummary, filteredAlerts]);
+  }), [serverSummary, filteredAlerts, graphRefreshTick]);
   const protocolData = useMemo(() => ({
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
@@ -492,7 +502,7 @@ export default function AlertsPage() {
       ],
       backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
     }]
-  }), [serverSummary, filteredAlerts]);
+  }), [serverSummary, filteredAlerts, graphRefreshTick]);
   const alertsPerHourOptions = {
     responsive: true,
     maintainAspectRatio: false,
