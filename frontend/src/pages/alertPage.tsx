@@ -370,6 +370,7 @@ export default function AlertsPage() {
     socket.on("disconnect", () => {});
     socket.on("bulk_alerts", (payload) => {
       if (!payload || !Array.isArray(payload.alerts)) {
+        console.log("bulk_alerts payload missing or not array", payload);
         return;
       }
       const alerts = payload.alerts.map((a: any) => ({
@@ -384,6 +385,7 @@ export default function AlertsPage() {
         signature: a.signature || "Unlabeled Alert",
         severity: a.severity ?? 0,
       }));
+      console.log("Received bulk_alerts", alerts);
       setAlerts((prev: any[]) => {
         const existingKeys = new Set(
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
@@ -394,7 +396,9 @@ export default function AlertsPage() {
           existingKeys.add(key);
           return true;
         });
-        return [...newFiltered, ...prev];
+        const updatedAlerts = [...newFiltered, ...prev];
+        console.log("Updated alerts state", updatedAlerts);
+        return updatedAlerts;
       });
     });
     return () => {
