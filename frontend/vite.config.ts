@@ -21,4 +21,9 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  preview: {
+    allowedHosts: [
+      "frontend-production-32cc.up.railway.app"
+    ]
+  }
 });
