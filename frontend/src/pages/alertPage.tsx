@@ -98,6 +98,7 @@ export default function AlertsPage() {
   const [newApiKeyType, setNewApiKeyType] = useState("suricata");
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [alertPackets, setAlertPackets] = useState<any[]>([]);
+  const [currentTimeRange, setCurrentTimeRange] = useState<string>("today");
   const filteredAlertsByApiKey = useMemo(() => {
     if (!apiKeys.length) return alerts;
     const activeKeys = apiKeys.filter(k => !k.revoked);
@@ -140,7 +141,7 @@ export default function AlertsPage() {
       const params = new URLSearchParams({
         page: "1",
         per_page: "1",
-        time_range: timeRangeView,
+        time_range: currentTimeRange,
       });
       const res = await apiClient.get(`/api/alerts_api?${params.toString()}`);
       setServerSummary(res.data.summary);
@@ -1221,6 +1222,7 @@ export default function AlertsPage() {
                         key={r}
                         onClick={() => {
                           setTimeRangeView(r as any);
+                          setCurrentTimeRange(r);
                           fetchAlertsPage(1, r);
                         }}
                         className={`px-2 py-1 text-sm rounded ${
