@@ -224,7 +224,7 @@ export default function AlertsPage() {
     if (showApiKeySettings) fetchApiKeys();
   }, [showApiKeySettings]);
 
-  // Auto-refresh graphs every 1 minute
+  // Auto-refresh graphs every 1 minute (counters update with every alert via filteredAlerts)
   useEffect(() => {
     const interval = setInterval(() => {
       setGraphRefreshTick(tick => tick + 1);
@@ -661,7 +661,7 @@ export default function AlertsPage() {
         },
       ],
     };
-  }, [serverSummary, timeRangeView, filteredAlerts]);
+  }, [serverSummary, timeRangeView, filteredAlerts, graphRefreshTick]);
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
     if (newSet.has(proto)) newSet.delete(proto);
