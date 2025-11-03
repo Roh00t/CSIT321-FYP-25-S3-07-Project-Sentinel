@@ -11,7 +11,8 @@ const FLASK_PORT = 5000;
 
 // Start Flask backend
 console.log('Starting Flask backend...');
-const flaskProcess = spawn('python', ['backend/run.py'], {
+const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+const flaskProcess = spawn(pythonCmd, ['backend/run.py'], {
   env: { ...process.env, PORT: FLASK_PORT },
   stdio: 'inherit'
 });
