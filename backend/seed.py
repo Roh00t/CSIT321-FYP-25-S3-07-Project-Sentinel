@@ -1,4 +1,6 @@
 # seed.py
+
+import os
 from app import create_app, db
 from app import models
 from app.models import AppUser, Admin, Filter
@@ -6,7 +8,12 @@ import bcrypt
 from app.models.api_keys import APIKey  # Ensure model is imported
 from app.models.pcap import PcapFile, PcapPacket, AlertPcapMatch  # Ensure model is imported
 
-app = create_app()
+# Use DATABASE_URL if set (Railway), else use default config (dev)
+if os.getenv("DATABASE_URL"):
+    app = create_app()
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
+else:
+    app = create_app()
 
 with app.app_context():
     db.create_all()
