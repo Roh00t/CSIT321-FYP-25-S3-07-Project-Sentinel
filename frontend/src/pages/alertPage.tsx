@@ -430,7 +430,7 @@ export default function AlertsPage() {
     return () => {
       socket.disconnect();
     };
-  }, [token]);
+  }, [token, filters]);
   useEffect(() => {
     if (!token) return;
     const fetchApiKeys = async () => {
