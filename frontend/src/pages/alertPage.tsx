@@ -396,40 +396,19 @@ export default function AlertsPage() {
         severity: a.severity ?? 0,
       }));
       console.log("Received bulk_alerts", alerts);
-      setAlerts((prev: any[]) => {
-        const existingKeys = new Set(
-          prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
-        );
-        // Apply current filters to incoming alerts
-        const matchesFilters = (a: any) => {
-          // Alerts Only
-          if (filters.alertsOnly && !(a.severity === 1 || a.severity === 2 || a.severity === 3)) return false;
-          // Min Severity
-          if (filters.minSeverity > 0 && a.severity !== filters.minSeverity) return false;
-          // Protocols
-          if (filters.protocols.size > 0 && !filters.protocols.has(a.protocol)) return false;
-          // Port
-          if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
-          // IP
-          if (filters.ip && a.src_ip !== filters.ip && a.dest_ip !== filters.ip) return false;
-          // Agent
-          if (filters.agent && a.api_key !== filters.agent) return false;
-          // Matched PCAPs Only
-          if (filters.matchedPcapsOnly && !a.pcap_match_count) return false;
-          // Time Range (not applied here, handled in fetch)
-          return true;
-        };
-        const newFiltered = alerts.filter((a: any) => {
-          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port ?? ""}-${a.api_key}`;
-          if (existingKeys.has(key)) return false;
-          if (!matchesFilters(a)) return false;
-          existingKeys.add(key);
-          return true;
-        });
-        const updatedAlerts = [...newFiltered, ...prev];
-        console.log("Updated alerts state", updatedAlerts);
-        return updatedAlerts;
-      });
+      // Only show alerts that match the current filter, replacing the list
+      const matchesFilters = (a: any) => {
+        if (filters.alertsOnly && !(a.severity === 1 || a.severity === 2 || a.severity === 3)) return false;
+        if (filters.minSeverity > 0 && a.severity !== filters.minSeverity) return false;
+        if (filters.protocols.size > 0 && !filters.protocols.has(a.protocol)) return false;
+        if (filters.port !== undefined && a.src_port !== filters.port && a.dest_port !== filters.port) return false;
+        if (filters.ip && a.src_ip !== filters.ip && a.dest_ip !== filters.ip) return false;
+        if (filters.agent && a.api_key !== filters.agent) return false;
+        if (filters.matchedPcapsOnly && !a.pcap_match_count) return false;
+        return true;
+      };
+      const filteredIncoming = alerts.filter(matchesFilters);
+      setAlerts(filteredIncoming);
     });
     return () => {
       socket.disconnect();
