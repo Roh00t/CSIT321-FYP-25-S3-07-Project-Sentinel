@@ -1,10 +1,10 @@
 [phases.setup]
-nixPkgs = ["nodejs", "python310", "python310Packages.pip", "gcc", "libffi", "openssl"]
+nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "gcc", "libffi", "openssl"]
 
 [phases.install]
 cmds = [
   "npm install",
-  "python3 -m pip install --upgrade pip",
+  "python3 -m pip install --upgrade pip setuptools wheel",
   "python3 -m pip install -r backend/requirements.txt"
 ]
 
@@ -12,4 +12,4 @@ cmds = [
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm start"
+cmd = "bash start.sh"
