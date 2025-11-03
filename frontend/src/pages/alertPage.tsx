@@ -1195,7 +1195,7 @@ export default function AlertsPage() {
                     <tbody>
                       {summary.topTalkers.map(([ip, count]: [string, number]) => (
                         <tr key={ip}>
-                          <td>{ip}</td>
+                          <td title={ip}>{ip.length > 20 ? ip.substring(0, 20) + '...' : ip}</td>
                           <td className="text-right font-semibold">{count}</td>
                         </tr>
                       ))}
@@ -1203,12 +1203,12 @@ export default function AlertsPage() {
                   </table>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow">
-                  <h3 className="font-semibold mb-2">Top Attacked Hosts</h3>
+                  <h3 className="font-semibold mb-2">Top Hosts (with signatures)</h3>
                   <table className="w-full text-sm">
                     <tbody>
                       {summary.topHosts.map(([ip, count]: [string, number]) => (
                         <tr key={ip}>
-                          <td>{ip}</td>
+                          <td title={ip}>{ip.length > 20 ? ip.substring(0, 20) + '...' : ip}</td>
                           <td className="text-right font-semibold">{count}</td>
                         </tr>
                       ))}

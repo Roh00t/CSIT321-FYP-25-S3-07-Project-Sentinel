@@ -187,25 +187,54 @@ def normalize_alert(alert: dict) -> dict:
     }
 
 
+# Cache to reduce database queries
+_api_key_cache = {}
+_user_options_cache = {}
+
 def get_admin_email_for_api_key(api_key_value):
     from app.models.app_user import AppUser
     from app.models.api_keys import APIKey
+    from app import db
+    
     if not api_key_value or api_key_value == "0":
         return DEFAULT_ADMIN_EMAIL
-    key = APIKey.query.filter_by(key=api_key_value).first()
-    if key and key.user_id:
-        user = AppUser.query.filter_by(id=key.user_id).first()
-        if user and user.admin_email:
-            return user.admin_email
-    return DEFAULT_ADMIN_EMAIL
+    
+    # Check cache first
+    if api_key_value in _api_key_cache:
+        return _api_key_cache[api_key_value]
+    
+    try:
+        key = APIKey.query.filter_by(key=api_key_value).first()
+        if key and key.user_id:
+            user = AppUser.query.filter_by(id=key.user_id).first()
+            if user and user.admin_email:
+                _api_key_cache[api_key_value] = user.admin_email
+                return user.admin_email
+        return DEFAULT_ADMIN_EMAIL
+    finally:
+        db.session.remove()
 
 
 def get_alert_options_for_user(user_id):
     from app.models.filter import Filter
-    filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
-    if filter_obj and filter_obj.alerts_options:
-        return filter_obj.alerts_options
-    return {"high": True, "medium": False, "low": False, "threshold": 100}
+    from app import db
+    
+    if not user_id:
+        return {"high": True, "medium": False, "low": False, "threshold": 100}
+    
+    # Check cache first
+    if user_id in _user_options_cache:
+        return _user_options_cache[user_id]
+    
+    try:
+        filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
+        if filter_obj and filter_obj.alerts_options:
+            options = filter_obj.alerts_options
+            _user_options_cache[user_id] = options
+            return options
+        return {"high": True, "medium": False, "low": False, "threshold": 100}
+    finally:
+        db.session.remove()
 
 
 def send_alert_email_if_needed(alert):
@@ -213,10 +242,18 @@ def send_alert_email_if_needed(alert):
     from app import db
     
     api_key = alert.get("api_key")
-    key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
-    user_id = key.user_id if key else None
-
+    
     try:
+        # Get API key info with proper cleanup
+        key = None
+        user_id = None
+        if api_key and api_key != "0":
+            try:
+                key = APIKey.query.filter_by(key=api_key).first()
+                user_id = key.user_id if key else None
+            finally:
+                db.session.remove()
+
         # Count all activity
         if user_id:
             now = datetime.utcnow()
@@ -251,10 +288,12 @@ def send_alert_email_if_needed(alert):
             send_alert_email(
                 admin_email,
                 "Security Alert Notification",
-            f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
-        )
+                f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
+            )
+    except Exception as e:
+        pass  # Don't let email issues crash the alert handler
     finally:
-        # Ensure database session is cleaned up
+        # Final cleanup
         db.session.remove()
 
 def persist_alert_to_db(alert_item):
