@@ -1193,12 +1193,25 @@ export default function AlertsPage() {
                   <h3 className="font-semibold mb-2">Top Talkers</h3>
                   <table className="w-full text-sm">
                     <tbody>
-                      {summary.topTalkers.map(([ip, count]: [string, number]) => (
-                        <tr key={ip}>
-                          <td title={ip}>{ip.length > 20 ? ip.substring(0, 20) + '...' : ip}</td>
-                          <td className="text-right font-semibold">{count}</td>
-                        </tr>
-                      ))}
+                      {summary.topTalkers.map(([ip, count]: [string, number]) => {
+                        // Truncate IPv6 to first 6 segments, IPv4 to 20 chars
+                        let displayIp = ip;
+                        if (ip.includes(':')) {
+                          // IPv6: show first 6 segments
+                          const segments = ip.split(':');
+                          if (segments.length > 6) {
+                            displayIp = segments.slice(0, 6).join(':') + ':...';
+                          }
+                        } else if (ip.length > 20) {
+                          displayIp = ip.substring(0, 20) + '...';
+                        }
+                        return (
+                          <tr key={ip}>
+                            <td title={ip}>{displayIp}</td>
+                            <td className="text-right font-semibold">{count}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1206,12 +1219,25 @@ export default function AlertsPage() {
                   <h3 className="font-semibold mb-2">Top Hosts (with signatures)</h3>
                   <table className="w-full text-sm">
                     <tbody>
-                      {summary.topHosts.map(([ip, count]: [string, number]) => (
-                        <tr key={ip}>
-                          <td title={ip}>{ip.length > 20 ? ip.substring(0, 20) + '...' : ip}</td>
-                          <td className="text-right font-semibold">{count}</td>
-                        </tr>
-                      ))}
+                      {summary.topHosts.map(([ip, count]: [string, number]) => {
+                        // Truncate IPv6 to first 6 segments, IPv4 to 20 chars
+                        let displayIp = ip;
+                        if (ip.includes(':')) {
+                          // IPv6: show first 6 segments
+                          const segments = ip.split(':');
+                          if (segments.length > 6) {
+                            displayIp = segments.slice(0, 6).join(':') + ':...';
+                          }
+                        } else if (ip.length > 20) {
+                          displayIp = ip.substring(0, 20) + '...';
+                        }
+                        return (
+                          <tr key={ip}>
+                            <td title={ip}>{displayIp}</td>
+                            <td className="text-right font-semibold">{count}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
