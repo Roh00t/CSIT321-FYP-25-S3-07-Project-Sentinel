@@ -133,6 +133,23 @@ export default function AlertsPage() {
     agent: "",
     matchedPcapsOnly: false,
   });
+  
+  const fetchSummaryOnly = async () => {
+    if (!token) return;
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        per_page: "1",
+        time_range: timeRangeView,
+      });
+      const res = await apiClient.get(`/api/alerts_api?${params.toString()}`);
+      setServerSummary(res.data.summary);
+    } catch (err: any) {
+      if (err.response?.status === 401) return;
+      console.error("Failed to fetch summary:", err);
+    }
+  };
+  
   const fetchAlertsPage = async (pageNumber = 1, timeRange?: string) => {
     if (!token) return;
     setLoadingAlerts(true);
@@ -427,8 +444,8 @@ export default function AlertsPage() {
         return updatedAlerts;
       });
       
-      // Refetch summary from backend to update metrics
-      fetchAlertsPage(1);
+      // Fetch only summary to update metrics without resetting alerts
+      fetchSummaryOnly();
     });
     return () => {
       socket.disconnect();
@@ -1113,6 +1130,7 @@ export default function AlertsPage() {
                 <Bar
                   id="severity-chart"
                   data={severityData}
+                  redraw={false}
                   options={{
                     responsive: true, 
                     maintainAspectRatio: false,
@@ -1156,6 +1174,7 @@ export default function AlertsPage() {
                 <Doughnut
                   id="protocol-chart"
                   data={protocolData}
+                  redraw={false}
                   options={{ 
                     responsive: true, 
                     maintainAspectRatio: false,
@@ -1216,6 +1235,7 @@ export default function AlertsPage() {
                 <Line
                   id="alerts-over-time-chart"
                   data={alertsOverTimeData}
+                  redraw={false}
                   options={alertsPerHourOptions}
                   height={200}
                 />
