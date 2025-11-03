@@ -54,7 +54,7 @@ class MultiForwarderGUI:
     def connect_socket(self):
         try:
             sio.connect(
-                "http://localhost:5000",
+                "https://backend-production-e987.up.railway.app",
                 namespaces=["/api/alerts/stream"],
                 transports=["websocket"]
             )

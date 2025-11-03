@@ -389,7 +389,7 @@ export default function AlertsPage() {
           prev.map((a: any) => `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port}-${a.api_key}`)
         );
         const newFiltered = alerts.filter((a: any) => {
-          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest.port}-${a.api_key}`;
+          const key = `${a.timestamp}-${a.src_ip}-${a.dest_ip}-${a.src_port}-${a.dest_port ?? ""}-${a.api_key}`;
           if (existingKeys.has(key)) return false;
           existingKeys.add(key);
           return true;
