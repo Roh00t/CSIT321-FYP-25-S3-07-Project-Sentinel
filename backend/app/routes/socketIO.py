@@ -210,66 +210,73 @@ def get_alert_options_for_user(user_id):
 
 def send_alert_email_if_needed(alert):
     from app.models.api_keys import APIKey
+    from app import db
+    
     api_key = alert.get("api_key")
     key = APIKey.query.filter_by(key=api_key).first() if api_key and api_key != "0" else None
     user_id = key.user_id if key else None
 
-    # Count all activity
-    if user_id:
-        now = datetime.utcnow()
-        one_hour_ago = now - timedelta(hours=1)
-        user_alerts = recent_alerts_per_user.setdefault(user_id, [])
-        user_alerts.append(now)
-        user_alerts = [t for t in user_alerts if t > one_hour_ago]
-        recent_alerts_per_user[user_id] = user_alerts
+    try:
+        # Count all activity
+        if user_id:
+            now = datetime.utcnow()
+            one_hour_ago = now - timedelta(hours=1)
+            user_alerts = recent_alerts_per_user.setdefault(user_id, [])
+            user_alerts.append(now)
+            user_alerts = [t for t in user_alerts if t > one_hour_ago]
+            recent_alerts_per_user[user_id] = user_alerts
 
-        alert_options = get_alert_options_for_user(user_id)
-        threshold = alert_options.get("threshold", 100)
+            alert_options = get_alert_options_for_user(user_id)
+            threshold = alert_options.get("threshold", 100)
 
-        if len(user_alerts) >= threshold:
+            if len(user_alerts) >= threshold:
+                admin_email = get_admin_email_for_api_key(api_key)
+                send_alert_email(
+                    admin_email,
+                    "High Activity Volume Detected",
+                    f"You have received {len(user_alerts)} total events in the past hour (threshold: {threshold})."
+                )
+                recent_alerts_per_user[user_id] = []
+
+        # Severity email
+        alert_options = get_alert_options_for_user(user_id) if user_id else {"high": True, "medium": False, "low": False}
+        severity = int(alert.get("severity") or 0)
+        should_send = (
+            (severity == 1 and alert_options.get("high")) or
+            (severity == 2 and alert_options.get("medium")) or
+            (severity == 3 and alert_options.get("low"))
+        )
+        if should_send:
             admin_email = get_admin_email_for_api_key(api_key)
             send_alert_email(
                 admin_email,
-                "High Activity Volume Detected",
-                f"You have received {len(user_alerts)} total events in the past hour (threshold: {threshold})."
-            )
-            recent_alerts_per_user[user_id] = []
-
-    # Severity email
-    alert_options = get_alert_options_for_user(user_id) if user_id else {"high": True, "medium": False, "low": False}
-    severity = int(alert.get("severity") or 0)
-    should_send = (
-        (severity == 1 and alert_options.get("high")) or
-        (severity == 2 and alert_options.get("medium")) or
-        (severity == 3 and alert_options.get("low"))
-    )
-    if should_send:
-        admin_email = get_admin_email_for_api_key(api_key)
-        send_alert_email(
-            admin_email,
-            "Security Alert Notification",
+                "Security Alert Notification",
             f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
         )
+    finally:
+        # Ensure database session is cleaned up
+        db.session.remove()
 
 def persist_alert_to_db(alert_item):
     from app import db
     from app.models.alert import Alert
 
-    ts = None
     try:
-        if alert_item.get("timestamp"):
-            ts = datetime.fromisoformat(alert_item["timestamp"].replace("Z", "+00:00"))
-    except Exception:
-        ts = datetime.utcnow()
-    if ts is None:
-        ts = datetime.utcnow()
+        ts = None
+        try:
+            if alert_item.get("timestamp"):
+                ts = datetime.fromisoformat(alert_item["timestamp"].replace("Z", "+00:00"))
+        except Exception:
+            ts = datetime.utcnow()
+        if ts is None:
+            ts = datetime.utcnow()
 
-    alertobj = Alert(
-        timestamp=ts,
-        src_ip=alert_item.get("src_ip"),
-        src_port=alert_item.get("src_port"),
-        dest_ip=alert_item.get("dest_ip"),
-        dest_port=alert_item.get("dest_port"),
+        alertobj = Alert(
+            timestamp=ts,
+            src_ip=alert_item.get("src_ip"),
+            src_port=alert_item.get("src_port"),
+            dest_ip=alert_item.get("dest_ip"),
+            dest_port=alert_item.get("dest_port"),
         protocol=alert_item.get("protocol"),
         signature=alert_item.get("signature"),
         severity=alert_item.get("severity"),
@@ -277,11 +284,13 @@ def persist_alert_to_db(alert_item):
         created_at=datetime.utcnow()
     )
 
-    try:
         db.session.add(alertobj)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
+    finally:
+        # Ensure database session is cleaned up
+        db.session.remove()
 
 _app = None  # module-level global
 
