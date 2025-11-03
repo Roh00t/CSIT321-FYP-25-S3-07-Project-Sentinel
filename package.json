@@ -1,4 +1,10 @@
 {
+  "name": "sentinel-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "chartjs-adapter-date-fns": "^3.0.0"
   }
