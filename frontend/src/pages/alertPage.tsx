@@ -455,10 +455,10 @@ export default function AlertsPage() {
       };
     }
     return {
-      total: serverSummary.total ?? 0,
-      topTalkers: (serverSummary.topTalkers ?? []).slice(0, 5),
-      topHosts: (serverSummary.topHosts ?? []).slice(0, 5),
-      topSignatures: (serverSummary.topSignatures ?? []).slice(0, 5),
+      total: serverSummary.total_alerts ?? 0,
+      topTalkers: (serverSummary.top_talkers ?? []).slice(0, 5),
+      topHosts: (serverSummary.top_hosts ?? []).slice(0, 5),
+      topSignatures: (serverSummary.top_signatures ?? []).slice(0, 5),
     };
   }, [serverSummary]);
   const severityData = useMemo(() => ({
