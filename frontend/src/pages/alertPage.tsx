@@ -426,6 +426,9 @@ export default function AlertsPage() {
         console.log("Updated alerts state", updatedAlerts);
         return updatedAlerts;
       });
+      
+      // Refetch summary from backend to update metrics
+      fetchAlertsPage(1);
     });
     return () => {
       socket.disconnect();
@@ -496,7 +499,7 @@ export default function AlertsPage() {
         backgroundColor: '#f85e4aff',
       }
     ]
-  }), [serverSummary, filteredAlerts, graphRefreshTick]);
+  }), [serverSummary, filteredAlerts]);
   const protocolData = useMemo(() => ({
     labels: ['TCP', 'UDP', 'ICMP', 'Other'],
     datasets: [{
@@ -512,10 +515,21 @@ export default function AlertsPage() {
       ],
       backgroundColor: ['#3B82F6','#F59E0B','#EF4444','#9CA3AF']
     }]
-  }), [serverSummary, filteredAlerts, graphRefreshTick]);
+  }), [serverSummary, filteredAlerts]);
   const alertsPerHourOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 750,
+      easing: 'easeInOutQuart' as const,
+    },
+    transitions: {
+      active: {
+        animation: {
+          duration: 300
+        }
+      }
+    },
     scales: {
       y: {
         beginAtZero: true,
@@ -671,7 +685,7 @@ export default function AlertsPage() {
         },
       ],
     };
-  }, [serverSummary, timeRangeView, filteredAlerts, graphRefreshTick]);
+  }, [serverSummary, timeRangeView, filteredAlerts]);
   const toggleProtocol = (proto: string) => {
     const newSet = new Set(filters.protocols);
     if (newSet.has(proto)) newSet.delete(proto);
@@ -1101,7 +1115,18 @@ export default function AlertsPage() {
                   data={severityData}
                   options={{
                     responsive: true, 
-                    maintainAspectRatio: false, 
+                    maintainAspectRatio: false,
+                    animation: {
+                      duration: 750,
+                      easing: 'easeInOutQuart',
+                    },
+                    transitions: {
+                      active: {
+                        animation: {
+                          duration: 300
+                        }
+                      }
+                    },
                     plugins: {
                       legend: {},
                       datalabels: {
@@ -1130,11 +1155,21 @@ export default function AlertsPage() {
                 <span className="text-lg font-semibold mb-2">Activity by Protocol</span>
                 <Doughnut
                   id="protocol-chart"
-                  key={"protocol-" + filteredAlerts.length}
                   data={protocolData}
                   options={{ 
                     responsive: true, 
                     maintainAspectRatio: false,
+                    animation: {
+                      duration: 750,
+                      easing: 'easeInOutQuart',
+                    },
+                    transitions: {
+                      active: {
+                        animation: {
+                          duration: 300
+                        }
+                      }
+                    },
                     plugins: {
                       datalabels: {
                         display: true,
@@ -1180,7 +1215,6 @@ export default function AlertsPage() {
                 </div>
                 <Line
                   id="alerts-over-time-chart"
-                  key={`${timeRangeView}-${filteredAlerts.length}`}
                   data={alertsOverTimeData}
                   options={alertsPerHourOptions}
                   height={200}
