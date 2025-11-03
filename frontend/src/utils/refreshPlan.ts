@@ -4,7 +4,7 @@ export const refreshPlanFromBackend = async (): Promise<void> => {
   if (!token) return;
 
   try {
-    const res = await fetch('http://localhost:5000/api/auth/verify-token', {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/verify-token`, {
       headers: { Authorization: `Bearer ${token}` }
     });
 
