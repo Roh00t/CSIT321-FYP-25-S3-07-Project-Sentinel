@@ -317,6 +317,12 @@ export default function AlertsPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("time_window", "5");
+    
+    // Detect user's timezone offset (in hours from UTC)
+    // getTimezoneOffset() returns minutes, negative for UTC+, so we negate and divide by 60
+    const timezoneOffset = -new Date().getTimezoneOffset() / 60;
+    formData.append("timezone_offset", timezoneOffset.toString());
+    
     setLoading(true);
     try {
       const res = await apiClient.post("/api/pcaps/upload", formData);

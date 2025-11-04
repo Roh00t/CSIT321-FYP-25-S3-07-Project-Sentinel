@@ -21,10 +21,14 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def parse_pcap_file(file_path):
+def parse_pcap_file(file_path, user_timezone_offset=8):
     """
     Parse PCAP file and extract packet metadata.
     Returns list of packet dictionaries.
+    
+    Args:
+        file_path: Path to PCAP file
+        user_timezone_offset: User's timezone offset in hours (default: 8 for Malaysia)
     """
     from datetime import timezone as dt_timezone
 
@@ -33,8 +37,8 @@ def parse_pcap_file(file_path):
     except ImportError:
         return {"error": "scapy not installed. Run: pip install scapy"}
 
-    # Define Malaysian timezone (UTC+8)
-    malaysia_tz = dt_timezone(timedelta(hours=8))
+    # Use user's timezone offset
+    user_tz = dt_timezone(timedelta(hours=user_timezone_offset))
 
     packets = []
     try:
@@ -43,9 +47,8 @@ def parse_pcap_file(file_path):
         for idx, pkt in enumerate(pcap_packets):
             # Handle IPv4
             if IP in pkt:
-                # Convert to Malaysian time (since PCAPs are captured in Malaysian timezone)
-                # This ensures consistency regardless of server location
-                timestamp = datetime.fromtimestamp(float(pkt.time), tz=malaysia_tz).replace(tzinfo=None)
+                # Convert to user's timezone
+                timestamp = datetime.fromtimestamp(float(pkt.time), tz=user_tz).replace(tzinfo=None)
                 
                 packet_info = {
                     "packet_number": idx + 1,
@@ -76,9 +79,8 @@ def parse_pcap_file(file_path):
                 packets.append(packet_info)
             # Handle IPv6
             elif IPv6 in pkt:
-                # Convert to Malaysian time (since PCAPs are captured in Malaysian timezone)
-                # This ensures consistency regardless of server location
-                timestamp = datetime.fromtimestamp(float(pkt.time), tz=malaysia_tz).replace(tzinfo=None)
+                # Convert to user's timezone
+                timestamp = datetime.fromtimestamp(float(pkt.time), tz=user_tz).replace(tzinfo=None)
                 
                 packet_info = {
                     "packet_number": idx + 1,
@@ -184,6 +186,10 @@ def upload_pcap():
     
     file = request.files["file"]
     
+    # Get user's timezone offset from request (sent by frontend)
+    # Format: timezone offset in hours (e.g., 8 for UTC+8, -5 for UTC-5)
+    user_timezone_offset = request.form.get("timezone_offset", 8, type=float)
+    
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400
     
@@ -202,8 +208,8 @@ def upload_pcap():
     
     file_size = os.path.getsize(file_path)
     
-    # Parse PCAP
-    packets = parse_pcap_file(file_path)
+    # Parse PCAP with user's timezone
+    packets = parse_pcap_file(file_path, user_timezone_offset)
     
     if isinstance(packets, dict) and "error" in packets:
         os.remove(file_path)  # Clean up file
