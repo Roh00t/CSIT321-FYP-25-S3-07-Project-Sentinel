@@ -468,6 +468,7 @@ export default function AlertsPage() {
   return updatedAlerts;
       });
       
+
       // Debounced summary update - waits 2s after last alert before fetching
       debouncedFetchSummary();
     });
