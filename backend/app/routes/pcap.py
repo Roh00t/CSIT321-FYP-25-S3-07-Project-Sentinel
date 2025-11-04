@@ -106,6 +106,7 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
     Returns list of (packet, alert, confidence) tuples
     """
     import ipaddress
+    import logging
     matches = []
 
     def normalize_ip(ip):
@@ -122,42 +123,42 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
         time_start = pkt_time - timedelta(seconds=time_window_seconds)
         time_end = pkt_time + timedelta(seconds=time_window_seconds)
 
-        # Normalize IPs for matching
         pkt_src_ip = normalize_ip(packet["src_ip"])
         pkt_dst_ip = normalize_ip(packet["dst_ip"])
-        
-        # Find all alerts within time window, then filter by normalized IPs
+        logging.info(f"Matching packet: time={pkt_time}, src_ip={pkt_src_ip}, dst_ip={pkt_dst_ip}, src_port={packet['src_port']}, dst_port={packet['dst_port']}, protocol={packet['protocol']}")
+
         potential_alerts = Alert.query.filter(
             Alert.timestamp >= time_start,
             Alert.timestamp <= time_end
         ).all()
-        
-        # Filter alerts by normalized IPs and ports
+        logging.info(f"Found {len(potential_alerts)} potential alerts in time window [{time_start}, {time_end}]")
+
         for alert in potential_alerts:
             alert_src_ip = normalize_ip(alert.src_ip)
             alert_dst_ip = normalize_ip(alert.dest_ip)
-            
-            # Check IP match
+            logging.info(f"Checking alert: id={alert.id}, time={alert.timestamp}, src_ip={alert_src_ip}, dst_ip={alert_dst_ip}, src_port={alert.src_port}, dst_port={alert.dest_port}, protocol={alert.protocol}")
+
             if alert_src_ip != pkt_src_ip or alert_dst_ip != pkt_dst_ip:
+                logging.debug(f"IP mismatch: packet({pkt_src_ip}->{pkt_dst_ip}) alert({alert_src_ip}->{alert_dst_ip})")
                 continue
-            
-            # Check port match if both packet and alert have ports
+
             if packet["src_port"] and packet["dst_port"]:
                 if alert.src_port != packet["src_port"] or alert.dest_port != packet["dst_port"]:
+                    logging.debug(f"Port mismatch: packet({packet['src_port']}->{packet['dst_port']}) alert({alert.src_port}->{alert.dest_port})")
                     continue
-            
+
             confidence = 1.0
 
-            # Check protocol match
             if packet["protocol"] and alert.protocol:
                 if packet["protocol"].upper() != alert.protocol.upper():
+                    logging.debug(f"Protocol mismatch: packet({packet['protocol']}) alert({alert.protocol})")
                     confidence *= 0.8
 
-            # Check time difference (closer = higher confidence)
             time_diff = abs((pkt_time - alert.timestamp).total_seconds())
             if time_diff > 1:
                 confidence *= (1 - (time_diff / time_window_seconds) * 0.2)
 
+            logging.info(f"Match found: packet {packet['packet_number']} <-> alert {alert.id} (confidence={confidence})")
             matches.append((packet, alert, confidence))
 
     return matches
