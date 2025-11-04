@@ -124,6 +124,16 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
         except Exception:
             return ip
 
+    # Log database alert time range for debugging
+    earliest_alert = Alert.query.order_by(Alert.timestamp.asc()).first()
+    latest_alert = Alert.query.order_by(Alert.timestamp.desc()).first()
+    total_alerts_in_db = Alert.query.count()
+    
+    if earliest_alert and latest_alert:
+        logging.info(f"Database has {total_alerts_in_db} alerts ranging from {earliest_alert.timestamp} to {latest_alert.timestamp}")
+    else:
+        logging.warning(f"Database has {total_alerts_in_db} alerts total")
+
     for packet in packets:
         pkt_time = packet["timestamp"]
         time_start = pkt_time - timedelta(seconds=time_window_seconds)
