@@ -12,7 +12,7 @@ forwarders = {}  # path -> {"stop_event": Event, "thread": Thread, "api_key": st
 class MultiForwarderGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Multi Suricata Forwarder")
+        self.root.title("Sentinel Agent")
 
         # === Source list ===
         self.tree = ttk.Treeview(root, columns=("path", "apikey", "status"), show="headings", height=8)
@@ -67,7 +67,10 @@ class MultiForwarderGUI:
 
     # ----------------------------
     def add_source(self):
-        path = filedialog.askopenfilename(title="Select eve.json", filetypes=[("JSON files", "*.json")])
+        path = filedialog.askopenfilename(
+            title="Select eve.json or alert file",
+            filetypes=[("JSON or TXT files", "*.json *.txt"), ("All files", "*.*")]
+        )
         if not path:
             return
         if path in forwarders:
