@@ -1,6 +1,6 @@
 # backend/app/routes/pcap.py
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -8,6 +8,9 @@ from flask_cors import cross_origin
 from app import db
 from app.models.pcap import PcapFile, PcapPacket, AlertPcapMatch
 from app.models.alert import Alert
+
+# Malaysian timezone (UTC+8)
+MALAYSIA_TZ = timezone(timedelta(hours=8))
 
 pcap_bp = Blueprint("pcap", __name__)
 
@@ -23,11 +26,15 @@ def parse_pcap_file(file_path):
     Parse PCAP file and extract packet metadata.
     Returns list of packet dictionaries.
     """
+    from datetime import timezone as dt_timezone
 
     try:
         from scapy.all import rdpcap, IP, IPv6, TCP, UDP, ICMP
     except ImportError:
         return {"error": "scapy not installed. Run: pip install scapy"}
+
+    # Define Malaysian timezone (UTC+8)
+    malaysia_tz = dt_timezone(timedelta(hours=8))
 
     packets = []
     try:
@@ -36,9 +43,13 @@ def parse_pcap_file(file_path):
         for idx, pkt in enumerate(pcap_packets):
             # Handle IPv4
             if IP in pkt:
+                # Convert to Malaysian time (since PCAPs are captured in Malaysian timezone)
+                # This ensures consistency regardless of server location
+                timestamp = datetime.fromtimestamp(float(pkt.time), tz=malaysia_tz).replace(tzinfo=None)
+                
                 packet_info = {
                     "packet_number": idx + 1,
-                    "timestamp": datetime.fromtimestamp(float(pkt.time)),
+                    "timestamp": timestamp,
                     "src_ip": pkt[IP].src,
                     "dst_ip": pkt[IP].dst,
                     "src_port": None,
@@ -65,9 +76,13 @@ def parse_pcap_file(file_path):
                 packets.append(packet_info)
             # Handle IPv6
             elif IPv6 in pkt:
+                # Convert to Malaysian time (since PCAPs are captured in Malaysian timezone)
+                # This ensures consistency regardless of server location
+                timestamp = datetime.fromtimestamp(float(pkt.time), tz=malaysia_tz).replace(tzinfo=None)
+                
                 packet_info = {
                     "packet_number": idx + 1,
-                    "timestamp": datetime.fromtimestamp(float(pkt.time)),
+                    "timestamp": timestamp,
                     "src_ip": pkt[IPv6].src,
                     "dst_ip": pkt[IPv6].dst,
                     "src_port": None,
@@ -106,14 +121,8 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
     Returns list of (packet, alert, confidence) tuples
     """
     import ipaddress
-    import logging
+    
     matches = []
-    total_packets = len(packets)
-    total_alerts_checked = 0
-    total_matches = 0
-    total_ip_mismatches = 0
-    total_port_mismatches = 0
-    total_protocol_mismatches = 0
 
     def normalize_ip(ip):
         try:
@@ -124,16 +133,6 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
         except Exception:
             return ip
 
-    # Log database alert time range for debugging
-    earliest_alert = Alert.query.order_by(Alert.timestamp.asc()).first()
-    latest_alert = Alert.query.order_by(Alert.timestamp.desc()).first()
-    total_alerts_in_db = Alert.query.count()
-    
-    if earliest_alert and latest_alert:
-        logging.info(f"Database has {total_alerts_in_db} alerts ranging from {earliest_alert.timestamp} to {latest_alert.timestamp}")
-    else:
-        logging.warning(f"Database has {total_alerts_in_db} alerts total")
-
     for packet in packets:
         pkt_time = packet["timestamp"]
         time_start = pkt_time - timedelta(seconds=time_window_seconds)
@@ -141,48 +140,35 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
 
         pkt_src_ip = normalize_ip(packet["src_ip"])
         pkt_dst_ip = normalize_ip(packet["dst_ip"])
-        logging.info(f"Matching packet: time={pkt_time}, src_ip={pkt_src_ip}, dst_ip={pkt_dst_ip}, src_port={packet['src_port']}, dst_port={packet['dst_port']}, protocol={packet['protocol']}")
 
         potential_alerts = Alert.query.filter(
             Alert.timestamp >= time_start,
             Alert.timestamp <= time_end
         ).all()
-        logging.info(f"Found {len(potential_alerts)} potential alerts in time window [{time_start}, {time_end}]")
 
         for alert in potential_alerts:
-            total_alerts_checked += 1
             alert_src_ip = normalize_ip(alert.src_ip)
             alert_dst_ip = normalize_ip(alert.dest_ip)
-            logging.info(f"Checking alert: id={alert.id}, time={alert.timestamp}, src_ip={alert_src_ip}, dst_ip={alert_dst_ip}, src_port={alert.src_port}, dst_port={alert.dest_port}, protocol={alert.protocol}")
 
             if alert_src_ip != pkt_src_ip or alert_dst_ip != pkt_dst_ip:
-                total_ip_mismatches += 1
-                logging.debug(f"IP mismatch: packet({pkt_src_ip}->{pkt_dst_ip}) alert({alert_src_ip}->{alert_dst_ip})")
                 continue
 
             if packet["src_port"] and packet["dst_port"]:
                 if alert.src_port != packet["src_port"] or alert.dest_port != packet["dst_port"]:
-                    total_port_mismatches += 1
-                    logging.debug(f"Port mismatch: packet({packet['src_port']}->{packet['dst_port']}) alert({alert.src_port}->{alert.dest_port})")
                     continue
 
             confidence = 1.0
 
             if packet["protocol"] and alert.protocol:
                 if packet["protocol"].upper() != alert.protocol.upper():
-                    total_protocol_mismatches += 1
-                    logging.debug(f"Protocol mismatch: packet({packet['protocol']}) alert({alert.protocol})")
                     confidence *= 0.8
 
             time_diff = abs((pkt_time - alert.timestamp).total_seconds())
             if time_diff > 1:
                 confidence *= (1 - (time_diff / time_window_seconds) * 0.2)
 
-            logging.info(f"Match found: packet {packet['packet_number']} <-> alert {alert.id} (confidence={confidence})")
-            total_matches += 1
             matches.append((packet, alert, confidence))
-
-    logging.info(f"Comparison summary: packets={total_packets}, alerts_checked={total_alerts_checked}, matches={total_matches}, ip_mismatches={total_ip_mismatches}, port_mismatches={total_port_mismatches}, protocol_mismatches={total_protocol_mismatches}")
+    
     return matches
 
 
