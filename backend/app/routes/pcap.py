@@ -108,6 +108,12 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
     import ipaddress
     import logging
     matches = []
+    total_packets = len(packets)
+    total_alerts_checked = 0
+    total_matches = 0
+    total_ip_mismatches = 0
+    total_port_mismatches = 0
+    total_protocol_mismatches = 0
 
     def normalize_ip(ip):
         try:
@@ -134,16 +140,19 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
         logging.info(f"Found {len(potential_alerts)} potential alerts in time window [{time_start}, {time_end}]")
 
         for alert in potential_alerts:
+            total_alerts_checked += 1
             alert_src_ip = normalize_ip(alert.src_ip)
             alert_dst_ip = normalize_ip(alert.dest_ip)
             logging.info(f"Checking alert: id={alert.id}, time={alert.timestamp}, src_ip={alert_src_ip}, dst_ip={alert_dst_ip}, src_port={alert.src_port}, dst_port={alert.dest_port}, protocol={alert.protocol}")
 
             if alert_src_ip != pkt_src_ip or alert_dst_ip != pkt_dst_ip:
+                total_ip_mismatches += 1
                 logging.debug(f"IP mismatch: packet({pkt_src_ip}->{pkt_dst_ip}) alert({alert_src_ip}->{alert_dst_ip})")
                 continue
 
             if packet["src_port"] and packet["dst_port"]:
                 if alert.src_port != packet["src_port"] or alert.dest_port != packet["dst_port"]:
+                    total_port_mismatches += 1
                     logging.debug(f"Port mismatch: packet({packet['src_port']}->{packet['dst_port']}) alert({alert.src_port}->{alert.dest_port})")
                     continue
 
@@ -151,6 +160,7 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
 
             if packet["protocol"] and alert.protocol:
                 if packet["protocol"].upper() != alert.protocol.upper():
+                    total_protocol_mismatches += 1
                     logging.debug(f"Protocol mismatch: packet({packet['protocol']}) alert({alert.protocol})")
                     confidence *= 0.8
 
@@ -159,8 +169,10 @@ def match_packets_to_alerts(packets, time_window_seconds=5):
                 confidence *= (1 - (time_diff / time_window_seconds) * 0.2)
 
             logging.info(f"Match found: packet {packet['packet_number']} <-> alert {alert.id} (confidence={confidence})")
+            total_matches += 1
             matches.append((packet, alert, confidence))
 
+    logging.info(f"Comparison summary: packets={total_packets}, alerts_checked={total_alerts_checked}, matches={total_matches}, ip_mismatches={total_ip_mismatches}, port_mismatches={total_port_mismatches}, protocol_mismatches={total_protocol_mismatches}")
     return matches
 
 
