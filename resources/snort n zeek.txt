@@ -4,7 +4,7 @@ snort:
 
 sudo snort -c /home/a/snort3/lua/snort_json.lua -i ens33 -l /home/a/snort_logs -A alert_json -L log_pcap
 
-logs in : /var/log/snort/alert_json.txt
+logs in : /home/a/snort_logs/alert_json.txt
 
 zeek:
 /opt/zeek/share/zeek/site/icmp_detector_json.zeek
