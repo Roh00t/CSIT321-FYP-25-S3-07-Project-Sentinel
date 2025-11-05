@@ -19,6 +19,8 @@ auth_bp = Blueprint('auth', __name__)
 def generate_verification_token():
     return secrets.token_urlsafe(32)
 
+from eventlet.timeout import Timeout
+
 def send_verification_email(mail, to_email, token, frontend_url):
     msg = Message(
         subject="Verify Your SENTINEL Account",
@@ -34,7 +36,12 @@ def send_verification_email(mail, to_email, token, frontend_url):
         <p>If you didn’t create an account, please ignore this email.</p>
         """
     )
-    mail.send(msg)
+    # Enforce 10-second timeout to avoid hanging
+    try:
+        with Timeout(10):
+            mail.send(msg)
+    except Timeout:
+        raise Exception("SMTP timeout — possible eventlet/Gmail incompatibility")
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
