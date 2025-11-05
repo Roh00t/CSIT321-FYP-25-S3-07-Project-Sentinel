@@ -14,26 +14,15 @@ from flask_mail import Message
 from urllib.parse import urljoin
 from app import mail
 import requests
+from eventlet.timeout import Timeout
+from app.utils.email_utils import send_verification_email as send_email_via_sendgrid
 
 auth_bp = Blueprint('auth', __name__)
 
 def generate_verification_token():
     return secrets.token_urlsafe(32)
 
-from eventlet.timeout import Timeout
-
 def send_verification_email(to_email: str, token: str, frontend_url: str):
-    """
-    Send verification email via SendGrid (HTTP API).
-    """
-    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
-    if not sendgrid_api_key:
-        raise Exception("SENDGRID_API_KEY is not set")
-
-    # Use your verified sender email (e.g., sentinelfyp@gmail.com)
-    sender_email = os.getenv("SENDGRID_FROM_EMAIL", to_email)
-    sender_name = "SENTINEL"
-
     frontend_url = frontend_url.rstrip('/')
     verify_link = f"{frontend_url}/verify-email?token={token}"
 
@@ -48,52 +37,14 @@ def send_verification_email(to_email: str, token: str, frontend_url: str):
     <p>If you didn’t create an account, please ignore this email.</p>
     """
 
-    payload = {
-        "personalizations": [
-            {
-                "to": [{"email": to_email}],
-                "subject": "Verify Your SENTINEL Account"
-            }
-        ],
-        "from": {
-            "email": sender_email,
-            "name": sender_name
-        },
-        "content": [
-            {
-                "type": "text/html",
-                "value": html_content
-            }
-        ]
-    }
-
-    headers = {
-        "Authorization": f"Bearer {sendgrid_api_key}",
-        "Content-Type": "application/json"
-    }
-
-    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via SendGrid")
-    current_app.logger.info(f"[EMAIL] From: {sender_name} <{sender_email}>")
-
-    try:
-        response = requests.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            json=payload,
-            headers=headers,
-            timeout=10
-        )
-        if response.status_code == 202:
-            current_app.logger.info(f"[EMAIL] ✅ SendGrid: Email sent successfully to {to_email}")
-        else:
-            try:
-                error_detail = response.json()
-            except:
-                error_detail = response.text
-            current_app.logger.error(f"[EMAIL] ❌ SendGrid API error ({response.status_code}): {error_detail}")
-            raise Exception(f"SendGrid failed: {error_detail}")
-    except Exception as e:
-        current_app.logger.error(f"[EMAIL] ❌ Exception during SendGrid API call: {str(e)}", exc_info=True)
-        raise
+    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via SendGrid (using SDK)")
+    success = send_email_via_sendgrid(
+        to_email=to_email,
+        subject="Verify Your SENTINEL Account",
+        html_content=html_content
+    )
+    if not success:
+        raise Exception("SendGrid returned non-202 status")
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
