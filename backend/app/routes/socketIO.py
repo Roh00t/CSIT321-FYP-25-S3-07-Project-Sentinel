@@ -265,9 +265,11 @@ def send_alert_email_if_needed(alert):
 
             alert_options = get_alert_options_for_user(user_id)
             threshold = alert_options.get("threshold", 100)
+            print(f"[THRESHOLD] User {user_id} threshold: {threshold}, alerts in last hour: {len(user_alerts)}")
 
             if len(user_alerts) >= threshold:
                 admin_email = get_admin_email_for_api_key(api_key)
+                print(f"[THRESHOLD] Attempting to send threshold email: {len(user_alerts)} >= {threshold}")
                 send_alert_email(
                     admin_email,
                     "High Activity Volume Detected",
@@ -291,9 +293,8 @@ def send_alert_email_if_needed(alert):
                 f"Alert detected! Severity: {alert['severity']}, Signature: {alert['signature']}"
             )
     except Exception as e:
-        pass  # Don't let email issues crash the alert handler
+        print(f"Error in sending email: {str(e)}")
     finally:
-        # Final cleanup
         db.session.remove()
 
 def persist_alert_to_db(alert_item):
