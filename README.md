@@ -1,5 +1,7 @@
 # CSIT321-FYP-25-S3-07-PROJECT-SENTINEL
 
+![LIVE APPLICATION](https://frontend-production-32cc.up.railway.app/)
+
 *Unleashing Real-Time Security, Empowering Instant Response*
 
 ![last commit](https://img.shields.io/badge/last_commit-today-blue)
@@ -5171,4 +5173,4 @@ Special thanks to:
 
 ---
 
-*Last Updated: October 2025*
+*Last Updated: Today*
