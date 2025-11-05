@@ -14,26 +14,16 @@ from flask_mail import Message
 from urllib.parse import urljoin
 from app import mail
 import requests
+from eventlet.timeout import Timeout
+from app.utils.email_utils import send_verification_email as send_email_via_sendgrid
+from app.utils.email_utils import send_html_email
 
 auth_bp = Blueprint('auth', __name__)
 
 def generate_verification_token():
     return secrets.token_urlsafe(32)
 
-from eventlet.timeout import Timeout
-
 def send_verification_email(to_email: str, token: str, frontend_url: str):
-    """
-    Send verification email via SendGrid (HTTP API).
-    """
-    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
-    if not sendgrid_api_key:
-        raise Exception("SENDGRID_API_KEY is not set")
-
-    # Use your verified sender email (e.g., sentinelfyp@gmail.com)
-    sender_email = "sentinelfyp@gmail.com"
-    sender_name = "SENTINEL"
-
     frontend_url = frontend_url.rstrip('/')
     verify_link = f"{frontend_url}/verify-email?token={token}"
 
@@ -48,52 +38,14 @@ def send_verification_email(to_email: str, token: str, frontend_url: str):
     <p>If you didn’t create an account, please ignore this email.</p>
     """
 
-    payload = {
-        "personalizations": [
-            {
-                "to": [{"email": to_email}],
-                "subject": "Verify Your SENTINEL Account"
-            }
-        ],
-        "from": {
-            "email": sender_email,
-            "name": sender_name
-        },
-        "content": [
-            {
-                "type": "text/html",
-                "value": html_content
-            }
-        ]
-    }
-
-    headers = {
-        "Authorization": f"Bearer {sendgrid_api_key}",
-        "Content-Type": "application/json"
-    }
-
-    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via SendGrid")
-    current_app.logger.info(f"[EMAIL] From: {sender_name} <{sender_email}>")
-
-    try:
-        response = requests.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            json=payload,
-            headers=headers,
-            timeout=10
-        )
-        if response.status_code == 202:
-            current_app.logger.info(f"[EMAIL] ✅ SendGrid: Email sent successfully to {to_email}")
-        else:
-            try:
-                error_detail = response.json()
-            except:
-                error_detail = response.text
-            current_app.logger.error(f"[EMAIL] ❌ SendGrid API error ({response.status_code}): {error_detail}")
-            raise Exception(f"SendGrid failed: {error_detail}")
-    except Exception as e:
-        current_app.logger.error(f"[EMAIL] ❌ Exception during SendGrid API call: {str(e)}", exc_info=True)
-        raise
+    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via SendGrid (using SDK)")
+    success = send_email_via_sendgrid(
+        to_email=to_email,
+        subject="Verify Your SENTINEL Account",
+        html_content=html_content
+    )
+    if not success:
+        raise Exception("SendGrid returned non-202 status")
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -191,7 +143,7 @@ def request_admin_email_change():
     if '@' not in new_email or '.' not in new_email.split('@')[-1]:
         return jsonify({"msg": "Invalid email format"}), 400
 
-    # Optional: Prevent duplicate pending requests
+    # Prevent duplicate pending requests
     existing = AdminEmailVerification.query.filter_by(
         user_id=user.id,
         verified=False
@@ -204,25 +156,25 @@ def request_admin_email_change():
     db.session.add(verification)
     db.session.commit()
 
-    # Send verification email
+    # Send verification email via SendGrid
     try:
         frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
-        msg = Message(
+        html_content = f"""
+        <h2>Verify Admin Email for SENTINEL</h2>
+        <p>You requested to set this email as your admin contact.</p>
+        <p>Please confirm by clicking the link below:</p>
+        <a href="{frontend_url}/verify-admin-email?token={verification.token}"
+           style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
+           Confirm Admin Email
+        </a>
+        <p>This link expires in 24 hours.</p>
+        <p>If you didn’t make this request, please ignore this email.</p>
+        """
+        send_html_email(
+            to_email=new_email,
             subject="Verify Your SENTINEL Admin Email",
-            recipients=[new_email],
-            html=f"""
-            <h2>Verify Admin Email for SENTINEL</h2>
-            <p>You requested to set this email as your admin contact.</p>
-            <p>Please confirm by clicking the link below:</p>
-            <a href="{frontend_url}/verify-admin-email?token={verification.token}"
-               style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
-               Confirm Admin Email
-            </a>
-            <p>This link expires in 24 hours.</p>
-            <p>If you didn’t make this request, please ignore this email.</p>
-            """
+            html_content=html_content
         )
-        mail.send(msg)
     except Exception as e:
         current_app.logger.error(f"Failed to send admin email verification: {str(e)}")
         return jsonify({"msg": "Request received, but failed to send verification email."}), 202
