@@ -227,9 +227,7 @@ def get_alert_options_for_user(user_id):
         filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
         if filter_obj and filter_obj.alerts_options:
             options = filter_obj.alerts_options
-            print(f"[THRESHOLD][DB] User {user_id} fetched threshold: {options.get('threshold')}")
             return options
-        print(f"[THRESHOLD][DB] User {user_id} using default threshold: 100")
         return {"high": True, "medium": False, "low": False, "threshold": 100}
     finally:
         db.session.remove()
@@ -263,11 +261,9 @@ def send_alert_email_if_needed(alert):
 
             alert_options = get_alert_options_for_user(user_id)
             threshold = alert_options.get("threshold", 100)
-            print(f"[THRESHOLD] User {user_id} threshold: {threshold}, alerts in last hour: {len(user_alerts)}")
 
             if len(user_alerts) >= threshold:
                 admin_email = get_admin_email_for_api_key(api_key)
-                print(f"[THRESHOLD] Attempting to send threshold email: {len(user_alerts)} >= {threshold}")
                 send_alert_email(
                     admin_email,
                     "High Activity Volume Detected",
