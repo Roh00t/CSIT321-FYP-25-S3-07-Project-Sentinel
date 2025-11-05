@@ -52,5 +52,5 @@ yarl==1.20.1
 tailer==0.4.1
 scapy==2.5.0
 gunicorn==21.2.0
-sendgrid
+sendgrid==6.9.1
 
