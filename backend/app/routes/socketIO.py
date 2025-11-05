@@ -222,16 +222,14 @@ def get_alert_options_for_user(user_id):
     if not user_id:
         return {"high": True, "medium": False, "low": False, "threshold": 100}
     
-    # Check cache first
-    if user_id in _user_options_cache:
-        return _user_options_cache[user_id]
-    
+    # Always fetch fresh from DB (ignore cache)
     try:
         filter_obj = Filter.query.filter_by(user_id=user_id).order_by(Filter.id.desc()).first()
         if filter_obj and filter_obj.alerts_options:
             options = filter_obj.alerts_options
-            _user_options_cache[user_id] = options
+            print(f"[THRESHOLD][DB] User {user_id} fetched threshold: {options.get('threshold')}")
             return options
+        print(f"[THRESHOLD][DB] User {user_id} using default threshold: 100")
         return {"high": True, "medium": False, "low": False, "threshold": 100}
     finally:
         db.session.remove()
