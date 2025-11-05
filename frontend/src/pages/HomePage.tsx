@@ -131,7 +131,17 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="mt-16 text-center text-gray-500 text-sm pb-8">
-        © {new Date().getFullYear()} SENTINEL | Final Year Project
+        <div>© {new Date().getFullYear()} SENTINEL | Final Year Project</div>
+        <div className="mt-2">
+          <a
+            href="https://roh00t.github.io/CSIT321-FYP-25-S3-07-Project-Sentinel/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            Documentation
+          </a>
+        </div>
       </footer>
 
       {/* Modal for Feature Preview */}
