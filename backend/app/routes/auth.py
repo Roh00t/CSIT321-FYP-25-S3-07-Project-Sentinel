@@ -31,7 +31,7 @@ def send_verification_email(to_email: str, token: str, frontend_url: str):
         raise Exception("SENDGRID_API_KEY is not set")
 
     # Use your verified sender email (e.g., sentinelfyp@gmail.com)
-    sender_email = "sentinelfyp@gmail.com"
+    sender_email = os.getenv("SENDGRID_FROM_EMAIL", to_email)
     sender_name = "SENTINEL"
 
     frontend_url = frontend_url.rstrip('/')
