@@ -22,19 +22,18 @@ def generate_verification_token():
 
 from eventlet.timeout import Timeout
 
-import os
-import requests
-from flask import current_app
-
 def send_verification_email(to_email: str, token: str, frontend_url: str):
     """
-    Send verification email via Resend (HTTP API).
+    Send verification email via SendGrid (HTTP API).
     """
-    resend_api_key = os.getenv("RESEND_API_KEY")
-    if not resend_api_key:
-        raise Exception("RESEND_API_KEY is not set")
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    if not sendgrid_api_key:
+        raise Exception("SENDGRID_API_KEY is not set")
 
-    # Ensure frontend_url has no trailing slash to avoid double slashes
+    # Use your verified sender email (e.g., sentinelfyp@gmail.com)
+    sender_email = "sentinelfyp@gmail.com"
+    sender_name = "SENTINEL"
+
     frontend_url = frontend_url.rstrip('/')
     verify_link = f"{frontend_url}/verify-email?token={token}"
 
@@ -49,47 +48,51 @@ def send_verification_email(to_email: str, token: str, frontend_url: str):
     <p>If you didn’t create an account, please ignore this email.</p>
     """
 
-    # ✅ OPTION 1: Use your verified domain (recommended for production)
-    # from_email = "noreply@sentinel-alerts.com"
-    
-    # ✅ OPTION 2: Use Resend's free sandbox domain (if you haven't verified a domain yet)
-    from_email = "SENTINEL <onboarding@resend.dev>"
-
     payload = {
-        "from": from_email,
-        "to": [to_email],
-        "subject": "Verify Your SENTINEL Account",
-        "html": html_content
+        "personalizations": [
+            {
+                "to": [{"email": to_email}],
+                "subject": "Verify Your SENTINEL Account"
+            }
+        ],
+        "from": {
+            "email": sender_email,
+            "name": sender_name
+        },
+        "content": [
+            {
+                "type": "text/html",
+                "value": html_content
+            }
+        ]
     }
 
     headers = {
-        "Authorization": f"Bearer {resend_api_key}",
+        "Authorization": f"Bearer {sendgrid_api_key}",
         "Content-Type": "application/json"
     }
 
-    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via Resend")
-    current_app.logger.info(f"[EMAIL] From: {from_email}")
+    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via SendGrid")
+    current_app.logger.info(f"[EMAIL] From: {sender_name} <{sender_email}>")
 
     try:
         response = requests.post(
-            "https://api.resend.com/emails",
+            "https://api.sendgrid.com/v3/mail/send",
             json=payload,
             headers=headers,
             timeout=10
         )
-        if response.status_code == 200:
-            current_app.logger.info(f"[EMAIL] ✅ Resend: Email sent successfully to {to_email}")
+        if response.status_code == 202:
+            current_app.logger.info(f"[EMAIL] ✅ SendGrid: Email sent successfully to {to_email}")
         else:
-            # Safely parse error
             try:
-                error_data = response.json()
-                error_msg = error_data.get("error", {}).get("message", response.text)
+                error_detail = response.json()
             except:
-                error_msg = response.text
-            current_app.logger.error(f"[EMAIL] ❌ Resend API error ({response.status_code}): {error_msg}")
-            raise Exception(f"Resend failed: {error_msg}")
+                error_detail = response.text
+            current_app.logger.error(f"[EMAIL] ❌ SendGrid API error ({response.status_code}): {error_detail}")
+            raise Exception(f"SendGrid failed: {error_detail}")
     except Exception as e:
-        current_app.logger.error(f"[EMAIL] ❌ Exception during Resend API call: {str(e)}", exc_info=True)
+        current_app.logger.error(f"[EMAIL] ❌ Exception during SendGrid API call: {str(e)}", exc_info=True)
         raise
 
 @auth_bp.route('/register', methods=['POST'])
