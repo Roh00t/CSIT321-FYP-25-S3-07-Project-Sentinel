@@ -77,7 +77,7 @@ def register():
 
     # Send verification email
     try:
-        frontend_url = current_app.config.get('FRONTEND_URL', 'https://frontend-production-32cc.up.railway.app')
+        frontend_url = 'https://frontend-production-32cc.up.railway.app'
         send_verification_email(
             mail,
             user.email,
@@ -146,7 +146,7 @@ def request_admin_email_change():
 
     # Send verification email
     try:
-        frontend_url = current_app.config.get('FRONTEND_URL', 'https://frontend-production-32cc.up.railway.app')
+        frontend_url = 'https://frontend-production-32cc.up.railway.app'
         msg = Message(
             subject="Verify Your SENTINEL Admin Email",
             recipients=[new_email],
