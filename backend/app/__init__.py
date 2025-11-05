@@ -33,6 +33,10 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
     mail.init_app(app)
+    app.logger.info("✅ Flask-Mail has been initialized.")
+    app.logger.info(f"MAIL_SERVER: {app.config.get('MAIL_SERVER')}")
+    app.logger.info(f"MAIL_USERNAME: {app.config.get('MAIL_USERNAME')}")
+    app.logger.info(f"MAIL_DEFAULT_SENDER: {app.config.get('MAIL_DEFAULT_SENDER')}")
     socketio.init_app(app)
 
     socketio.on_namespace(AlertsNamespace("/api/alerts/stream"))

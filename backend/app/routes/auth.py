@@ -22,6 +22,13 @@ def generate_verification_token():
 from eventlet.timeout import Timeout
 
 def send_verification_email(mail, to_email, token, frontend_url):
+    from flask import current_app
+
+    # 🔍 Debug: Confirm mail object is usable
+    current_app.logger.info(f"[EMAIL] Preparing to send verification email to {to_email}")
+    current_app.logger.info(f"[EMAIL] Mail server config: {current_app.config.get('MAIL_SERVER')}")
+    current_app.logger.info(f"[EMAIL] Mail default sender: {current_app.config.get('MAIL_DEFAULT_SENDER')}")
+
     msg = Message(
         subject="Verify Your SENTINEL Account",
         recipients=[to_email],
@@ -36,12 +43,19 @@ def send_verification_email(mail, to_email, token, frontend_url):
         <p>If you didn’t create an account, please ignore this email.</p>
         """
     )
+
     # Enforce 10-second timeout to avoid hanging
     try:
+        current_app.logger.info(f"[EMAIL] Attempting to send email via mail.send()...")
         with Timeout(10):
             mail.send(msg)
+        current_app.logger.info(f"[EMAIL] ✅ Email sent successfully to {to_email}")
     except Timeout:
+        current_app.logger.error("[EMAIL] ❌ SMTP timeout — possible eventlet/Gmail incompatibility")
         raise Exception("SMTP timeout — possible eventlet/Gmail incompatibility")
+    except Exception as e:
+        current_app.logger.error(f"[EMAIL] ❌ Failed during mail.send(): {str(e)}", exc_info=True)
+        raise
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -85,6 +99,8 @@ def register():
     # Send verification email
     try:
         frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+        current_app.logger.info(f"[REGISTRATION] About to send verification email. Frontend URL: {frontend_url}")
+        
         send_verification_email(
             mail,
             user.email,
@@ -92,7 +108,7 @@ def register():
             frontend_url
         )
     except Exception as e:
-        current_app.logger.error(f"Failed to send verification email: {str(e)}")
+        current_app.logger.error(f"[REGISTRATION] Failed to send verification email: {str(e)}")
         return jsonify({"msg": "Registration successful, but failed to send verification email. Please contact support."}), 201
 
     return jsonify({
