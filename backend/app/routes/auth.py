@@ -13,6 +13,7 @@ import secrets
 from flask_mail import Message
 from urllib.parse import urljoin
 from app import mail
+import requests
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -21,40 +22,74 @@ def generate_verification_token():
 
 from eventlet.timeout import Timeout
 
-def send_verification_email(mail, to_email, token, frontend_url):
-    from flask import current_app
+import os
+import requests
+from flask import current_app
 
-    # 🔍 Debug: Confirm mail object is usable
-    current_app.logger.info(f"[EMAIL] Preparing to send verification email to {to_email}")
-    current_app.logger.info(f"[EMAIL] Mail server config: {current_app.config.get('MAIL_SERVER')}")
-    current_app.logger.info(f"[EMAIL] Mail default sender: {current_app.config.get('MAIL_DEFAULT_SENDER')}")
+def send_verification_email(to_email: str, token: str, frontend_url: str):
+    """
+    Send verification email via Resend (HTTP API).
+    """
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    if not resend_api_key:
+        raise Exception("RESEND_API_KEY is not set")
 
-    msg = Message(
-        subject="Verify Your SENTINEL Account",
-        recipients=[to_email],
-        html=f"""
-        <h2>Welcome to SENTINEL!</h2>
-        <p>Please verify your email address by clicking the link below:</p>
-        <a href="{frontend_url}/verify-email?token={token}" 
-           style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
-           Verify Email
-        </a>
-        <p>This link expires in 24 hours.</p>
-        <p>If you didn’t create an account, please ignore this email.</p>
-        """
-    )
+    # Ensure frontend_url has no trailing slash to avoid double slashes
+    frontend_url = frontend_url.rstrip('/')
+    verify_link = f"{frontend_url}/verify-email?token={token}"
 
-    # Enforce 10-second timeout to avoid hanging
+    html_content = f"""
+    <h2>Welcome to SENTINEL!</h2>
+    <p>Please verify your email address by clicking the link below:</p>
+    <a href="{verify_link}" 
+       style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
+       Verify Email
+    </a>
+    <p>This link expires in 24 hours.</p>
+    <p>If you didn’t create an account, please ignore this email.</p>
+    """
+
+    # ✅ OPTION 1: Use your verified domain (recommended for production)
+    # from_email = "noreply@sentinel-alerts.com"
+    
+    # ✅ OPTION 2: Use Resend's free sandbox domain (if you haven't verified a domain yet)
+    from_email = "SENTINEL <onboarding@resend.dev>"
+
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": "Verify Your SENTINEL Account",
+        "html": html_content
+    }
+
+    headers = {
+        "Authorization": f"Bearer {resend_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    current_app.logger.info(f"[EMAIL] Sending verification email to {to_email} via Resend")
+    current_app.logger.info(f"[EMAIL] From: {from_email}")
+
     try:
-        current_app.logger.info(f"[EMAIL] Attempting to send email via mail.send()...")
-        with Timeout(10):
-            mail.send(msg)
-        current_app.logger.info(f"[EMAIL] ✅ Email sent successfully to {to_email}")
-    except Timeout:
-        current_app.logger.error("[EMAIL] ❌ SMTP timeout — possible eventlet/Gmail incompatibility")
-        raise Exception("SMTP timeout — possible eventlet/Gmail incompatibility")
+        response = requests.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            current_app.logger.info(f"[EMAIL] ✅ Resend: Email sent successfully to {to_email}")
+        else:
+            # Safely parse error
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", response.text)
+            except:
+                error_msg = response.text
+            current_app.logger.error(f"[EMAIL] ❌ Resend API error ({response.status_code}): {error_msg}")
+            raise Exception(f"Resend failed: {error_msg}")
     except Exception as e:
-        current_app.logger.error(f"[EMAIL] ❌ Failed during mail.send(): {str(e)}", exc_info=True)
+        current_app.logger.error(f"[EMAIL] ❌ Exception during Resend API call: {str(e)}", exc_info=True)
         raise
 
 @auth_bp.route('/register', methods=['POST'])
@@ -102,7 +137,6 @@ def register():
         current_app.logger.info(f"[REGISTRATION] About to send verification email. Frontend URL: {frontend_url}")
         
         send_verification_email(
-            mail,
             user.email,
             token,
             frontend_url
