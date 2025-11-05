@@ -127,9 +127,6 @@ def verify_email():
 
     return jsonify({"msg": "Email verified successfully! You can now log in."}), 200
 
-from app.utils.email_utils import send_html_email
-from flask import current_app
-
 @auth_bp.route('/admin-email/request', methods=['POST'])
 @jwt_required()
 def request_admin_email_change():

@@ -57,9 +57,6 @@ def send_html_email(to_email: str, subject: str, html_content: str):
     if not SENDGRID_API_KEY or not FROM_EMAIL:
         raise Exception("SendGrid credentials missing")
 
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail
-
     message = Mail(
         from_email=FROM_EMAIL,
         to_emails=to_email,
