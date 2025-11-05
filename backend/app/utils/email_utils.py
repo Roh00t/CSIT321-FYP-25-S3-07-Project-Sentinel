@@ -49,3 +49,28 @@ def send_verification_email(to_email: str, subject: str, html_content: str):
     except Exception as e:
         print(f"[EMAIL] SendGrid error: {str(e)}")
         raise
+
+def send_html_email(to_email: str, subject: str, html_content: str):
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+    FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL")
+
+    if not SENDGRID_API_KEY or not FROM_EMAIL:
+        raise Exception("SendGrid credentials missing")
+
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail
+
+    message = Mail(
+        from_email=FROM_EMAIL,
+        to_emails=to_email,
+        subject=subject,
+        html_content=html_content
+    )
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        print(f"[EMAIL] Sent to {to_email}, status: {response.status_code}")
+        return response.status_code == 202
+    except Exception as e:
+        print(f"[EMAIL] Failed to send: {str(e)}")
+        raise

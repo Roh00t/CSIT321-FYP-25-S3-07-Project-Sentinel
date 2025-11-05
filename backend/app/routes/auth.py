@@ -16,6 +16,7 @@ from app import mail
 import requests
 from eventlet.timeout import Timeout
 from app.utils.email_utils import send_verification_email as send_email_via_sendgrid
+from app.utils.email_utils import send_html_email
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -126,6 +127,9 @@ def verify_email():
 
     return jsonify({"msg": "Email verified successfully! You can now log in."}), 200
 
+from app.utils.email_utils import send_html_email
+from flask import current_app
+
 @auth_bp.route('/admin-email/request', methods=['POST'])
 @jwt_required()
 def request_admin_email_change():
@@ -142,7 +146,7 @@ def request_admin_email_change():
     if '@' not in new_email or '.' not in new_email.split('@')[-1]:
         return jsonify({"msg": "Invalid email format"}), 400
 
-    # Optional: Prevent duplicate pending requests
+    # Prevent duplicate pending requests
     existing = AdminEmailVerification.query.filter_by(
         user_id=user.id,
         verified=False
@@ -155,25 +159,25 @@ def request_admin_email_change():
     db.session.add(verification)
     db.session.commit()
 
-    # Send verification email
+    # Send verification email via SendGrid
     try:
         frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
-        msg = Message(
+        html_content = f"""
+        <h2>Verify Admin Email for SENTINEL</h2>
+        <p>You requested to set this email as your admin contact.</p>
+        <p>Please confirm by clicking the link below:</p>
+        <a href="{frontend_url}/verify-admin-email?token={verification.token}"
+           style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
+           Confirm Admin Email
+        </a>
+        <p>This link expires in 24 hours.</p>
+        <p>If you didn’t make this request, please ignore this email.</p>
+        """
+        send_html_email(
+            to_email=new_email,
             subject="Verify Your SENTINEL Admin Email",
-            recipients=[new_email],
-            html=f"""
-            <h2>Verify Admin Email for SENTINEL</h2>
-            <p>You requested to set this email as your admin contact.</p>
-            <p>Please confirm by clicking the link below:</p>
-            <a href="{frontend_url}/verify-admin-email?token={verification.token}"
-               style="display:inline-block;padding:10px 20px;background:#059669;color:white;text-decoration:none;border-radius:5px;">
-               Confirm Admin Email
-            </a>
-            <p>This link expires in 24 hours.</p>
-            <p>If you didn’t make this request, please ignore this email.</p>
-            """
+            html_content=html_content
         )
-        mail.send(msg)
     except Exception as e:
         current_app.logger.error(f"Failed to send admin email verification: {str(e)}")
         return jsonify({"msg": "Request received, but failed to send verification email."}), 202
