@@ -193,7 +193,6 @@ export default function DashboardLayoutSettingsPage() {
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
           rowHeight={80}
           onLayoutChange={(newLayout) => {
-            // Merge changes back into fullLayout (preserve w/h from default)
             const updatedFull = [...fullLayout];
             newLayout.forEach(updatedItem => {
               const index = updatedFull.findIndex(item => item.i === updatedItem.i);
@@ -219,7 +218,7 @@ export default function DashboardLayoutSettingsPage() {
                 {WIDGET_TITLES[item.i] || item.i}
               </div>
               <div className="p-4 min-h-[100px] flex items-center justify-center text-gray-500">
-                {/* Preview area */}
+
               </div>
             </div>
           ))}
