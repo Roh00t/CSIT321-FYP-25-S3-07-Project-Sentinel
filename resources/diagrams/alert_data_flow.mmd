@@ -1,0 +1,13 @@
+flowchart TD
+    A["Network Traffic<br/>(e.g. PCAP, live packets)"]
+    B["NIDS Engine<br/>(Suricata/Zeek/Snort)"]
+    C["Agent<br/>(main.py, etc)"]
+    D["POST /api/alerts/stream or SocketIO<br/>- Receives alert<br/>- Normalizes, buffers, DB, email<br/>(socketIO.py, persist_alert_to_db, send_alert_email_if_needed)"]
+    E["SocketIO Server<br/>- Emits 'bulk_alerts' event<br/>(bulk_alert_sender)"]
+    F["Frontend React<br/>- Receives 'bulk_alerts'<br/>- Updates UI<br/>(alertPage.tsx)"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F

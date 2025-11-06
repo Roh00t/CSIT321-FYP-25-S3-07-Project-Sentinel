@@ -1,0 +1,34 @@
+<diagram program="umletino" version="15.1"><zoom_level>9</zoom_level><help_text>Space for diagram notes</help_text><element><id>Text</id><coordinates><x>234</x><y>5</y><w>126</w><h>27</h></coordinates><panel_attributes>User uploads pcap file</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>279</x><y>23</y><w>27</w><h>72</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;60;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>216</x><y>77</y><w>153</w><h>63</h></coordinates><panel_attributes>halign=left
+POST /api/pcaps/upload
+- validate file extension
+- Save to MYSQL database
+- Save to uploads/pcaps</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>279</x><y>131</y><w>27</w><h>72</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;60;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>216</x><y>185</y><w>315</w><h>135</h></coordinates><panel_attributes>halign=left
+Parse pcap with scapy:
+for packet in file:
+ - Extract packet_number (index)
+ - Extract timestamp
+ - Extract src_ip and dst_ip
+ - Extract src_port and dst_port (if TCP/UDP)
+ - Extract protocol (TCP, UDP, ICMP, OTHER)
+ - Extract packet_length
+ - Extract packet_data (bytes)</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>279</x><y>311</y><w>108</w><h>81</h></coordinates><panel_attributes>lt=&lt;&lt;-
+For each packet</panel_attributes><additional_attributes>10;70;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>216</x><y>374</y><w>198</w><h>90</h></coordinates><panel_attributes>halign=left
+Match against alerts where:
+src_ip = packet.src_ip AND
+dest_ip = packet.dest_ip AND
+timestamp between
+	packet.time - 5s AND
+	packet.time + 5s </panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>279</x><y>455</y><w>27</w><h>63</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;50;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>216</x><y>500</y><w>189</w><h>99</h></coordinates><panel_attributes>halign=left
+Calculate confidence score
+Base: 100%
+- IP match : required
+- Port match: required
+- Portocol mismatch: -20%
+- Time difference: up to -20%
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>279</x><y>590</y><w>27</w><h>63</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;50;10;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>216</x><y>635</y><w>189</w><h>99</h></coordinates><panel_attributes>halign=left
+Return to frontend
+{
+	packets_parsed: 1234,
+	matched: 123
+}
+</panel_attributes><additional_attributes></additional_attributes></element></diagram>
