@@ -54,7 +54,8 @@ function App() {
             path="/admin/*"
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
-            <Route index element={<Navigate to="profile" />} />
+            {/* <Route index element={<Navigate to="profile" />} /> */}
+            <Route path="dashboard" element={<Navigate to="/profile" />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
             <Route path="users" element={<AdminManageUserPage />} />
@@ -65,8 +66,8 @@ function App() {
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
-            <Route path="dashboard" element={<Navigate to="/dashboard" />} />
-            <Route path="alerts" element={<AlertsRouter />} />
+            {/* <Route path="dashboard" element={<Navigate to="/dashboard" />} /> */}
+            <Route path="dashboard" element={<AlertsRouter />} />
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
             <Route path="plan" element={<ManagePlanPage />} />
@@ -84,7 +85,7 @@ function App() {
 
           {/* Unified /dashboard redirect */}
           <Route
-            path="*/dashboard"
+            path="/dashboard"
             element={
               (() => {
                 const userType = localStorage.getItem('user_type');
@@ -92,7 +93,7 @@ function App() {
                 if (userType === 'admin') {
                   return <Navigate to="/admin/profile" />;
                 } else if (userType === 'app_user') {
-                  return <Navigate to="/app/alerts" />;
+                  return <Navigate to="/app/dashboard" />;
                 }
                 return <Navigate to="/login" />;
               })()
