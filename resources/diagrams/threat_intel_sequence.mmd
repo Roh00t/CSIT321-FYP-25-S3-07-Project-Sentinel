@@ -1,0 +1,16 @@
+---
+title: Threat Intelligence Integration Sequence Diagram
+author: Project Sentinel
+---
+
+sequenceDiagram
+    actor User as Pro User (Dashboard)
+    participant Backend as Sentinel Backend API
+    participant ThreatAPI as Threat Intelligence API
+
+    User->>Backend: Inspect alert (requests threat intel)
+    Backend->>ThreatAPI: Query threat intelligence (e.g., VirusTotal, OTX, AbuseIPDB)
+    ThreatAPI-->>Backend: Return threat data (reputation, CVE, etc.)
+    Backend->>Backend: Enrich alert with threat intelligence
+    Backend-->>User: Return enriched alert details
+    User->>User: View alert with threat intelligence context

@@ -1,0 +1,18 @@
+---
+title: Alert Preferences and Emailing Sequence Diagram
+author: Project Sentinel
+---
+
+sequenceDiagram
+    actor User as Pro User (Dashboard)
+    participant Backend as Sentinel Backend API
+    participant Email as SendGrid Email Service
+
+    User->>Backend: Update alert preferences (thresholds, email on/off)
+    Backend->>Backend: Save preferences to database
+    alt Alert triggered (meets user preferences)
+        Backend->>Email: Send alert email to user
+        Email-->>User: Deliver alert email
+    end
+    Backend-->>User: Show alert in dashboard (real-time)
+    User->>User: View alert and email notification

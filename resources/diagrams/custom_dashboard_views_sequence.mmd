@@ -1,0 +1,14 @@
+---
+title: Custom Dashboard Views Sequence Diagram
+author: Project Sentinel
+---
+
+sequenceDiagram
+    participant User as Pro User (Dashboard)
+    participant Backend as Sentinel Backend API
+
+    User-->>Backend: Save custom dashboard layout
+    Backend-->>User: Confirm layout saved
+    User-->>Backend: Load custom dashboard layout
+    Backend-->>User: Return saved layout
+    User-->>User: View personalized dashboard

@@ -1,0 +1,14 @@
+---
+title: Saved Searches Sequence Diagram
+author: Project Sentinel
+---
+
+sequenceDiagram
+    participant User as Pro User (Dashboard)
+    participant Backend as Sentinel Backend API
+
+    User-->>Backend: Save search filter
+    Backend-->>User: Confirm filter saved
+    User-->>Backend: Load saved search filter
+    Backend-->>User: Return saved filter
+    User-->>User: Apply filter and view results
