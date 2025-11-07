@@ -130,7 +130,7 @@ export default function HomePage() {
                 href="https://github.com/matt-15/Sentinel-Agent"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-56 bg-blue-600 text-white font-semibold px-6 py-3 rounded-md shadow hover:bg-blue-700 transition text-center"
+                className="w-56 bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition text-center border border-blue-600"
               >
                 Download Our Real Time Monitoring Agent
               </a>
