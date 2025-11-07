@@ -150,23 +150,21 @@ export default function AppDashboard() {
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <h3 className="text-xl font-semibold text-green-800 mb-2">Welcome to Your Dashboard</h3>
           <p className="text-green-700">
-            This is your personal dashboard. You can view your subscription, usage stats, and settings here.
+            This is your personal dashboard. You can view your subscription plan and acccept team invitations here. Enjoy your SENTINEL experience!
+          </p>
+          <p className="text-green-700 mt-2">
+            Proceed to <a href="/alerts" className="text-blue-600 hover:underline">App</a> to start using SENTINEL's features.
           </p>
         </div>
 
-        {/* Reactive Subscription Display */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-8">
           <div className="bg-gray-50 p-5 rounded-lg border text-center transition-all duration-300">
-            <h4 className="font-bold text-gray-700">Subscription</h4>
+            <h4 className="font-bold text-gray-700">Current Plan</h4>
             <p className="text-2xl font-bold mt-2">
               {displayPlan === 'Basic' && <span className="text-gray-600">{displayPlan}</span>}
               {displayPlan === 'Pro' && <span className="text-blue-600">{displayPlan}</span>}
               {displayPlan === 'Team' && <span className="text-green-600">{displayPlan}</span>}
             </p>
-          </div>
-          <div className="bg-gray-50 p-5 rounded-lg border text-center">
-            <h4 className="font-bold text-gray-700">Usage</h4>
-            <p className="text-2xl font-bold text-blue-600 mt-2">0%</p>
           </div>
         </div>
       </div>

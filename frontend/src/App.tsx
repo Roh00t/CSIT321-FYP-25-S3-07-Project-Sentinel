@@ -23,6 +23,16 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
 import DashboardLayoutSettingsPage from './pages/DashboardLayoutSettingsPage';
 
+function AlertsRouter() {
+  const plan = localStorage.getItem('plan_type');
+  if (plan === 'Basic') {
+    return <AppUserBasicAlertPage />;
+  } else if (plan === 'Pro' || plan === 'Team') {
+    return <AlertsPage />;
+  }
+  return <Navigate to="/app/profile" />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -58,12 +68,12 @@ function App() {
 
             {/* Basic plan: limited alerts */}
             <Route
-              path="alerts/basic"
+              path="alerts"
               element={
                 <PlanProtectedRoute allowedPlans={['Basic']} />
               }
             >
-              <Route index element={<AppUserBasicAlertPage />} />
+              <Route index element={<AlertsRouter />} />
             </Route>
 
             {/* Pro/Team plan: full alerts */}
@@ -73,7 +83,7 @@ function App() {
                 <PlanProtectedRoute allowedPlans={['Pro', 'Team']} />
               }
             >
-              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="alerts" element={<AlertsRouter />} />
               <Route path="dashboard-layout" element={<DashboardLayoutSettingsPage />} />
             </Route>
 

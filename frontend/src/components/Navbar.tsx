@@ -51,8 +51,8 @@ export default function Navbar() {
             <Link to="/app/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
-            <Link to="/app/alerts/basic" className="hover:text-blue-300 transition">
-              Alerts
+            <Link to="/app/alerts" className="hover:text-blue-300 transition">
+              App
             </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
@@ -73,7 +73,7 @@ export default function Navbar() {
               Dashboard
             </Link>
             <Link to="/app/alerts" className="hover:text-blue-300 transition">
-              Alerts
+              App
             </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
