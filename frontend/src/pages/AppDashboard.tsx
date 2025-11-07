@@ -169,7 +169,7 @@ export default function AppDashboard() {
                 href="https://github.com/matt-15/Sentinel-Agent"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-56 bg-white text-blue-600 font-semibold px-6 py-2 rounded-md shadow hover:bg-gray-100 transition text-center border border-blue-600"
+                className="text-blue-600 hover:underline"
               >
                 agent
               </a>
