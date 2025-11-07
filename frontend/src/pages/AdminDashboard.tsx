@@ -12,21 +12,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchUserCount = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setError('Not authenticated');
-          setLoading(false);
-          return;
-        }
-
         const response = await apiClient.get('/api/auth/admin/users');
-        const data = response.data;
-
-        if (!data.ok) {
-          throw new Error('Failed to fetch users');
-        }
-
-        setUserCount(data.users?.length || 0);
+        setUserCount(response.data.users?.length || 0);
       } catch (err: any) {
         console.error('Error fetching user count:', err);
         setError(err.message || 'An error occurred');
