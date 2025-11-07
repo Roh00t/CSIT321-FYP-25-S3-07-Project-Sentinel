@@ -10,11 +10,13 @@ import PlanProtectedRoute from './components/PlanProtectedRoute';
 import PageNotFoundPage from './pages/PageNotFoundPage';
 
 // Admin pages
+import AdminDashboard from './pages/AdminDashboard';
 import AdminProfilePage from './pages/AdminProfilePage';
 import AdminEditProfilePage from './pages/AdminEditProfilePage';
 import AdminManageUserPage from './pages/AdminManageUserPage';
 
 // App user pages
+import AppDashboard from './pages/AppDashboard';
 import AppUserProfilePage from './pages/AppUserProfilePage';
 import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
 import AppUserBasicAlertPage from './pages/AppUserBasicAlertPage';
@@ -27,7 +29,7 @@ import CheckEmailPage from './pages/CheckEmailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
 
-// Smart alert page that respects plan (no localStorage read in router!)
+// Smart alert page
 import ProtectedAlertsPage from './pages/ProtectedAlertsPage';
 
 function App() {
@@ -50,7 +52,8 @@ function App() {
             path="/admin/*"
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
-            <Route index element={<Navigate to="profile" replace />} />
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
             <Route path="users" element={<AdminManageUserPage />} />
@@ -61,13 +64,13 @@ function App() {
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
-            {/* Redirect /app root to profile or alerts based on your logic elsewhere */}
-            <Route index element={<Navigate to="profile" replace />} />
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AppDashboard />} />
 
-            {/* Unified alerts route — renders correct page based on plan */}
+            {/* Unified alerts route */}
             <Route path="alerts" element={<ProtectedAlertsPage />} />
 
-            {/* Plan-protected: layout settings only for Pro/Team */}
+            {/* Layout settings (Pro/Team only) */}
             <Route
               path="dashboard-layout"
               element={
@@ -77,14 +80,24 @@ function App() {
               }
             />
 
-            {/* Profile & plan management */}
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
             <Route path="plan" element={<ManagePlanPage />} />
           </Route>
 
-          {/* Optional: catch-all redirect for logged-in users (but not using /dashboard) */}
-          {/* If you really need a /dashboard alias, consider removing it per your preference */}
+          {/* Optional: top-level /dashboard redirect for convenience */}
+          <Route
+            path="/dashboard"
+            element={
+              localStorage.getItem('user_type') === 'admin' ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : localStorage.getItem('user_type') === 'app_user' ? (
+                <Navigate to="/app/dashboard" replace />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
 
           {/* 404 Route — MUST be last */}
           <Route path="*" element={<PageNotFoundPage />} />
