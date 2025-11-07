@@ -1,37 +1,34 @@
-// App.tsx
+// frontend/src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPlansPage from './pages/PricingPlansPage';
-import AdminDashboard from './pages/AdminDashboard';
-import AppDashboard from './pages/AppDashboard';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
+import PlanProtectedRoute from './components/PlanProtectedRoute';
 import PageNotFoundPage from './pages/PageNotFoundPage';
-import AlertsPage from './pages/alertPage';
+
+// Admin pages
 import AdminProfilePage from './pages/AdminProfilePage';
 import AdminEditProfilePage from './pages/AdminEditProfilePage';
+import AdminManageUserPage from './pages/AdminManageUserPage';
+
+// App user pages
 import AppUserProfilePage from './pages/AppUserProfilePage';
 import AppUserEditProfilePage from './pages/AppUserEditProfilePage';
-import AdminManageUserPage from './pages/AdminManageUserPage';
 import AppUserBasicAlertPage from './pages/AppUserBasicAlertPage';
-import PlanProtectedRoute from './components/PlanProtectedRoute';
+import AlertsPage from './pages/alertPage';
 import ManagePlanPage from './pages/ManagePlanPage';
+import DashboardLayoutSettingsPage from './pages/DashboardLayoutSettingsPage';
+
+// Auth flow
 import CheckEmailPage from './pages/CheckEmailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
-import DashboardLayoutSettingsPage from './pages/DashboardLayoutSettingsPage';
 
-function AlertsRouter() {
-  const plan = localStorage.getItem('plan_type');
-  if (plan === 'Basic') {
-    return <AppUserBasicAlertPage />;
-  } else if (plan === 'Pro' || plan === 'Team') {
-    return <AlertsPage />;
-  }
-  return <Navigate to="/app/profile" />;
-}
+// Smart alert page that respects plan (no localStorage read in router!)
+import ProtectedAlertsPage from './pages/ProtectedAlertsPage';
 
 function App() {
   return (
@@ -48,64 +45,46 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/verify-admin-email" element={<VerifyAdminEmailPage />} />
 
-          {/* Protected Admin Routes */}
+          {/* Admin Routes */}
           <Route
             path="/admin/*"
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
-            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
             <Route path="users" element={<AdminManageUserPage />} />
           </Route>
 
-          {/* Protected AppUser Basic Routes */}
+          {/* App User Routes */}
           <Route
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
-            <Route path="dashboard" element={<AppDashboard />} />
+            {/* Redirect /app root to profile or alerts based on your logic elsewhere */}
+            <Route index element={<Navigate to="profile" replace />} />
 
-            {/* Basic plan: limited alerts */}
+            {/* Unified alerts route — renders correct page based on plan */}
+            <Route path="alerts" element={<ProtectedAlertsPage />} />
+
+            {/* Plan-protected: layout settings only for Pro/Team */}
             <Route
-              path="alerts"
+              path="dashboard-layout"
               element={
-                <PlanProtectedRoute allowedPlans={['Basic']} />
+                <PlanProtectedRoute allowedPlans={['Pro', 'Team']}>
+                  <DashboardLayoutSettingsPage />
+                </PlanProtectedRoute>
               }
-            >
-              <Route index element={<AlertsRouter />} />
-            </Route>
+            />
 
-            {/* Pro/Team plan: full alerts */}
-            <Route
-              path="/app/*"
-              element={
-                <PlanProtectedRoute allowedPlans={['Pro', 'Team']} />
-              }
-            >
-              <Route path="alerts" element={<AlertsRouter />} />
-              <Route path="dashboard-layout" element={<DashboardLayoutSettingsPage />} />
-            </Route>
-
-            
-
+            {/* Profile & plan management */}
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
             <Route path="plan" element={<ManagePlanPage />} />
           </Route>
 
-
-          {/* Catch-all: Redirect logged-in users */}
-          <Route
-            path="/dashboard"
-            element={
-              localStorage.getItem('user_type') === 'admin' ? (
-                <Navigate to="/admin/dashboard" />
-              ) : (
-                <Navigate to="/app/dashboard" />
-              )
-            }
-          />
+          {/* Optional: catch-all redirect for logged-in users (but not using /dashboard) */}
+          {/* If you really need a /dashboard alias, consider removing it per your preference */}
 
           {/* 404 Route — MUST be last */}
           <Route path="*" element={<PageNotFoundPage />} />
