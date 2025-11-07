@@ -162,6 +162,20 @@ export default function AppDashboard() {
             </a>{' '}
             to start using SENTINEL's features.
           </p>
+          {(displayPlan === 'Pro' || displayPlan === 'Team') && (
+            <p className="text-green-700 mt-4 flex flex-wrap items-center gap-2">
+              Download our
+              <a
+                href="https://github.com/matt-15/Sentinel-Agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-56 bg-white text-blue-600 font-semibold px-6 py-2 rounded-md shadow hover:bg-gray-100 transition text-center border border-blue-600"
+              >
+                agent
+              </a>
+               for real-time alerts!
+            </p>
+          )}
         </div>
 
         <div className="mt-8">
