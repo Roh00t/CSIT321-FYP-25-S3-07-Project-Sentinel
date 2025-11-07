@@ -47,11 +47,8 @@ export default function Navbar() {
             <Link to="/pricing" className="hover:text-blue-300 transition">
               Pricing
             </Link>
-            <Link to="/dashboard" className="hover:text-blue-300 transition">
+            <Link to="/app/alerts" className="hover:text-blue-300 transition">
               Dashboard
-            </Link>
-            <Link to="/app/alerts/basic" className="hover:text-blue-300 transition">
-              Alerts
             </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
@@ -68,11 +65,8 @@ export default function Navbar() {
             <Link to="/pricing" className="hover:text-blue-300 transition">
               Pricing
             </Link>
-            <Link to="/dashboard" className="hover:text-blue-300 transition">
+            <Link to="/app/alerts" className="hover:text-blue-300 transition">
               Dashboard
-            </Link>
-            <Link to="/app/alerts/full" className="hover:text-blue-300 transition">
-              Alerts
             </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
@@ -83,9 +77,6 @@ export default function Navbar() {
         {/* LOGGED IN AS ADMIN */}
         {isAuthenticated && user_type === 'admin' && (
           <>
-            <Link to="/dashboard" className="hover:text-blue-300 transition">
-              Dashboard
-            </Link>
             <Link to="/admin/profile" className="hover:text-blue-300 transition">
               Profile
             </Link>

@@ -84,7 +84,7 @@ function App() {
 
           {/* Unified /dashboard redirect */}
           <Route
-            path="/dashboard"
+            path="*/dashboard"
             element={
               (() => {
                 const userType = localStorage.getItem('user_type');
