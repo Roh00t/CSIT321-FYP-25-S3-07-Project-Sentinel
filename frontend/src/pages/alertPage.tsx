@@ -1711,6 +1711,16 @@ export default function AlertsPage() {
                         <li>The agent is connected</li>
                         <li>You have uploaded any alert files</li>
                       </ul>
+                      <div className="mt-4">
+                        <a
+                          href="https://github.com/matt-15/Sentinel-Agent"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline hover:text-blue-800"
+                        >
+                          Download the Sentinel Agent
+                        </a>
+                      </div>
                     </>
                   )}
                 </div>

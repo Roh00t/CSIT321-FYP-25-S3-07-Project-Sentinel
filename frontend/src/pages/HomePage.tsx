@@ -122,9 +122,19 @@ export default function HomePage() {
             <p className="mb-6 text-blue-100">
               Log in or get started to monitor threats in real time and turn raw data into defense.
             </p>
-            <button className="bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition">
-              Go to Dashboard
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button className="w-56 bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition">
+                Go to Dashboard
+              </button>
+              <a
+                href="https://github.com/matt-15/Sentinel-Agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-56 bg-blue-600 text-white font-semibold px-6 py-3 rounded-md shadow hover:bg-blue-700 transition text-center"
+              >
+                Download Our Real Time Monitoring Agent
+              </a>
+            </div>
           </div>
         </section>
       </main>
