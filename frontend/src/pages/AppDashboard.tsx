@@ -153,7 +153,14 @@ export default function AppDashboard() {
             This is your personal dashboard. You can view your subscription plan and acccept team invitations here. Enjoy your SENTINEL experience!
           </p>
           <p className="text-green-700 mt-2">
-            Proceed to <a href="/alerts" className="text-blue-600 hover:underline">App</a> to start using SENTINEL's features.
+            Proceed to{' '}
+            <a
+              href={displayPlan === 'Basic' ? '/app/alerts/basic' : '/app/alerts'}
+              className="text-blue-600 hover:underline"
+            >
+              App
+            </a>{' '}
+            to start using SENTINEL's features.
           </p>
         </div>
 
