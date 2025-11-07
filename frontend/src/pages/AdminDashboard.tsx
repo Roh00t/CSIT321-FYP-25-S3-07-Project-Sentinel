@@ -1,6 +1,7 @@
 // src/pages/AdminDashboard.tsx
 import { useState, useEffect } from 'react';
 import { useUserSession } from '../hooks/useUserSession';
+import apiClient from '../components/apiClient';
 
 export default function AdminDashboard() {
   const { username } = useUserSession();
@@ -18,17 +19,13 @@ export default function AdminDashboard() {
           return;
         }
 
-        const response = await fetch('/api/admin/users', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await apiClient.get('/api/auth/admin/users');
+        const data = response.data;
 
-        if (!response.ok) {
+        if (!data.ok) {
           throw new Error('Failed to fetch users');
         }
 
-        const data = await response.json();
         setUserCount(data.users?.length || 0);
       } catch (err: any) {
         console.error('Error fetching user count:', err);
