@@ -1,8 +1,45 @@
 // src/pages/AdminDashboard.tsx
+import { useState, useEffect } from 'react';
 import { useUserSession } from '../hooks/useUserSession';
 
 export default function AdminDashboard() {
   const { username } = useUserSession();
+  const [userCount, setUserCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserCount = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('Not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+
+        const data = await response.json();
+        setUserCount(data.users?.length || 0);
+      } catch (err: any) {
+        console.error('Error fetching user count:', err);
+        setError(err.message || 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserCount();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4">
@@ -21,23 +58,23 @@ export default function AdminDashboard() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 className="text-xl font-semibold text-blue-800 mb-2">Welcome to the Admin Panel</h3>
           <p className="text-blue-700">
-            This is your secure admin dashboard. You can manage users, view reports, and configure system settings here.
+            This is your secure admin dashboard. You can view and manage users here.
           </p>
         </div>
 
-        {/* Placeholder for future admin features */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gray-50 p-5 rounded-lg border text-center">
-            <h4 className="font-bold text-gray-700">Users</h4>
-            <p className="text-2xl font-bold text-blue-600 mt-2">0</p>
-          </div>
-          <div className="bg-gray-50 p-5 rounded-lg border text-center">
-            <h4 className="font-bold text-gray-700">Reports</h4>
-            <p className="text-2xl font-bold text-blue-600 mt-2">0</p>
-          </div>
-          <div className="bg-gray-50 p-5 rounded-lg border text-center">
-            <h4 className="font-bold text-gray-700">Alerts</h4>
-            <p className="text-2xl font-bold text-blue-600 mt-2">0</p>
+        {/* Dynamic Users Card Only */}
+        <div className="mt-8">
+          <div className="bg-gray-50 p-6 rounded-lg border text-center">
+            <h4 className="font-bold text-gray-700">Total Users</h4>
+            <p className="text-3xl font-bold text-blue-600 mt-2">
+              {loading ? (
+                <span className="animate-pulse">Loading...</span>
+              ) : error ? (
+                <span className="text-red-500">Error</span>
+              ) : (
+                userCount
+              )}
+            </p>
           </div>
         </div>
       </div>
