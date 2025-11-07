@@ -54,7 +54,7 @@ function App() {
             path="/admin/*"
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
-            {/* <Route index element={<Navigate to="profile" />} /> */}
+            <Route index element={<Navigate to="profile" />} />
             <Route path="dashboard" element={<Navigate to="/profile" />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
@@ -66,7 +66,7 @@ function App() {
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
-            {/* <Route path="dashboard" element={<Navigate to="/dashboard" />} /> */}
+            <Route path="dashboard" element={<Navigate to="/dashboard" />} />
             <Route path="dashboard" element={<AlertsRouter />} />
             <Route path="profile" element={<AppUserProfilePage />} />
             <Route path="profile/edit" element={<AppUserEditProfilePage />} />
@@ -84,7 +84,7 @@ function App() {
           </Route>
 
           {/* Unified /dashboard redirect */}
-          <Route
+          {/* <Route
             path="/dashboard"
             element={
               (() => {
@@ -98,7 +98,7 @@ function App() {
                 return <Navigate to="/login" />;
               })()
             }
-          />
+          /> */}
 
           {/* 404 */}
           <Route path="*" element={<PageNotFoundPage />} />

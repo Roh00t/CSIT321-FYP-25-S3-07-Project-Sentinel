@@ -40,7 +40,11 @@ export default function LoginPage() {
       }
 
       notifySessionChange();
-      navigate('/dashboard');
+      if (data.user_type === 'admin') {
+        navigate('/admin/profile');
+      } else if (data.user_type === 'app_user') {
+        navigate('/app/dashboard');
+      }
     } catch (err: any) {
       if (err.response) {
         const { status, data } = err.response;
