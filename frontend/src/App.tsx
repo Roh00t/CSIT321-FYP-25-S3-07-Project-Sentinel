@@ -1,11 +1,12 @@
-// App.tsx — simplified and corrected
-
+// App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPlansPage from './pages/PricingPlansPage';
+import AdminDashboard from './pages/AdminDashboard';
+import AppDashboard from './pages/AppDashboard';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import PageNotFoundPage from './pages/PageNotFoundPage';
 import AlertsPage from './pages/alertPage';
@@ -22,18 +23,6 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyAdminEmailPage from './pages/VerifyAdminEmailPage';
 import DashboardLayoutSettingsPage from './pages/DashboardLayoutSettingsPage';
 
-// Wrapper for /app/alerts that shows correct page based on plan
-function AlertsRouter() {
-  const plan = localStorage.getItem('plan_type');
-  if (plan === 'Basic') {
-    return <AppUserBasicAlertPage />;
-  } else if (plan === 'Pro' || plan === 'Team') {
-    return <AlertsPage />;
-  }
-  // Fallback: redirect if unknown plan (should not happen)
-  return <Navigate to="/app/profile" />;
-}
-
 function App() {
   return (
     <BrowserRouter>
@@ -49,58 +38,66 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/verify-admin-email" element={<VerifyAdminEmailPage />} />
 
-          {/* Admin Routes */}
+          {/* Protected Admin Routes */}
           <Route
             path="/admin/*"
             element={<RoleProtectedRoute allowedRoles={['admin']} />}
           >
-            <Route index element={<Navigate to="profile" />} />
-            <Route path="dashboard" element={<Navigate to="/profile" />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="profile/edit" element={<AdminEditProfilePage />} />
             <Route path="users" element={<AdminManageUserPage />} />
           </Route>
 
-          {/* App User Routes */}
+          {/* Protected AppUser Basic Routes */}
           <Route
             path="/app/*"
             element={<RoleProtectedRoute allowedRoles={['app_user']} />}
           >
-            <Route path="dashboard" element={<Navigate to="/dashboard" />} />
-            <Route path="dashboard" element={<AlertsRouter />} />
-            <Route path="profile" element={<AppUserProfilePage />} />
-            <Route path="profile/edit" element={<AppUserEditProfilePage />} />
-            <Route path="plan" element={<ManagePlanPage />} />
-            
-            {/* Layout settings — only for Pro/Team */}
+            <Route path="dashboard" element={<AppDashboard />} />
+
+            {/* Basic plan: limited alerts */}
             <Route
-              path="dashboard-layout"
+              path="alerts/basic"
+              element={
+                <PlanProtectedRoute allowedPlans={['Basic']} />
+              }
+            >
+              <Route index element={<AppUserBasicAlertPage />} />
+            </Route>
+
+            {/* Pro/Team plan: full alerts */}
+            <Route
+              path="/app/*"
               element={
                 <PlanProtectedRoute allowedPlans={['Pro', 'Team']} />
               }
             >
-              <Route index element={<DashboardLayoutSettingsPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="dashboard-layout" element={<DashboardLayoutSettingsPage />} />
             </Route>
+
+            
+
+            <Route path="profile" element={<AppUserProfilePage />} />
+            <Route path="profile/edit" element={<AppUserEditProfilePage />} />
+            <Route path="plan" element={<ManagePlanPage />} />
           </Route>
 
-          {/* Unified /dashboard redirect */}
-          {/* <Route
+
+          {/* Catch-all: Redirect logged-in users */}
+          <Route
             path="/dashboard"
             element={
-              (() => {
-                const userType = localStorage.getItem('user_type');
-                const userPlan = localStorage.getItem('plan_type');
-                if (userType === 'admin') {
-                  return <Navigate to="/admin/profile" />;
-                } else if (userType === 'app_user') {
-                  return <Navigate to="/app/dashboard" />;
-                }
-                return <Navigate to="/login" />;
-              })()
+              localStorage.getItem('user_type') === 'admin' ? (
+                <Navigate to="/admin/dashboard" />
+              ) : (
+                <Navigate to="/app/dashboard" />
+              )
             }
-          /> */}
+          />
 
-          {/* 404 */}
+          {/* 404 Route — MUST be last */}
           <Route path="*" element={<PageNotFoundPage />} />
         </Routes>
       </div>

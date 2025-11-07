@@ -1,4 +1,5 @@
 // src/components/Navbar.tsx
+
 import { Link } from 'react-router-dom';
 import { useUserSession } from '../hooks/useUserSession';
 import LogoutButton from './LogoutButton';
@@ -50,6 +51,9 @@ export default function Navbar() {
             <Link to="/app/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <Link to="/app/alerts/basic" className="hover:text-blue-300 transition">
+              Alerts
+            </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
             </Link>
@@ -68,6 +72,9 @@ export default function Navbar() {
             <Link to="/app/dashboard" className="hover:text-blue-300 transition">
               Dashboard
             </Link>
+            <Link to="/app/alerts" className="hover:text-blue-300 transition">
+              Alerts
+            </Link>
             <Link to="/app/profile" className="hover:text-blue-300 transition">
               Profile
             </Link>
@@ -77,6 +84,9 @@ export default function Navbar() {
         {/* LOGGED IN AS ADMIN */}
         {isAuthenticated && user_type === 'admin' && (
           <>
+            <Link to="/admin/dashboard" className="hover:text-blue-300 transition">
+              Dashboard
+            </Link>
             <Link to="/admin/profile" className="hover:text-blue-300 transition">
               Profile
             </Link>
@@ -92,6 +102,7 @@ export default function Navbar() {
         {isAuthenticated ? (
           <LogoutButton />
         ) : (
+          // Invisible spacer to balance layout
           <div className="w-20"></div>
         )}
       </div>
