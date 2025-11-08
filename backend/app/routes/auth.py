@@ -1,5 +1,5 @@
 # app/routes/auth.py
-from re import sub
+import re
 from flask import Blueprint, request, jsonify, current_app
 from app.models import User, AppUser, Admin, AppUserTeam, AppUserTeamMember, AdminEmailVerification
 from app import db
@@ -17,6 +17,7 @@ import requests
 from eventlet.timeout import Timeout
 from app.utils.email_utils import send_verification_email as send_email_via_sendgrid
 from app.utils.email_utils import send_html_email
+
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -46,6 +47,23 @@ def send_verification_email(to_email: str, token: str, frontend_url: str):
     )
     if not success:
         raise Exception("SendGrid returned non-202 status")
+    
+def is_valid_email(email: str) -> bool:
+    return re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email) is not None
+
+
+def is_valid_username(username: str) -> bool:
+    return re.match(r"^[a-zA-Z0-9_-]{3,20}$", username) is not None
+
+
+def is_valid_password(password: str) -> bool:
+    return (
+        len(password) >= 8
+        and re.search(r"[a-z]", password)
+        and re.search(r"[A-Z]", password)
+        and re.search(r"\d", password)
+        and re.search(r"[@$!%*?&]", password)
+    )
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -55,9 +73,23 @@ def register():
 
     required_fields = ['first_name', 'last_name', 'username', 'email', 'password']
     for field in required_fields:
-        if field not in data or not data[field].strip():
-            return jsonify({"msg": f"'{field}' is required"}), 400
+        if field not in data or not isinstance(data[field], str) or not data[field].strip():
+            return jsonify({"msg": f"'{field}' is required and must be a non-empty string"}), 400
 
+    # Trim whitespace
+    data = {k: v.strip() for k, v in data.items() if isinstance(v, str)}
+
+    # Validate format
+    if not is_valid_email(data['email']):
+        return jsonify({"msg": "Invalid email format"}), 400
+
+    if not is_valid_username(data['username']):
+        return jsonify({"msg": "Username must be 3–20 characters and contain only letters, numbers, underscores, or hyphens"}), 400
+
+    if not is_valid_password(data['password']):
+        return jsonify({"msg": "Password must be at least 8 characters with uppercase, lowercase, digit, and special character"}), 400
+
+    # Check uniqueness
     if AppUser.query.filter_by(username=data['username']).first():
         return jsonify({"msg": "Username already exists"}), 400
     if AppUser.query.filter_by(email=data['email']).first():
@@ -70,7 +102,6 @@ def register():
     token = secrets.token_urlsafe(32)
     expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
 
-    # Create AppUser (NOT verified)
     user = AppUser(
         first_name=data['first_name'],
         last_name=data['last_name'],
@@ -81,7 +112,7 @@ def register():
         email_verified=False,
         verification_token=token,
         verification_token_expires=expires,
-        admin_email=data['email'] 
+        admin_email=data['email']  # ← double-check: is this intentional?
     )
     db.session.add(user)
     db.session.commit()
@@ -90,12 +121,7 @@ def register():
     try:
         frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
         current_app.logger.info(f"[REGISTRATION] About to send verification email. Frontend URL: {frontend_url}")
-        
-        send_verification_email(
-            user.email,
-            token,
-            frontend_url
-        )
+        send_verification_email(user.email, token, frontend_url)
     except Exception as e:
         current_app.logger.error(f"[REGISTRATION] Failed to send verification email: {str(e)}")
         return jsonify({"msg": "Registration successful, but failed to send verification email. Please contact support."}), 201

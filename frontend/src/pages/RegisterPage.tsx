@@ -23,10 +23,51 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const navigate = useNavigate();
 
+  // Validation helpers
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const isValidUsername = (username: string): boolean => {
+    // Allow letters, numbers, underscores, and hyphens; length 3–20
+    const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+    return usernameRegex.test(username);
+  };
+
+  const isValidPassword = (password: string): boolean => {
+    // At least 8 characters, 1 uppercase, 1 lowercase, 1 digit, and 1 special char
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return passwordRegex.test(password);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setMessage(null);
+    setError(false);
     setLoading(true);
+
+    // Frontend validation
+    if (!isValidUsername(formData.username)) {
+      setMessage("Username must be 3–20 characters long and contain only letters, numbers, underscores, or hyphens.");
+      setError(true);
+      setLoading(false);
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      setMessage("Please enter a valid email address.");
+      setError(true);
+      setLoading(false);
+      return;
+    }
+
+    if (!isValidPassword(formData.password)) {
+      setMessage("Password must be at least 8 characters long, include uppercase, lowercase, a number, and a special character.");
+      setError(true);
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await apiClient.post('/api/auth/register', formData);
