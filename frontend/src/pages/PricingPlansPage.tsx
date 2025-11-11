@@ -297,7 +297,7 @@ export default function PricingPlansPage() {
             Need 10, 25, or 50+ licenses? Get volume discounts and dedicated support.
           </p>
           <button className="bg-white text-blue-600 font-semibold px-8 py-3 rounded-md shadow hover:bg-gray-100 transition inline-block">
-            Contact Sales for Custom Quote
+            Contact Sales @ projectsentinelfyp@gmail.com
           </button>
         </section>
 

@@ -1,6 +1,8 @@
 // src/pages/HomePage.tsx
 import { useState } from 'react';
 import sentinelLogo from '../assets/sentinel-icon.svg'; // Used as fallback image for popups
+import { useUserSession } from '../hooks/useUserSession'; 
+import { useNavigate } from 'react-router-dom';
 
 // Define the interface for a feature
 interface Feature {
@@ -11,6 +13,8 @@ interface Feature {
 
 export default function HomePage() {
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
+  const { token } = useUserSession();
+  const navigate = useNavigate();
 
   const features: Feature[] = [
     {
@@ -44,6 +48,14 @@ export default function HomePage() {
       image: "/images/reports.png",
     },
   ];
+
+  const handleGoToDashboard = () => {
+    if (!token) {
+      navigate('/register');
+    } else {
+      navigate('/app/dashboard');
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -123,7 +135,10 @@ export default function HomePage() {
               Log in or get started to monitor threats in real time and turn raw data into defense.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <button className="w-56 bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition">
+              <button
+                onClick={() => handleGoToDashboard()}
+                className="w-56 bg-white text-blue-600 font-semibold px-6 py-3 rounded-md shadow hover:bg-gray-100 transition"
+              >
                 Go to Dashboard
               </button>
               <a
